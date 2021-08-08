@@ -5,7 +5,9 @@
   "author": "kiwec",
   "license": "AGPL-3.0-only",
   "dependencies": {
-    "bancho.js": "^0.9.7"
+    "bancho.js": "^0.9.7",
+    "sqlite": "^4.0.23",
+    "sqlite3": "^5.0.2"
   },
   "devDependencies": {
     "eslint": "^7.32.0",
