@@ -1,0 +1,14 @@
+{
+  "name": "osu_endless_tournament",
+  "version": "1.0.0",
+  "main": "index.js",
+  "author": "kiwec",
+  "license": "AGPL-3.0-only",
+  "dependencies": {
+    "bancho.js": "^0.9.7"
+  },
+  "devDependencies": {
+    "eslint": "^7.32.0",
+    "eslint-config-google": "^0.14.0"
+  }
+}
