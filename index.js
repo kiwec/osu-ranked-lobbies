@@ -58,17 +58,19 @@ async function main() {
   await client.connect();
   console.log('online!');
 
-  const channel = await client.createLobby('150pp maps (auto map select)');
+  const channel = await client.createLobby('200pp maps (auto map select)');
 
-  // const channel = await client.getChannel('#mp_88885659');
+  // const channel = await client.getChannel('#mp_88886138');
   // await channel.join();
+
   // await channel.lobby.closeLobby();
   // await client.disconnect();
   // return;
+
   console.log('lobby id:', channel.lobby.id);
 
   const lobby = channel.lobby;
-  await load_maps(lobby, 150, 10);
+  await load_maps(lobby, 200, 20);
   await lobby.setPassword('');
 
   lobby.on('matchFinished', async (scores) => {
@@ -91,21 +93,13 @@ async function main() {
     await switch_map(lobby);
   });
 
-  lobby.on('playerJoined', async (obj) => {
-    if (obj.player.user.isClient()) {
-      await lobby.setHost('#'+obj.player.user.id);
-    }
-  });
-
-  lobby.on('playerLeft', async (obj) => {
-    if (obj.player.user.isClient()) {
-      await lobby.clearHost();
-    }
-  });
-
   lobby.channel.on('message', async (msg) => {
     if (msg.message == '!start') {
       await lobby.startMatch();
+    }
+
+    if (msg.message == '!skip') {
+      await switch_map(lobby);
     }
 
     if (msg.user.isClient() && msg.message.indexOf('!setpp') == 0) {

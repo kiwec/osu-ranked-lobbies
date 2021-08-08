@@ -13,7 +13,7 @@ for (const map of beatmaps) {
   try {
 	  const pp = JSON.parse(execFileSync(
 		  oppai_exe,
-		  [base_path + '/' + map.path + '/' + map.file, '-ojson'],
+		  [base_path + '/' + map.path + '/' + map.file, '-ojson', '95%'],
 	  ));
 	  map.pp = pp.pp;
 	  count++;
