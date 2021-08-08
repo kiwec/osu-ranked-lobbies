@@ -4,6 +4,10 @@ const sqlite = require('sqlite');
 const Bancho = require('bancho.js');
 const client = new Bancho.BanchoClient(require('./config.json'));
 
+// set this to a lobby id to rejoin it instead of creating a new lobby
+// TODO: detect lobbies? store in db?
+const rejoin_lobby = null;
+
 async function load_maps(lobby, pp, variation) {
   const beatmaps = require('./pp_db/beatmaps_with_pp.json');
   lobby.maps = [];
@@ -37,8 +41,6 @@ async function switch_map(lobby) {
     console.error('failed to change map:', e);
     await switch_map(lobby);
   }
-
-  console.log('switched to map id ' + new_map_id);
 }
 
 async function main() {
@@ -58,20 +60,51 @@ async function main() {
   await client.connect();
   console.log('online!');
 
-  const channel = await client.createLobby('200pp maps (auto map select)');
+  client.on('PM', (msg) => {
+    try {
+      if (msg.message.indexOf('!gimme ') == 0) {
+        if (msg.message.endsWith('pp')) {
+          const pp_str = msg.message.substr('!gimme '.length, msg.message.lastIndexOf('pp'));
+          const pp = parseInt(pp_str, 10);
 
-  // const channel = await client.getChannel('#mp_88886138');
-  // await channel.join();
+          // this is really unoptimized lol
+          const beatmaps = require('./pp_db/beatmaps_with_pp.json');
+          const farmable = {};
+          for (const map of beatmaps) {
+            if (map.pp > pp - 10 && map.pp < pp + 10) {
+              farmable.push(map);
+            }
+          }
 
-  // await channel.lobby.closeLobby();
-  // await client.disconnect();
-  // return;
+          const map = farmable[Math.floor(Math.random()*farmable.length)];
+          const map_name = map.file.substr(0, map.file.lastIndexOf('.')); // remove ".osu"
+          msg.user.sendMessage('[https://osu.ppy.sh/beatmapsets/' + map.set_id + '#osu/' + map.id + ' ' + map_name + '] - 95% acc = ' + map.pp + 'pp');
+        }
+      }
+    } catch (e) {
+      console.error('Error while processing !gimme:', e);
+      console.error('Message that triggered it:', msg.message);
+      msg.user.sendMessage('Sorry, an error occurred while processing that command. Try again maybe?');
+    }
+  });
+
+  let channel = null;
+  if (rejoin_lobby) {
+    channel = await client.getChannel('#mp_' + rejoin_lobby);
+    await channel.join();
+  } else {
+    channel = await client.createLobby('150pp maps (auto map select) !start !skip');
+  }
 
   console.log('lobby id:', channel.lobby.id);
 
   const lobby = channel.lobby;
-  await load_maps(lobby, 200, 20);
+  await load_maps(lobby, 150, 10);
   await lobby.setPassword('');
+
+  lobby.on('allPlayersReady', async () => {
+    await lobby.startMatch();
+  });
 
   lobby.on('matchFinished', async (scores) => {
     console.log('match finished');
