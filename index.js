@@ -150,7 +150,7 @@ async function join_lobby(channel, lobby_info) {
         await switch_map(lobby);
       } catch (e) {
         console.error(`[Lobby ${lobby.id}] ${e}`);
-        await lobby.channel.sendMessage(e);
+        await lobby.channel.sendMessage(e.toString());
       }
     }
   });
@@ -221,7 +221,7 @@ async function main() {
         await channel.lobby.invitePlayer(msg.user.ircUsername);
       } catch (e) {
         console.error(`-> ${msg.user.ircUsername}: ${e}`);
-        await msg.user.sendMessage(e);
+        await msg.user.sendMessage(e.toString());
       }
 
       return;
