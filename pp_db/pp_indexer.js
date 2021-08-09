@@ -1,5 +1,8 @@
 const {execFileSync} = require('child_process');
 
+const sqlite3 = require('sqlite3');
+const sqlite = require('sqlite');
+
 const beatmaps = require('./beatmaps.json');
 console.log(beatmaps.length, 'beatmaps to scan for pp');
 
@@ -7,21 +10,61 @@ console.log(beatmaps.length, 'beatmaps to scan for pp');
 const base_path = '/home/kiwec/Games/osu/drive_c/osu/Songs';
 const oppai_exe = '/home/kiwec/Documents/oppai-ng/oppai';
 
-let count = 0;
-for (const map of beatmaps) {
-  // yes this is insecure ik
-  try {
-	  const pp = JSON.parse(execFileSync(
-		  oppai_exe,
-		  [base_path + '/' + map.path + '/' + map.file, '-ojson', '95%'],
-	  ));
-	  map.pp = pp.pp;
-	  count++;
-	  console.log(count + '/' + beatmaps.length, 'map', map.id, ':', pp.pp, 'pp');
-  } catch (e) {
-    console.log('map', map.id, 'sucks, ignoring');
+async function main() {
+  const map_db = await sqlite.open({
+    filename: 'maps.db',
+    driver: sqlite3.Database,
+  });
+
+  await map_db.exec(`CREATE TABLE map (
+    id INTEGER,
+    set_id INTEGER,
+    file TEXT,
+    stars REAL,
+    bpm REAL,
+    cs REAL,
+    ar REAL,
+    od REAL,
+    length REAL,
+    "95%pp" REAL,
+    "100%pp" REAL
+  )`);
+
+  let count = 0;
+  for (const map of beatmaps) {
+	  // yes this is insecure ik
+	  try {
+		  const _95pp = JSON.parse(execFileSync(
+			  oppai_exe,
+			  [base_path + '/' + map.path + '/' + map.file, '-ojson', '95%'],
+		  ));
+		  const _100pp = JSON.parse(execFileSync(
+			  oppai_exe,
+			  [base_path + '/' + map.path + '/' + map.file, '-ojson', '100%'],
+		  ));
+
+	    await map_db.run(
+	      'INSERT INTO map (id, set_id, file, stars, bpm, cs, ar, od, length, "95%pp", "100%pp") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+	      map.id,
+	      map.set_id,
+	      map.file,
+	      _100pp.stars,
+	      map.bpm,
+	      map.cs,
+	      map.ar,
+	      map.od,
+	      map.length,
+	      _95pp.pp,
+	      _100pp.pp,
+	    );
+
+		  count++;
+		  console.log(count + '/' + beatmaps.length, '| map:', map.id);
+	  } catch (e) {
+	  	console.error(e);
+	    console.log('map', map.id, 'sucks, ignoring');
+	  }
   }
 }
 
-const fs = require('fs');
-fs.writeFileSync('beatmaps_with_pp.json', JSON.stringify(beatmaps));
+main();
