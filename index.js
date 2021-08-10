@@ -78,7 +78,7 @@ async function switch_map(lobby) {
   lobby.recent_maps.push(new_map.id);
 
   try {
-    await lobby.setMap(new_map.id, 0);
+    await lobby.setMap(new_map.id);
   } catch (e) {
     console.error(`[Lobby ${lobby.id}] Failed to switch to map ${new_map.id} ${new_map.file}:`, e);
   }
@@ -210,6 +210,7 @@ async function main() {
       try {
         const lobby_info = await get_map_query(msg);
         console.log(`Creating lobby for ${lobby_info.creator}...`);
+        await msg.user.sendMessage(`Creating a lobby with ${lobby_info.nb_maps} maps...`);
         const channel = await client.createLobby(`${lobby_info.creator}'s automap lobby`);
         await join_lobby(channel, lobby_info);
         await channel.lobby.setPassword('');
