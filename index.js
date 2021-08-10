@@ -126,8 +126,8 @@ async function join_lobby(channel, lobby_info) {
     }
 
     if (nb_players == 0) {
+      await lobby_db.run(`DELETE FROM lobby WHERE lobby_id = ?`, lobby.id);
       await lobby.closeLobby();
-      await lobby_db.run(`DELETE FROM lobby WHERE lobby_id = ?`, lobby_info.lobby_id);
       console.log('Closed lobby ' + lobby.id);
     }
   });
@@ -231,14 +231,14 @@ async function main() {
       try {
         const map_info = await get_map_query(msg);
         const offset = Math.floor(Math.random() * map_info.nb_maps);
-        const map = await lobby_db.get(map_info.query + ' limit 1 offset ' + offset);
+        const map = await map_db.get(map_info.query + ' limit 1 offset ' + offset);
         const map_name = map.file.substr(0, map.file.lastIndexOf('.')); // remove ".osu"
         const str = '[https://osu.ppy.sh/beatmapsets/' + map.set_id + '#osu/' + map.id + ' ' + map_name + ']';
         console.log(`-> ${msg.user.ircUsername}: ${str}`);
         await msg.user.sendMessage(str);
       } catch (e) {
         console.error(`-> ${msg.user.ircUsername}: ${e}`);
-        await msg.user.sendMessage('Sorry, an error occurred while processing that command. Try again maybe?');
+        await msg.user.sendMessage(e.toString());
       }
     }
   });
