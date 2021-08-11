@@ -232,6 +232,7 @@ async function main() {
         const channel = await client.createLobby(`${lobby_info.creator}'s automap lobby`);
         await join_lobby(channel, lobby_info);
         await channel.lobby.addRef(lobby_info.creator);
+        await channel.lobby.setMods('', true); // enable freemod
         await channel.lobby.setPassword('');
         await switch_map(channel.lobby);
         await lobby_db.run(
