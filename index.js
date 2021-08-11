@@ -64,6 +64,11 @@ async function get_map_query(msg) {
 }
 
 async function switch_map(lobby) {
+  // When the bot restarts, re-add the currently selected map to recent maps
+  if (!lobby.recent_maps.includes(lobby.beatmapId)) {
+    lobby.recent_maps.push(lobby.beatmapId);
+  }
+
   if (lobby.recent_maps.length > 20) {
     lobby.recent_maps.shift();
   }
@@ -111,6 +116,15 @@ async function join_lobby(channel, lobby_info) {
     }
 
     await switch_map(lobby);
+  });
+
+  // After the host finishes playing, their client resets the map to the one they played.
+  // Because we change the map *before* they rejoin the lobby, we need to re-select our map.
+  // We could also remove host altogether, but not sure if that's a better solution...
+  lobby.on('beatmapId', async (beatmap_id) => {
+    if (lobby.recent_maps.length >= 2 && lobby.recent_maps[lobby.recent_maps.length-2] == beatmap_id) {
+      await lobby.setMap(lobby.recent_maps[lobby.recent_maps.length-1]);
+    }
   });
 
   lobby.on('playerJoined', async (obj) => {
