@@ -83,7 +83,8 @@ async function switch_map(lobby) {
   lobby.recent_maps.push(new_map.id);
 
   try {
-    await lobby.setMap(new_map.id);
+    const flavor = `${new_map.stars.toFixed(2)}*, 95%: ${new_map['95%pp']}pp, 100%: ${new_map['100%pp']}pp`;
+    await lobby.channel.sendMessage(`!mp map ${new_map.id} 0 - (${flavor}) ${lobby.randomString()}`);
   } catch (e) {
     console.error(`[Lobby ${lobby.id}] Failed to switch to map ${new_map.id} ${new_map.file}:`, e);
   }
@@ -151,13 +152,6 @@ async function join_lobby(channel, lobby_info) {
     const host = lobby.getHost();
     let host_id = null;
     if (host != null) host_id = host.user.id;
-
-    // Lobby should close after all players leave, but:
-    // 1) Sometimes, that doesn't happen due to a bug
-    // 2) Some people don't know this and try to close it like other bot lobbies
-    if (msg.user.id == host_id && msg.message == '!mp close') {
-      await lobby.closeLobby();
-    }
 
     if (msg.user.id == host_id && msg.message == '!skip') {
       await switch_map(lobby);
@@ -237,6 +231,7 @@ async function main() {
         await msg.user.sendMessage(`Creating a lobby with ${lobby_info.nb_maps} maps...`);
         const channel = await client.createLobby(`${lobby_info.creator}'s automap lobby`);
         await join_lobby(channel, lobby_info);
+        await channel.lobby.addRef(lobby_info.creator);
         await channel.lobby.setPassword('');
         await switch_map(channel.lobby);
         await lobby_db.run(
