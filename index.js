@@ -83,7 +83,7 @@ async function switch_map(lobby) {
   lobby.recent_maps.push(new_map.id);
 
   try {
-    const flavor = `${new_map.stars.toFixed(2)}*, 95%: ${new_map['95%pp']}pp, 100%: ${new_map['100%pp']}pp`;
+    const flavor = `${new_map.stars.toFixed(2)}*, 95%: ${Math.floor(new_map['95%pp'])}pp, 100%: ${Math.floor(new_map['100%pp'])}pp`;
     await lobby.channel.sendMessage(`!mp map ${new_map.id} 0 - (${flavor}) ${lobby.randomString()}`);
   } catch (e) {
     console.error(`[Lobby ${lobby.id}] Failed to switch to map ${new_map.id} ${new_map.file}:`, e);
