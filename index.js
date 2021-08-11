@@ -22,7 +22,7 @@ function get_filter(arg) {
       if (filter == 'pp95%') filter = '95%pp';
       if (filter == 'pp100%') filter = '100%pp';
 
-      const value = parseInt(arg.split(operator)[1], 10);
+      const value = parseFloat(arg.split(operator)[1], 10);
       return `"${filter}" ${operator} ${value}`;
     }
   }
