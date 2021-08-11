@@ -134,12 +134,22 @@ async function join_lobby(channel, lobby_info) {
 
   lobby.channel.on('message', async (msg) => {
     console.log(`[Lobby ${lobby.id}] ${msg.user.ircUsername}: ${msg.message}`);
+    const host = lobby.getHost();
+    let host_id = null;
+    if (host != null) host_id = host.user.id;
 
-    if (msg.user.ircUsername == lobby.info.creator && msg.message == '!skip') {
+    // Lobby should close after all players leave, but:
+    // 1) Sometimes, that doesn't happen due to a bug
+    // 2) Some people don't know this and try to close it like other bot lobbies
+    if (msg.user.id == host_id && msg.message == '!mp close') {
+      await lobby.closeLobby();
+    }
+
+    if (msg.user.id == host_id && msg.message == '!skip') {
       await switch_map(lobby);
     }
 
-    if (msg.user.ircUsername == lobby.info.creator && msg.message.indexOf('!setfilter') == 0) {
+    if (msg.user.id == host_id && msg.message.indexOf('!setfilter') == 0) {
       try {
         lobby.info = await get_map_query(msg);
         await lobby_db.run(
