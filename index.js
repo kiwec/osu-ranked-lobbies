@@ -224,6 +224,16 @@ async function main() {
   client.on('PM', async (msg) => {
     console.log(`[PM] ${msg.user.ircUsername}: ${msg.message}`);
 
+    if (msg.message.indexOf('!help') == 0) {
+      await msg.user.sendMessage('The full command list is on my profile. :)');
+      return;
+    }
+
+    if (msg.message.indexOf('!setfilter') == 0 || msg.message.indexOf('!skip') == 0) {
+      await msg.user.sendMessage('Sorry, you should send that command in #multiplayer.');
+      return;
+    }
+
     if (msg.message.indexOf('!makelobby') == 0 || msg.message.indexOf('!createlobby') == 0) {
       try {
         const lobby_info = await get_map_query(msg);
@@ -261,6 +271,8 @@ async function main() {
         console.error(`-> ${msg.user.ircUsername}: ${e}`);
         await msg.user.sendMessage(e.toString());
       }
+
+      return;
     }
   });
 
