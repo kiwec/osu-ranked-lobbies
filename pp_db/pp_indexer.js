@@ -10,6 +10,21 @@ console.log(beatmaps.length, 'beatmaps to scan for pp');
 const base_path = '/home/kiwec/Games/osu/drive_c/osu/Songs';
 const oppai_exe = '/home/kiwec/Documents/oppai-ng/oppai';
 
+async function altmain() {
+  const map_db = await sqlite.open({
+    filename: 'maps_test.db',
+    driver: sqlite3.Database,
+  });
+
+  await map_db.exec(`CREATE TABLE map (id INTEGER, set_id INTEGER, osufile TEXT)`);
+  let count = 0;
+  for (const map of beatmaps) {
+  	await map_db.run('INSERT INTO map (id, set_id, osufile) VALUES (?, ?, ?)', map.id, map.set_id, map.path + '/' + map.file);
+	  count++;
+	  console.log(count + '/' + beatmaps.length, '| map:', map.id);
+  }
+}
+
 async function main() {
   const map_db = await sqlite.open({
     filename: 'maps.db',
@@ -67,4 +82,4 @@ async function main() {
   }
 }
 
-main();
+altmain();
