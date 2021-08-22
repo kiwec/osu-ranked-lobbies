@@ -42,6 +42,7 @@ function parse_mods(arg) {
   const mods = [];
   for (let i = 0; i += 2; i < arg.length) {
     let current_arg = arg.substr(i, i+2);
+    if (current_arg == '') break; // lol im tired someone fix this
     if (current_arg == 'NC') current_arg = 'DT';
     if (!allowed_mods.includes(current_arg)) {
       throw new Error(`Mod '${current_arg}' is not allowed.`);
@@ -69,7 +70,7 @@ function build_query(filters, mods) {
       if (mods.includes('HD')) filter_name = 'hd' + filter_name;
     }
 
-    query_filters.append(`${filter_name} ${filter.operator} ${filter.value}`);
+    query_filters.push(`"${filter_name}" ${filter.operator} ${filter.value}`);
   }
 
   return 'from ' + table_name + ' where ' + (query_filters.join(' AND '));
