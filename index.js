@@ -15,12 +15,14 @@ function get_filter(arg) {
 
   for (const operator of allowed_operators) {
     if (arg.includes(operator)) {
-      const filter = arg.split(operator)[0].toLowerCase();
+      let filter = arg.split(operator)[0].toLowerCase();
       if (!allowed_filters.includes(filter)) {
         throw new Error(`Filter '${filter}' is not allowed.`);
       }
 
+      if (filter == '95%pp') filter = 'pp95';
       if (filter == 'pp95%') filter = 'pp95';
+      if (filter == '100%pp') filter = 'pp100';
       if (filter == 'pp100%') filter = 'pp100';
 
 
@@ -33,22 +35,25 @@ function get_filter(arg) {
 }
 
 function parse_mods(arg) {
-  arg = arg.substr(1).toUpperCase();
-  if (arg.length == 0 || arg.length % 2 == 1) {
+  arg = arg.toUpperCase();
+  if (arg.length < 3 || arg.length % 2 == 0) {
     throw new Error('Invalid mod list. For command usage, check my profile.');
   }
 
   const allowed_mods = ['HD', 'FL', 'EZ', 'HR', 'HT', 'DT', 'NC'];
   const mods = [];
-  for (let i = 0; i += 2; i < arg.length) {
-    let current_arg = arg.substr(i, i+2);
-    if (current_arg == '') break; // lol im tired someone fix this
+  let i = 1;
+  while (true) {
+    if (i >= arg.length) break;
+
+    let current_arg = arg[i] + arg[i+1];
     if (current_arg == 'NC') current_arg = 'DT';
     if (!allowed_mods.includes(current_arg)) {
       throw new Error(`Mod '${current_arg}' is not allowed.`);
     }
 
     mods.push(current_arg);
+    i += 2;
   }
 
   return mods;
@@ -88,7 +93,7 @@ async function get_map_query(msg) {
   let mods = [];
   for (const arg of args) {
     if (arg.indexOf('+') == 0) {
-      mods = [...mods, parse_mods(arg)];
+      mods = [...mods, ...parse_mods(arg)];
 
       if (mods.includes('EZ') && mods.includes('HR')) {
         throw new Error('Cannot use both EZ and HR mods at the same time.');
@@ -142,12 +147,12 @@ async function switch_map(lobby) {
     new_map = await map_db.get('select * ' + lobby.info.query + ' limit 1 offset ' + offset);
   } while (lobby.recent_maps.includes(new_map.id));
 
-  console.log(`[Lobby ${lobby.id}] New map: ${new_map.id} ${new_map.file}`);
+  console.log(`[Lobby ${lobby.id}] New map: ${new_map.id}`);
   lobby.recent_maps.push(new_map.id);
 
   try {
-    const flavor = `${new_map.stars.toFixed(2)}*, 95%: ${Math.floor(new_map['95%pp'])}pp, 100%: ${Math.floor(new_map['100%pp'])}pp`;
-    await lobby.channel.sendMessage(`!mp map ${new_map.id} 0 - (${flavor}) ${lobby.randomString()}`);
+    const flavor = `${new_map.stars.toFixed(2)}*`;
+    await lobby.channel.sendMessage(`!mp map ${new_map.id} 0 - (${flavor} with mods) ${lobby.randomString()}`);
   } catch (e) {
     console.error(`[Lobby ${lobby.id}] Failed to switch to map ${new_map.id} ${new_map.file}:`, e);
   }
@@ -307,7 +312,7 @@ async function main() {
         await channel.lobby.setPassword('');
         await channel.lobby.invitePlayer(msg.user.ircUsername);
         await channel.lobby.addRef(lobby_info.creator);
-        await channel.lobby.setMods(lobby_info.mods.join(''), true); // true = enable freemod
+        await channel.sendMessage('!mp mods freemod ' + lobby_info.mods.join(' '));
         await switch_map(channel.lobby);
         await lobby_db.run(
             'insert into lobby (lobby_id, creator, nb_maps, query) values (?, ?, ?, ?)',
