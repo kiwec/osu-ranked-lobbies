@@ -141,13 +141,14 @@ function parse_filter_string(filter_string) {
   return {filters, mods};
 }
 
-async function get_map_query(msg) {
-  const args = msg.message.split(' ');
+// Edits the given "lobby_info" object, see end of function for modified values
+async function update_lobby_filters(lobby_info, filter_string) {
+  const args = filter_string.split(' ');
   if (args.length < 2) {
     throw new Error('Missing map selection criteria. For command usage, check my profile.');
   }
   args.shift(); // ignore !createlobby or !setfilters
-  const filter_string = args.join(' ');
+  filter_string = args.join(' ');
 
   const {filters, mods} = parse_filter_string(filter_string);
   const query = build_query(filters, mods);
@@ -158,13 +159,10 @@ async function get_map_query(msg) {
     throw new Error('No maps found for your criteria. Try being less restrictive.');
   }
 
-  return {
-    creator: msg.user.ircUsername,
-    nb_maps: res.nb_maps,
-    filters: filter_string,
-    mods: mods,
-    query: query,
-  };
+  lobby_info.nb_maps = res.nb_maps;
+  lobby_info.filters = filter_string;
+  lobby_info.mods = mods;
+  lobby_info.query = query;
 }
 
 async function switch_map(lobby) {
@@ -249,7 +247,7 @@ async function join_lobby(channel, lobby_info) {
 
     if (msg.user.id == host_id && msg.message.indexOf('!setfilter') == 0) {
       try {
-        lobby.info = await get_map_query(msg);
+        await update_lobby_filters(lobby.info, msg.message);
         await lobby_db.run(
             'update lobby set filters = ? where lobby_id = ?',
             lobby.info.filters, lobby.id,
@@ -289,7 +287,13 @@ async function main() {
     try {
       const channel = await client.getChannel('#mp_' + lobby_info.lobby_id);
       await channel.join();
-      await join_lobby(channel, lobby_info);
+
+      const full_info = {
+        creator: lobby_info.creator,
+      };
+      await update_lobby_filters(full_info, lobby_info.filters);
+
+      await join_lobby(channel, full_info);
       console.log('Rejoined lobby ' + lobby_info.lobby_id);
     } catch (e) {
       console.error('Could not rejoin lobby ' + lobby_info.lobby_id + ':', e);
@@ -312,7 +316,8 @@ async function main() {
 
     if (msg.message.indexOf('!makelobby') == 0 || msg.message.indexOf('!createlobby') == 0) {
       try {
-        const lobby_info = await get_map_query(msg);
+        const lobby_info = {creator: msg.user.ircUsername};
+        await update_lobby_filters(lobby_info, msg.message);
         console.log(`Creating lobby for ${lobby_info.creator}...`);
         await msg.user.sendMessage(`Creating a lobby with ${lobby_info.nb_maps} maps...`);
         const channel = await client.createLobby(`${lobby_info.creator}'s automap lobby`);
