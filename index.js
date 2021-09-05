@@ -333,23 +333,6 @@ async function main() {
 
       return;
     }
-
-    if (msg.message.indexOf('!gimme') == 0) {
-      try {
-        const map_info = await get_map_query(msg);
-        const offset = Math.floor(Math.random() * map_info.nb_maps);
-        const map = await map_db.get('select * ' + map_info.query + ' limit 1 offset ' + offset);
-        const map_name = map.file.substr(0, map.file.lastIndexOf('.')); // remove ".osu"
-        const str = '[https://osu.ppy.sh/beatmapsets/' + map.set_id + '#osu/' + map.id + ' ' + map_name + ']';
-        console.log(`-> ${msg.user.ircUsername}: ${str}`);
-        await msg.user.sendMessage(str);
-      } catch (e) {
-        console.error(`-> ${msg.user.ircUsername}: ${e}`);
-        await msg.user.sendMessage(e.toString());
-      }
-
-      return;
-    }
   });
 
   console.log('We\'re good to go.');
