@@ -6,25 +6,17 @@ const client = new Bancho.BanchoClient(require('./config.json'));
 
 let lobby_db = null;
 let map_db = null;
-let score_db = null;
 
 function get_filter(arg) {
-  // TODO: re-add length and bpm filters
-  const allowed_filters = ['stars', 'cs', 'ar', 'od', '95%pp', '100%pp', 'pp95%', 'pp100%'];
-  const allowed_operators = ['<=', '>=', '==', '>', '<'];
+  const allowed_filters = ['stars', 'length', 'bpm', 'cs', 'ar', 'od', '95%pp', '100%pp', 'pp95%', 'pp100%'];
+  const allowed_operators = ['<=', '>=', '==', '>', '<', '='];
 
   for (const operator of allowed_operators) {
     if (arg.includes(operator)) {
-      let filter = arg.split(operator)[0].toLowerCase();
+      const filter = arg.split(operator)[0].toLowerCase();
       if (!allowed_filters.includes(filter)) {
         throw new Error(`Filter '${filter}' is not allowed.`);
       }
-
-      if (filter == '95%pp') filter = 'pp95';
-      if (filter == 'pp95%') filter = 'pp95';
-      if (filter == '100%pp') filter = 'pp100';
-      if (filter == 'pp100%') filter = 'pp100';
-
 
       const value = parseFloat(arg.split(operator)[1], 10);
       return {filter, operator, value};
@@ -60,37 +52,70 @@ function parse_mods(arg) {
 }
 
 function build_query(filters, mods) {
-  let table_name = '';
-  if (mods.includes('EZ')) table_name += 'ez';
-  if (mods.includes('HR')) table_name += 'hr';
-  if (mods.includes('DT')) table_name += 'dt';
-  if (mods.includes('HT')) table_name += 'ht';
-  if (table_name == '') table_name = 'nm';
+  const MODS_NOMOD = 0;
+  const MODS_NF = (1<<0);
+  const MODS_EZ = (1<<1);
+  const MODS_TD = (1<<2);
+  const MODS_HD = (1<<3);
+  const MODS_HR = (1<<4);
+  const MODS_SD = (1<<5);
+  const MODS_DT = (1<<6);
+  const MODS_RX = (1<<7);
+  const MODS_HT = (1<<8);
+  const MODS_NC = (1<<9);
+  const MODS_FL = (1<<10);
+  const MODS_AT = (1<<11);
+  const MODS_SO = (1<<12);
+  const MODS_AP = (1<<13);
+  const MODS_PF = (1<<14);
+  const MODS_95ACC = (1<<15);
+  const MODS_100ACC = (1<<16);
 
-  const query_filters = [];
+  let enabled_mods = MODS_NOMOD;
+
+  if (mods.includes('EZ')) enabled_mods |= MODS_EZ;
+  if (mods.includes('HR')) enabled_mods |= MODS_HR;
+  if (mods.includes('DT')) enabled_mods |= MODS_DT;
+  if (mods.includes('HT')) enabled_mods |= MODS_HT;
+  if (mods.includes('FL')) enabled_mods |= MODS_FL;
+  if (mods.includes('HD')) enabled_mods |= MODS_HD;
+
   for (const filter of filters) {
-    let filter_name = filter.filter;
-    if (filter_name == 'pp95' || filter_name == 'pp100') {
-      if (mods.includes('FL')) filter_name = 'fl' + filter_name;
-      if (mods.includes('HD')) filter_name = 'hd' + filter_name;
+    const filter_name = filter.filter;
+
+    if (filter_name == 'length') {
+      if (mods.includes('DT')) {
+        filter.value /= 1.5;
+      } else if (mods.includes('HT')) {
+        filter.value /= 0.75;
+      }
     }
 
-    query_filters.push(`"${filter_name}" ${filter.operator} ${filter.value}`);
+    if (filter_name == 'bpm') {
+      if (mods.includes('DT')) {
+        filter.value *= 1.5;
+      } else if (mods.includes('HT')) {
+        filter.value *= 0.75;
+      }
+    }
+
+    if (filter_name == '95%pp' || filter_name == 'pp95%') {
+      query_filters.push(`(mods == ${enabled_mods & MODS_95ACC} AND pp ${filter.operator} ${filter.value})`);
+    } else if (filter_name == '100%pp' || filter_name == 'pp100%') {
+      query_filters.push(`(mods == ${enabled_mods & MODS_100ACC} AND pp ${filter.operator} ${filter.value})`);
+    } else {
+      query_filters.push(`"${filter_name}" ${filter.operator} ${filter.value}`);
+    }
   }
 
-  return 'from ' + table_name + ' where ' + (query_filters.join(' AND '));
+  return 'from pp inner join map on map.id = pp.map_id where ' + (query_filters.join(' AND '));
 }
 
-async function get_map_query(msg) {
-  const args = msg.message.split(' ');
-  if (args.length < 2) {
-    throw new Error('Missing map selection criteria. For command usage, check my profile.');
-  }
-  args.shift(); // ignore !createlobby or !setfilters
-
-  // Collect filters and mods from command arguments
+function parse_filter_string(filter_string) {
   const filters = [];
   let mods = [];
+
+  const args = filter_string.split(' ');
   for (const arg of args) {
     if (arg.indexOf('+') == 0) {
       mods = [...mods, ...parse_mods(arg)];
@@ -113,20 +138,31 @@ async function get_map_query(msg) {
     }
   }
 
+  return {filters, mods};
+}
+
+async function get_map_query(msg) {
+  const args = msg.message.split(' ');
+  if (args.length < 2) {
+    throw new Error('Missing map selection criteria. For command usage, check my profile.');
+  }
+  args.shift(); // ignore !createlobby or !setfilters
+  const filter_string = args.join(' ');
+
+  const {filters, mods} = parse_filter_string(filter_string);
   const query = build_query(filters, mods);
 
   // Get number of matching maps
   const res = await map_db.get('select count(*) as nb_maps ' + query);
   if (res.nb_maps == 0) {
     throw new Error('No maps found for your criteria. Try being less restrictive.');
-  } else if (res.nb_maps < 25) {
-    // We need >20 maps because of the "recent_maps" buffer we're using.
-    throw new Error('Not enough maps found for your criteria. Try being less restrictive.');
   }
 
   return {
     creator: msg.user.ircUsername,
     nb_maps: res.nb_maps,
+    filters: filter_string,
+    mods: mods,
     query: query,
   };
 }
@@ -137,7 +173,7 @@ async function switch_map(lobby) {
     lobby.recent_maps.push(lobby.beatmapId);
   }
 
-  if (lobby.recent_maps.length > 20) {
+  if (lobby.recent_maps.length >= Math.min(lobby.info.nb_maps, 25)) {
     lobby.recent_maps.shift();
   }
 
@@ -170,20 +206,6 @@ async function join_lobby(channel, lobby_info) {
 
   lobby.on('matchFinished', async (scores) => {
     console.log(`[Lobby ${lobby.id}] Finished match.`);
-
-    const tms = Date.now();
-    for (const score of scores) {
-      console.log(score.player.user.ircUsername, 'got score:', score.score);
-      await score_db.run(
-          'INSERT INTO score VALUES (?, ?, ?, ?, ?)',
-          score.player.user.ircUsername,
-          lobby.id,
-          lobby.beatmapId,
-          tms,
-          score.score,
-      );
-    }
-
     await switch_map(lobby);
   });
 
@@ -229,8 +251,8 @@ async function join_lobby(channel, lobby_info) {
       try {
         lobby.info = await get_map_query(msg);
         await lobby_db.run(
-            'update lobby set nb_maps = ?, query = ? where lobby_id = ?',
-            lobby.info.nb_maps, lobby.info.query, lobby.id,
+            'update lobby set filters = ? where lobby_id = ?',
+            lobby.info.filters, lobby.id,
         );
         await lobby.channel.sendMessage(`Updated filters, there are now ${lobby.info.nb_maps} maps in rotation. Switching map...`);
         await switch_map(lobby);
@@ -253,24 +275,10 @@ async function main() {
     driver: sqlite3.Database,
   });
 
-  score_db = await sqlite.open({
-    filename: 'scores.db',
-    driver: sqlite3.Database,
-  });
-
   await lobby_db.exec(`CREATE TABLE IF NOT EXISTS lobby (
     lobby_id INTEGER,
     creator TEXT,
-    nb_maps INTEGER,
-    query TEXT
-  )`);
-
-  await score_db.exec(`CREATE TABLE IF NOT EXISTS score (
-    username TEXT,
-    lobby_id INTEGER,
-    map_id INTEGER,
-    tms INTEGER,
-    score INTEGER
+    filters TEXT
   )`);
 
   await client.connect();
@@ -315,8 +323,8 @@ async function main() {
         await channel.sendMessage('!mp mods freemod ' + lobby_info.mods.join(' '));
         await switch_map(channel.lobby);
         await lobby_db.run(
-            'insert into lobby (lobby_id, creator, nb_maps, query) values (?, ?, ?, ?)',
-            channel.lobby.id, msg.user.ircUsername, lobby_info.nb_maps, lobby_info.query,
+            'insert into lobby (lobby_id, creator, filters) values (?, ?, ?, ?)',
+            channel.lobby.id, msg.user.ircUsername, lobby_info.filters,
         );
       } catch (e) {
         console.error(`-> ${msg.user.ircUsername}: ${e}`);
