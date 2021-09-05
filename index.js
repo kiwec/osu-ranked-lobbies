@@ -81,6 +81,7 @@ function build_query(filters, mods) {
   if (mods.includes('FL')) enabled_mods |= MODS_FL;
   if (mods.includes('HD')) enabled_mods |= MODS_HD;
 
+  const query_filters = [];
   for (const filter of filters) {
     const filter_name = filter.filter;
 
@@ -100,11 +101,17 @@ function build_query(filters, mods) {
       }
     }
 
-    if (filter_name == '95%pp' || filter_name == 'pp95%') {
-      query_filters.push(`(mods == ${enabled_mods & MODS_95ACC} AND pp ${filter.operator} ${filter.value})`);
+    if (['stars', 'cs', 'ar', 'od'].includes(filter_name)) {
+      // These filters vary depending on some mods - so we need to use the right mods value.
+      query_filters.push(`((mods == ${enabled_mods | MODS_95ACC} OR mods == ${enabled_mods | MODS_100ACC}) AND ${filter_name} ${filter.operator} ${filter.value})`);
+    } else if (filter_name == '95%pp' || filter_name == 'pp95%') {
+      // pp depends on accuracy
+      query_filters.push(`(mods == ${enabled_mods | MODS_95ACC} AND pp ${filter.operator} ${filter.value})`);
     } else if (filter_name == '100%pp' || filter_name == 'pp100%') {
-      query_filters.push(`(mods == ${enabled_mods & MODS_100ACC} AND pp ${filter.operator} ${filter.value})`);
+      // pp depends on accuracy
+      query_filters.push(`(mods == ${enabled_mods | MODS_100ACC} AND pp ${filter.operator} ${filter.value})`);
     } else {
+      // Static filters (number of notes, etc)
       query_filters.push(`"${filter_name}" ${filter.operator} ${filter.value}`);
     }
   }
@@ -153,6 +160,7 @@ async function update_lobby_filters(lobby_info, filter_string) {
 
   const {filters, mods} = parse_filter_string(filter_string);
   const query = build_query(filters, mods);
+  console.log(query);
 
   // Get number of matching maps
   const res = await map_db.get('select count(*) as nb_maps ' + query);
@@ -187,7 +195,9 @@ async function switch_map(lobby) {
 
   try {
     const flavor = `${new_map.stars.toFixed(2)}*, ${Math.floor(new_map.pp)}pp`;
-    await lobby.channel.sendMessage(`!mp map ${new_map.id} 0 ${new_map.name} (${flavor} with mods) [https://api.chimu.moe/v1/download/${new_map.id}?n=1&r=${lobby.randomString()} Direct download]`);
+    const map_name = `[https://osu.ppy.sh/beatmapsets/${new_map.set_id}#osu/${new_map.id} ${new_map.name}]`;
+    const download_link = `[https://api.chimu.moe/v1/download/${new_map.set_id}?n=1&r=${lobby.randomString()} Direct download]`;
+    await lobby.channel.sendMessage(`!mp map ${new_map.id} 0 | ${map_name} (${flavor} with mods) ${download_link}`);
   } catch (e) {
     console.error(`[Lobby ${lobby.id}] Failed to switch to map ${new_map.id} ${new_map.file}:`, e);
   }
@@ -281,7 +291,7 @@ async function main() {
   )`);
 
   await lobby_db.exec(`CREATE TABLE IF NOT EXISTS updates (
-    user_id INTEGER,
+    username TEXT,
     last_version TEXT
   )`);
 
@@ -312,16 +322,16 @@ async function main() {
 
     // Check for updates
     if (msg.message.indexOf('!') == 0) {
-      const update = await lobby_db.get('select * from updates where user_id = ?', msg.user.id);
+      const update = await lobby_db.get('select * from updates where username = ?', msg.user.ircUsername);
       if (!update) {
         await lobby_db.run(
-            'insert into updates (user_id, last_version) values (?, ?)',
-            msg.user.id, CURRENT_VERSION,
+            'insert into updates (username, last_version) values (?, ?)',
+            msg.user.ircUsername, CURRENT_VERSION,
         );
       } else if (update.last_version != CURRENT_VERSION) {
         await lobby_db.run(
-            'update updates set last_version = ? where user_id = ?',
-            CURRENT_VERSION, msg.user.id,
+            'update updates set last_version = ? where username = ?',
+            CURRENT_VERSION, msg.user.ircUsername,
         );
         await msg.user.sendMessage(`The bot has been updated to version ${CURRENT_VERSION}. For more details, [https://kiwec.net/blog/posts/osu-bot-update-2021-09-05 check out the changelog.]`);
       }
@@ -351,7 +361,7 @@ async function main() {
         await channel.sendMessage('!mp mods freemod ' + lobby_info.mods.join(' '));
         await switch_map(channel.lobby);
         await lobby_db.run(
-            'insert into lobby (lobby_id, creator, filters) values (?, ?, ?, ?)',
+            'insert into lobby (lobby_id, creator, filters) values (?, ?, ?)',
             channel.lobby.id, msg.user.ircUsername, lobby_info.filters,
         );
       } catch (e) {
@@ -362,6 +372,11 @@ async function main() {
       return;
     }
   });
+
+  // await client.emit('PM', {
+  //   message: '!makelobby stars>4.8 stars<5.2 +HDDT',
+  //   user: client.getSelf(),
+  // });
 
   console.log('We\'re good to go.');
 }
