@@ -185,8 +185,8 @@ async function switch_map(lobby) {
   lobby.recent_maps.push(new_map.id);
 
   try {
-    const flavor = `${new_map.stars.toFixed(2)}*`;
-    await lobby.channel.sendMessage(`!mp map ${new_map.id} 0 - (${flavor} with mods) ${lobby.randomString()}`);
+    const flavor = `${new_map.stars.toFixed(2)}*, ${Math.floor(new_map.pp)}pp`;
+    await lobby.channel.sendMessage(`!mp map ${new_map.id} 0 ${new_map.name} (${flavor} with mods) [https://api.chimu.moe/v1/download/${new_map.id}?n=1&r=${lobby.randomString()} Direct download]`);
   } catch (e) {
     console.error(`[Lobby ${lobby.id}] Failed to switch to map ${new_map.id} ${new_map.file}:`, e);
   }
