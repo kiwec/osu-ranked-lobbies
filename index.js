@@ -3,6 +3,7 @@ const sqlite = require('sqlite');
 
 const Bancho = require('bancho.js');
 const client = new Bancho.BanchoClient(require('./config.json'));
+const CURRENT_VERSION = require('./package.json').version;
 
 let lobby_db = null;
 let map_db = null;
@@ -279,6 +280,11 @@ async function main() {
     filters TEXT
   )`);
 
+  await lobby_db.exec(`CREATE TABLE IF NOT EXISTS updates (
+    user_id INTEGER,
+    last_version TEXT
+  )`);
+
   await client.connect();
   console.log('Connected to bancho!');
 
@@ -303,6 +309,23 @@ async function main() {
 
   client.on('PM', async (msg) => {
     console.log(`[PM] ${msg.user.ircUsername}: ${msg.message}`);
+
+    // Check for updates
+    if (msg.message.indexOf('!') == 0) {
+      const update = await lobby_db.get('select * from updates where user_id = ?', msg.user.id);
+      if (!update) {
+        await lobby_db.run(
+            'insert into updates (user_id, last_version) values (?, ?)',
+            msg.user.id, CURRENT_VERSION,
+        );
+      } else if (update.last_version != CURRENT_VERSION) {
+        await lobby_db.run(
+            'update updates set last_version = ? where user_id = ?',
+            CURRENT_VERSION, msg.user.id,
+        );
+        await msg.user.sendMessage(`The bot has been updated to version ${CURRENT_VERSION}. For more details, [https://kiwec.net/blog/posts/osu-bot-update-2021-09-05 check out the changelog.]`);
+      }
+    }
 
     if (msg.message.indexOf('!help') == 0) {
       await msg.user.sendMessage('The full command list is on my profile. :)');
