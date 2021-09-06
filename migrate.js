@@ -92,8 +92,10 @@ async function main() {
   await lobby_db.exec(`CREATE TABLE IF NOT EXISTS ranked_score (
     id INTEGER PRIMARY KEY,
     user_id INTEGER,
+    map_id INTEGER,
     tms INTEGER,
-    pp REAL
+    pp REAL,
+    weight REAL
   )`);
 
   const updates = await lobby_db.all('SELECT * FROM updates');
@@ -114,8 +116,8 @@ async function main() {
     const recent_scores = await res.json();
     for (const score of recent_scores) {
       await lobby_db.run(
-          'INSERT OR IGNORE INTO ranked_score VALUES (?, ?, ?, ?)',
-          score.id, user.id, Date.parse(score.created_at), score.pp,
+          'INSERT OR IGNORE INTO ranked_score (id, user_id, map_id, tms, pp, weight) VALUES (?, ?, ?, ?, ?, 0.1)',
+          score.id, user.id, score.beatmap.id, Date.parse(score.created_at), score.pp,
       );
     }
 

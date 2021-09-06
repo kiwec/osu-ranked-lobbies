@@ -15,6 +15,16 @@ function fucking_wait(ms) {
     setTimeout(resolve, ms);
   })
 }
+function median(numbers) {
+    const sorted = numbers.slice().sort((a, b) => a - b);
+    const middle = Math.floor(sorted.length / 2);
+
+    if (sorted.length % 2 === 0) {
+        return (sorted[middle - 1] + sorted[middle]) / 2;
+    }
+
+    return sorted[middle];
+}
 
 async function osu_fetch(url, options) {
   if (!oauth_token) {
@@ -87,7 +97,7 @@ async function select_next_map(lobby, map_db, lobby_db) {
       new_map = await map_db.get(
           `SELECT * FROM pp
         INNER JOIN map ON map.id = pp.map_id
-        WHERE mods = (1<<15) AND pp < ? AND pp > ?
+        WHERE mods = (1<<15) AND pp < ? AND pp > ? AND length < 200
         ORDER BY RANDOM() LIMIT 1`,
           pp + pp_variance,
           pp - pp_variance,
@@ -163,8 +173,8 @@ async function recalculate_user_rank(user_id, lobby_db) {
   let total_pp = 0.0;
   let current_weight = 1.0;
   for (const score of scores) {
-    total_pp += score.pp * current_weight;
-    total_weight += current_weight;
+    total_pp += score.pp * current_weight * score.weight;
+    total_weight += current_weight * score.weight;
     current_weight *= 0.95;
   }
 
@@ -212,7 +222,10 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
   lobby.on('matchFinished', async (scores) => {
     console.log(`[Lobby ${lobby.id}] Finished match.`);
 
-    const rank_updates = {};
+    const rank_updates = [];
+    const lobby_results = [];
+    let lobby_pp = [];
+    const beatmap_id = lobby.recent_maps[lobby.recent_maps.length - 1];
 
     for (const slot of lobby.slots) {
       if (slot == null) continue;
@@ -223,29 +236,61 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
       );
       const scores = await res.json();
       for (const score of scores) {
-        if (!score.pp) score.pp = 0;
-        await lobby_db.run(
-            'INSERT OR IGNORE INTO ranked_score VALUES (?, ?, ?, ?)',
-            score.id, slot.user.id, Date.parse(score.created_at), score.pp,
-        );
-      }
+        if(score.beatmap.id != lobby.beatmapId) {
+          console.error(`Score fail: beatmap id ${score.beatmap.id} != ${lobby.beatmapId} for ${slot.user.ircUsername}`);
+          continue;
+        }
 
-      const foo = await lobby_db.get('SELECT rank FROM user WHERE user_id = ?', slot.user.id);
-      const {rank_text} = await recalculate_user_rank(slot.user.id, lobby_db);
+        lobby_results.push({
+          user_id: slot.user.id,
+          score_id: score.id,
+          tms: Date.parse(score.created_at),
+          pp: score.pp || 0
+        });
+        lobby_pp.push(score.pp);
+      }
+    }
+
+    let res = await map_db.get('select pp from pp where map_id = ? and mods = (1<<15)', lobby.beatmapId);
+    let empty_lobby_expected_pp = res.pp;
+    let full_lobby_expected_pp = median(lobby_pp);
+    let lobby_fullness = lobby_results.length / 16;
+
+    // When the lobby is full, expected pp is based on player results
+    // When the lobby is empty, expected pp is based on the map
+    let expected_pp = full_lobby_expected_pp * lobby_fullness + empty_lobby_expected_pp * (1.0 - lobby_fullness);
+    console.log('Expected pp:', expected_pp);
+
+    for(let result of lobby_results) {
+      // The farther you are from expected pp, the more the score weighs
+      // If you think I'm stupid and bad at math, I am. Please send a patch.
+      let weight = 1.0;
+      if(result.pp > expected_pp) {
+        weight = 1.0 - expected_pp / result.pp;
+      } else if(result.pp < expected_pp) {
+        weight = 1.0 - result.pp / expected_pp;
+      } 
+      console.log('Weight for user', result.user_id, ':', weight, '(with', result.pp, 'pp)');
+
+      await lobby_db.run(
+          'INSERT OR IGNORE INTO ranked_score (id, user_id, map_id, tms, pp, weight) VALUES (?, ?, ?, ?, ?, ?)',
+          result.score_id, result.user_id, lobby.beatmapId, result.tms, result.pp, weight
+      );
+      const foo = await lobby_db.get('SELECT rank, username FROM user WHERE user_id = ?', result.user_id);
+      const {rank_text} = await recalculate_user_rank(result.user_id, lobby_db);
       if (rank_text != foo.rank) {
-        rank_updates[slot.user.username] = rank_text;
+        rank_updates[foo.username] = rank_text;
       }
     }
 
     await select_next_map(lobby, map_db, lobby_db);
 
-    console.log(rank_updates)
     if (rank_updates.length > 0) {
       let outstr = 'Rank updates: ';
 
       let i = 0;
       for (const username in rank_updates) {
-        if (!rank_updates.hasOwnProperty(i)) continue;
+        if (!ranks.hasOwnProperty(i)) continue;
 
         if (i == 0) {
           outstr += username + ' is now ' + rank_updates[username];
@@ -284,8 +329,8 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
       for (const score of recent_scores) {
         if (!score.pp) continue;
         await lobby_db.run(
-            'INSERT OR IGNORE INTO ranked_score (id, user_id, tms, pp) VALUES (?, ?, ?, ?)',
-            score.id, obj.player.user.id, Date.parse(score.created_at), score.pp,
+            'INSERT OR IGNORE INTO ranked_score (id, user_id, map_id, tms, pp, weight) VALUES (?, ?, ?, ?, ?, 0.1)',
+            score.id, obj.player.user.id, score.beatmap.id, Date.parse(score.created_at), score.pp,
         );
       }
     }
@@ -347,10 +392,8 @@ async function start_ranked(client, lobby_db, map_db) {
     try {
       const channel = await client.getChannel('#mp_' + lobby.lobby_id);
       await channel.join();
-
-      // TODO: recover lobby instead
-      await channel.sendMessage('!mp close');
-      await lobby_db.run(`DELETE FROM ranked_lobby WHERE lobby_id = ?`, lobby.lobby_id);
+      await join_lobby(channel.lobby, lobby_db, map_db, client);
+      joined_lobbies.push(channel.lobby);
     } catch (e) {
       console.error('Could not rejoin lobby ' + lobby.lobby_id + ':', e);
       await lobby_db.run(`DELETE FROM ranked_lobby WHERE lobby_id = ?`, lobby.lobby_id);

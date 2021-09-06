@@ -35,11 +35,15 @@ async function init_lobby_db() {
     last_version TEXT
   )`);
 
+  // Score weight is 0.1 when imported from the user's profile.
+  // In lobbies, it is less than 1 when the whole lobby failed the map.
   await lobby_db.exec(`CREATE TABLE IF NOT EXISTS ranked_score (
     id INTEGER PRIMARY KEY,
     user_id INTEGER,
+    map_id INTEGER,
     tms INTEGER,
-    pp REAL
+    pp REAL,
+    weight REAL
   )`);
 
   return lobby_db;
