@@ -4,8 +4,10 @@
   "main": "index.js",
   "author": "kiwec",
   "license": "AGPL-3.0-only",
+  "type": "module",
   "dependencies": {
     "bancho.js": "^0.9.7",
+    "node-fetch": "^3.0.0",
     "sqlite": "^4.0.23",
     "sqlite3": "^5.0.2"
   },
