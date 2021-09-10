@@ -2,6 +2,7 @@
 // Might be incorrect. I wish math people stopped using those weird runes.
 
 import {strict as assert} from 'assert';
+import fs from 'fs';
 
 
 // Squared variation in individual performances, when the contest_weight is 1
@@ -19,6 +20,8 @@ const DRIFT_PER_SEC = 0.0;
 // approximation
 const TRANSFER_SPEED = 1.0;
 
+// Limits the maximum number of contests to be included in the rating
+// computation
 const MAX_LOGISTIC_FACTORS = 1000;
 
 const TANH_MULTIPLIER = Math.PI / 1.7320508075688772;
@@ -27,11 +30,12 @@ assert(BETA > SIG_LIMIT, 'beta must exceed sig_limit');
 
 
 class Player {
-  constructor() {
+  constructor(username) {
+    this.username = username;
+
     // Here, we're assuming the player is new. If the player already has a
     // rank, we should fetch their approx_posterior, normal_factor and
     // logistic_factors from the database.
-    this.update_time = Date.now();
     this.approx_posterior = new Rating(1500.0, 350.0);
     this.normal_factor = new Rating(1500.0, 350.0);
     this.logistic_factors = [];
@@ -75,10 +79,10 @@ class Player {
     this.logistic_factors.push(new TanhTerm(performance));
 
     const normal_weight = Math.pow(this.normal_factor.sig, -2);
-    const mu = solve_newton(this.logistic_factors, (ratings, x) => {
+    const mu = solve_newton((x) => {
       let sum = -this.normal_factor.mu * normal_weight + normal_weight * x;
       let sum_prime = normal_weight;
-      for (const term of ratings) {
+      for (const term of this.logistic_factors) {
         const tanh_z = Math.tanh((x - term.mu) * term.w_arg);
         sum += tanh_z * term.w_out;
         sum_prime += (1. - tanh_z * tanh_z) * term.w_arg * term.w_out;
@@ -89,10 +93,10 @@ class Player {
 
     this.approx_posterior = new Rating(mu, sig);
     // TODO: put the following in db
-    // -> this.approx_posterior.mu, rounded
-    // -> this.approx_posterior.sig, rounded
-    // -> performance.mu, rounded
-    // -> last element in logistic_factors
+    // -> this.approx_posterior
+    // -> this.normal_factor
+    // -> performance (as the last element in logistic_factors)
+    // also update rank # and textual representation
   }
 };
 
@@ -104,6 +108,14 @@ class Rating {
 
   with_noise(sig_noise) {
     return new Rating(this.mu, Math.hypot(this.sig, sig_noise));
+  }
+
+  toFloat() {
+    return this.mu - 2.0 * (this.sig - SIG_LIMIT);
+  }
+
+  toInt() {
+    return Math.round(this.toFloat());
   }
 };
 
@@ -117,8 +129,8 @@ class TanhTerm {
 
   base_values(x) {
     const z = (x - this.mu) * this.w_arg;
-    const val = Math.tanh(-z) * this.w_out;
-    const val_prime = Math.pow(Math.cosh(-z), -2) * this.w_arg * this.w_out;
+    const val = -Math.tanh(z) * this.w_out;
+    const val_prime = -Math.pow(Math.cosh(z), -2) * this.w_arg * this.w_out;
     return [val, val_prime];
   }
 
@@ -128,20 +140,20 @@ class TanhTerm {
 };
 
 
-function solve_newton(tanh_terms, f) {
+function solve_newton(f) {
   let lo = -6000.0;
   let hi = 9000.0;
   let guess = 0.5 * (lo + hi);
 
   do {
-    const [sum, sum_prime] = f(tanh_terms, guess);
+    const [sum, sum_prime] = f(guess);
     const extrapolate = guess - sum / sum_prime;
     if (extrapolate < guess) {
       hi = guess;
-      guess = Math.max(Math.min(extrapolate, hi - 0.75 * (hi - lo)), hi);
+      guess = Math.min(Math.max(extrapolate, hi - 0.75 * (hi - lo)), hi);
     } else {
       lo = guess;
-      guess = Math.max(Math.min(extrapolate, lo), lo + 0.75 * (hi - lo));
+      guess = Math.min(Math.max(extrapolate, lo), lo + 0.75 * (hi - lo));
     }
   } while (lo < guess && hi > guess);
 
@@ -168,7 +180,7 @@ function solve_newton(tanh_terms, f) {
 // values. For example, if the 3 first players were tied, their values
 // would be `lo = 0` and `hi = 2`. The fourth player would then be
 // `lo = 3` and `hi = 3`, and so on.
-function update_mmr(contest_weight, standings) {
+function update_mmr(contest_weight, standings, contest_tms) {
   // Compute sig_perf and discrete_drift from contest_weight
   const excess_beta_sq = (BETA * BETA - SIG_LIMIT * SIG_LIMIT) / contest_weight;
   const sig_perf = Math.sqrt(SIG_LIMIT * SIG_LIMIT + excess_beta_sq);
@@ -179,39 +191,71 @@ function update_mmr(contest_weight, standings) {
   // in order to determine if it's a win, loss, or tie term.
   const tanh_terms = [];
   for (const standing of standings) {
-    const continuous_drift = DRIFT_PER_SEC * standing.player.update_time;
+    const continuous_drift = DRIFT_PER_SEC * contest_tms;
     const sig_drift = Math.sqrt(discrete_drift + continuous_drift);
     standing.player.add_noise_best(sig_drift);
-    tanh_terms.push(new TanhTerm(standing.player.rating.with_noise(sig_perf)));
+    tanh_terms.push(new TanhTerm(standing.player.approx_posterior.with_noise(sig_perf)));
   }
 
   // The computational bottleneck: update ratings based on contest
   // performance
   for (const standing of standings) {
-    const mu_perf = solve_newton(tanh_terms, (ratings, x) => {
+    const mu_perf = solve_newton((x) => {
       let sum = 0.0;
       let sum_prime = 0.0;
-      for (let i = 0; i < ratings.length; i++) {
-        if (!ratings.hasOwnProperty(i)) continue;
-
-        const [val, val_prime] = ratings[i].base_values(x);
-        if (i < ratings[i].lo) {
-          sum += val - ratings[i].w_out;
+      for (let i = 0; i < tanh_terms.length; i++) {
+        const [val, val_prime] = tanh_terms[i].base_values(x);
+        if (i < standing.lo) {
+          sum += val - tanh_terms[i].w_out;
           sum_prime += val_prime;
-        } else if (i <= ratings[i].hi) {
-          sum += val + ratings[i].w_out;
-          sum_prime += val_prime;
-        } else {
+        } else if (i <= standing.hi) {
           sum += 2.0 * val;
           sum_prime += 2.0 * val_prime;
+        } else {
+          sum += val + tanh_terms[i].w_out;
+          sum_prime += val_prime;
         }
       }
 
       return [sum, sum_prime];
     });
-    standing.player.update_rating_with_logistic({
-      mu: mu_perf,
-      sig: sig_perf,
-    });
+    standing.player.update_rating_with_logistic(new Rating(mu_perf, sig_perf));
   }
 }
+
+function test_shit_out() {
+  const players = [];
+  for (let i = 0; i < 12; i++) {
+    const contest = JSON.parse(fs.readFileSync('/home/kiwec/Documents/Elo-MMR/cache/codeforces/' + i + '.json'));
+    const contest_standings = [];
+    for (const standing of contest.standings) {
+      const matches = players.filter(p => p.username == standing[0]);
+      let player = new Player(standing[0]);
+      if(matches.length) {
+        player = matches[0];
+      } else {
+        players.push(player);
+      }
+      contest_standings.push({
+        player: player,
+        lo: standing[1],
+        hi: standing[2],
+      });
+    }
+
+    update_mmr(1.0, contest_standings, contest.time_seconds);
+  }
+
+  players.sort((a, b) => b.approx_posterior.toFloat() - a.approx_posterior.toFloat());
+  let i = 1;
+  console.log('rank,display_rating,cur_sigma,last_perf,handle')
+  for (const player of players) {
+    let display_rating = player.approx_posterior.toInt();
+    let cur_sigma = Math.round(player.approx_posterior.sig);
+    let perf_score = Math.round(player.logistic_factors[player.logistic_factors.length - 1].mu);
+    console.log(i+','+display_rating+','+cur_sigma+','+perf_score+','+player.username);
+    i++;
+  }
+}
+
+test_shit_out();
