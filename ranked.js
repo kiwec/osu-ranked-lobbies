@@ -1,19 +1,21 @@
 import fs from 'fs';
+import {init_db as init_ranking_db, update_mmr} from './elo_mmr.js';
 
 // fuck you, es6 modules, for making this inconvenient
 const CURRENT_VERSION = JSON.parse(fs.readFileSync('./package.json')).version;
-const Config = JSON.parse(fs.readFileSync('./config.json'));
+
+let ranking_db = null;
 
 
 function median(numbers) {
-    const sorted = numbers.slice().sort((a, b) => a - b);
-    const middle = Math.floor(sorted.length / 2);
+  const sorted = numbers.slice().sort((a, b) => a - b);
+  const middle = Math.floor(sorted.length / 2);
 
-    if (sorted.length % 2 === 0) {
-        return (sorted[middle - 1] + sorted[middle]) / 2;
-    }
+  if (sorted.length % 2 === 0) {
+    return (sorted[middle - 1] + sorted[middle]) / 2;
+  }
 
-    return sorted[middle];
+  return sorted[middle];
 }
 
 async function select_next_map(lobby, map_db) {
@@ -28,7 +30,7 @@ async function select_next_map(lobby, map_db) {
 
   const avg_pps = [];
   for (const player of lobby.slots) {
-    if(player && player.user.avg_pp) {
+    if (player && player.user.avg_pp) {
       avg_pps.push(player.user.avg_pp);
     }
   }
@@ -77,42 +79,6 @@ async function select_next_map(lobby, map_db) {
   }
 }
 
-function get_rank_text(rank_float) {
-  if (rank_float == 1.0) {
-    return 'The One';
-  }
-
-  // Epic rank distribution algorithm
-  const ranks = [
-    'Cardboard', 
-    'Copper I', 'Copper II', 'Copper III', 'Copper IV', 
-    'Bronze I', 'Bronze II', 'Bronze III', 'Bronze IV', 
-    'Silver I', 'Silver II', 'Silver III', 'Silver IV', 
-    'Gold I', 'Gold II', 'Gold III', 'Gold IV', 
-    'Platinum I', 'Platinum II', 'Platinum III', 'Platinum IV', 
-    'Diamond I', 'Diamond II', 'Diamond III', 'Diamond IV', 
-    'Legendary'
-  ];
-  for (let i in ranks) {
-    if (!ranks.hasOwnProperty(i)) continue;
-
-    i = parseInt(i, 10); // FUCK YOU FUCK YOU FUCK YOU FUCK YOU
-
-    // Turn current 'Cardboard' rank into a value between 0 and 1
-    const rank_nb = (i + 1) / ranks.length;
-
-    // This turns a linear curve into a smoother curve (yeah I'm not good at maths)
-    // Visual representation: https://www.wolframalpha.com/input/?i=1+-+%28%28cos%28x+*+PI%29+%2F+2%29+%2B+0.5%29+with+x+from+0+to+1
-    const cutoff = 1 - ((Math.cos(rank_nb * Math.PI) / 2) + 0.5);
-    if (rank_float < cutoff) {
-      return ranks[i];
-    }
-  }
-
-  // Ok, floating point errors, who cares
-  return 'Super Legendary';
-}
-
 async function join_lobby(lobby, lobby_db, map_db, client) {
   lobby.recent_maps = [];
   lobby.voteskips = [];
@@ -143,39 +109,23 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
   lobby.on('matchFinished', async (scores) => {
     console.log(`[Lobby ${lobby.id}] Finished match.`);
 
-    const rank_updates = [];
-    for (const player of lobby.slots) {
-      if (!player) continue;
-      // TODO: compare player scores
-    }
-
-    for(let result of lobby_results) {
-      const foo = await lobby_db.get('SELECT rank, username FROM user WHERE user_id = ?', result.user_id);
-      // TODO: recalculate user ranks using glicko-2
-      const {rank_text} = await recalculate_user_rank(result.user_id, lobby_db);
-      if (rank_text != foo.rank) {
-        rank_updates[foo.username] = rank_text;
-      }
-    }
-
+    const rank_updates = await update_mmr(ranking_db, lobby);
     await select_next_map(lobby, map_db);
 
     if (rank_updates.length > 0) {
       let outstr = 'Rank updates: ';
 
-      let i = 0;
-      for (const username in rank_updates) {
-        if (!ranks.hasOwnProperty(i)) continue;
+      for (const i in rank_updates) {
+        if (!rank_updates.hasOwnProperty(i)) continue;
+        const player = rank_updates[i];
 
         if (i == 0) {
-          outstr += username + ' is now ' + rank_updates[username];
+          outstr += player.username + ' is now ' + player.rank_text;
         } else if (i == rank_updates.length - 1) {
-          outstr += ' and ' + username + ' is now ' + rank_updates[username];
+          outstr += ' and ' + player.username + ' is now ' + player.rank_text;
         } else {
-          outstr += ', ' + username + ' is now ' + rank_updates[username];
+          outstr += ', ' + player.username + ' is now ' + player.rank_text;
         }
-
-        i++;
       }
 
       outstr += '.';
@@ -189,12 +139,12 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
     // EXTREMELY ACCURATE PP GUESSTIMATING
     obj.player.user.avg_pp = (obj.player.user.ppRaw * obj.player.user.accuracy) / 3000;
 
-    let user = await lobby_db.get('select * from user where user_id = ?', obj.player.user.id);
+    const user = await lobby_db.get('select * from user where user_id = ?', obj.player.user.id);
     if (!user) {
       await lobby.channel.sendMessage(`Welcome, ${obj.player.user.ircUsername}! This is a ranked lobby, play one game to find out what your rank is :)`);
       await lobby_db.run(
-          'INSERT INTO user (user_id, username, rank, last_version) VALUES (?, ?, ?, ?, ?)',
-          obj.player.user.id, obj.player.user.username, 'Unranked', CURRENT_VERSION,
+          'INSERT INTO user (user_id, username, last_version) VALUES (?, ?, ?, ?)',
+          obj.player.user.id, obj.player.user.username, CURRENT_VERSION,
       );
     }
 
@@ -218,7 +168,7 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
 
     if (msg.user.isClient() && msg.message.indexOf('!setfilter') == 0) {
       try {
-        let lobby_info = {};
+        const lobby_info = {};
         await update_lobby_filters(lobby_info, msg.message);
         lobby.filters = lobby_info.query;
         await lobby_db.run(
@@ -257,6 +207,8 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
 }
 
 async function start_ranked(client, lobby_db, map_db) {
+  ranking_db = await init_ranking_db();
+
   const joined_lobbies = [];
 
   const lobbies = await lobby_db.all('SELECT * from ranked_lobby');
@@ -274,7 +226,7 @@ async function start_ranked(client, lobby_db, map_db) {
   }
 
   if (joined_lobbies.length == 0) {
-    const channel = await client.createLobby(`RANKED LOBBY - automatic map selection`);
+    const channel = await client.createLobby(`RANKED LOBBY | Auto map select`);
     channel.lobby.filters = '';
     await join_lobby(channel.lobby, lobby_db, map_db, client);
     joined_lobbies.push(channel.lobby);
@@ -283,8 +235,8 @@ async function start_ranked(client, lobby_db, map_db) {
   }
 
   client.on('PM', async (msg) => {
-    if(msg.user.isClient() && msg.message == '!makerankedlobby') {
-      const channel = await client.createLobby(`RANKED LOBBY - automatic map selection`);
+    if (msg.user.isClient() && msg.message == '!makerankedlobby') {
+      const channel = await client.createLobby(`RANKED LOBBY | Auto map select`);
       channel.lobby.filters = '';
       await join_lobby(channel.lobby, lobby_db, map_db, client);
       joined_lobbies.push(channel.lobby);
@@ -292,7 +244,7 @@ async function start_ranked(client, lobby_db, map_db) {
       console.log('Created ranked lobby.');
       await channel.lobby.invitePlayer(msg.user.ircUsername);
     }
-  })
+  });
 
   // TODO: automatically create/close lobbies on demand
 }

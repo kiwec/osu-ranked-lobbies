@@ -1,4 +1,4 @@
-import { open } from 'sqlite';
+import {open} from 'sqlite';
 import fs from 'fs';
 import sqlite3 from 'sqlite3';
 import Bancho from 'bancho.js';
@@ -32,7 +32,6 @@ async function main() {
   await lobby_db.exec(`CREATE TABLE IF NOT EXISTS user (
     user_id INTEGER PRIMARY KEY,
     username TEXT,
-    rank REAL,
     last_version TEXT
   )`);
 
@@ -42,13 +41,13 @@ async function main() {
     const user = client.getUser(update.username);
     await user.fetchFromAPI();
     await lobby_db.run(
-        'INSERT INTO user (user_id, username, rank, last_version) VALUES (?, ?, ?, ?)',
-        user.id, user.username, 'Unranked', update.last_version,
+        'INSERT INTO user (user_id, username, last_version) VALUES (?, ?, ?)',
+        user.id, user.username, update.last_version,
     );
   }
 
   // then drop the updates table manually
-  console.log('done')
+  console.log('done');
 }
 
 main();

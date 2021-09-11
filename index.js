@@ -1,6 +1,6 @@
 import fs from 'fs';
 import Bancho from 'bancho.js';
-import { open } from 'sqlite';
+import {open} from 'sqlite';
 import sqlite3 from 'sqlite3';
 
 // fuck you, es6 modules, for making this inconvenient
@@ -28,10 +28,11 @@ async function init_lobby_db() {
     filters TEXT
   )`);
 
+  // NOTE: In `lobbies.db`, this table is only used for version checking.
+  // For ranks, we use the `user` table from the `ranks.db` database.
   await lobby_db.exec(`CREATE TABLE IF NOT EXISTS user (
     user_id INTEGER PRIMARY KEY,
     username TEXT,
-    rank REAL,
     last_version TEXT
   )`);
 

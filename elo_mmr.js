@@ -2,7 +2,6 @@
 // Might be incorrect. I wish math people stopped using those weird runes.
 
 import {strict as assert} from 'assert';
-import fs from 'fs';
 
 
 // Squared variation in individual performances, when the contest_weight is 1
@@ -29,16 +28,122 @@ const TANH_MULTIPLIER = Math.PI / 1.7320508075688772;
 assert(BETA > SIG_LIMIT, 'beta must exceed sig_limit');
 
 
-class Player {
-  constructor(username) {
-    this.username = username;
+// To avoid re-fetching players from the database after the end of each
+// contest, we store all of them in memory. It should be fine for now, but in
+// the future, we should use a cache instead.
+const players = [];
 
-    // Here, we're assuming the player is new. If the player already has a
-    // rank, we should fetch their approx_posterior, normal_factor and
-    // logistic_factors from the database.
+
+class Contest {
+  constructor(lobby) {
+    this.lobby_id = lobby.id;
+    this.map_id = lobby.beatmapId;
+    this.tms = Date.now();
+
+    // `standings` is an array of objects of the following type:
+    // {
+    //   player: <Player object>,
+    //   lo: <ranking of the player, with the best player having index 0>,
+    //   hi: <tie discriminator. if there's no tie, this is == lo>
+    // }
+    //
+    // Here, 'ranking' means the ranking of the player in the current round.
+    // In a round of 16 players, 0 <= lo <= 15.
+    //
+    // When there's a tie, all the players in a tie have the same `hi` and `lo`
+    // values. For example, if the 3 first players were tied, their values
+    // would be `lo = 0` and `hi = 2`. The fourth player would then be
+    // `lo = 3` and `hi = 3`, and so on.
+    this.standings = [];
+    for (const score of lobby.scores) {
+      this.standings.push({
+        player_id: score.player.user.id,
+        score: score.score,
+      });
+    }
+    this.standings.sort((a, b) => a.score - b.score);
+    this.standings.reverse();
+    let last_score = -1;
+    let lo = 0;
+    let hi = -1;
+    for (const standing of standings) {
+      standing.lo = lo;
+      standing.hi = hi;
+      if (standing.score == last_score) {
+        hi++;
+        for (const s of standings) {
+          if (s.lo == lo) {
+            s.hi = hi;
+          }
+        }
+      } else {
+        lo++;
+        hi = lo;
+        last_score = standing.score;
+      }
+    }
+  }
+
+  // Fills the missing values from `this.standings`
+  // Fetches players from database if they're not already loaded - expensive operation.
+  async init(db) {
+    const res = await db.run(
+        'INSERT INTO contest (lobby_id, map_id, tms) VALUES (?, ?, ?)',
+        this.lobby_id, this.map_id, this.tms,
+    );
+    this.id = res.lastID;
+
+    for (const standing of this.standings) {
+      if (!(standing.player_id in players)) {
+        players[standing.player_id] = new Player(score.player.user);
+        await players[standing.player_id].fetch_from_database(db);
+      }
+      standing.player = players[standing.player_id];
+    }
+  }
+}
+
+
+class Player {
+  constructor(bancho_user) {
+    this.user_id = bancho_user.id;
+    this.username = bancho_user.ircUsername;
     this.approx_posterior = new Rating(1500.0, 350.0);
     this.normal_factor = new Rating(1500.0, 350.0);
     this.logistic_factors = [];
+  }
+
+  // Fetches ranking data from the database.
+  //
+  // If the user is new -> initialize them in the database
+  // If the user isn't new -> get their rating and logistic factors
+  async fetch_from_database(db) {
+    const user = await db.get('SELECT * FROM user WHERE user_id = ?', this.user_id);
+    if (!user) {
+      await db.run(
+          `INSERT INTO user (user_id, username, approx_mu, approx_sig, normal_mu, normal_sig)
+        VALUES (?, ?, 1500, 350, 1500, 350)`,
+          this.user_id, this.username,
+      );
+      this.old_rating = null;
+      return;
+    }
+
+    this.approx_posterior = new Rating(user.approx_mu, user.approx_sig);
+    this.normal_factor = new Rating(user.normal_mu, user.normal_sig);
+
+    const scores = await db.all(
+        'SELECT logistic_mu, logistic_sig FROM score WHERE user_id = ? ORDER BY tms DESC LIMIT ?',
+        this.user_id, MAX_LOGISTIC_FACTORS,
+    );
+    for (const score of scores) {
+      this.logistic_factors.push(new TanhTerm(new Rating(score.logistic_mu, score.logistic_sig)));
+    }
+
+    // Not used for computing new rank - but for knowing when the display text changed
+    const better_users = await lobby_db.get('SELECT COUNT(*) AS nb FROM user WHERE elo > ?', user.elo);
+    const all_users = await lobby_db.get('SELECT COUNT(*) AS nb FROM user');
+    this.rank_text = get_rank_text(1.0 - (better_users.nb / all_users.nb));
   }
 
   // Modifies the player object. Returns nothing.
@@ -62,41 +167,6 @@ class Player {
     for (const r of this.logistic_factors) {
       r.w_out *= transfer * decay;
     }
-  }
-
-  // Modifies the player object. Returns nothing.
-  // TODO: update database
-  update_rating_with_logistic(performance) {
-    if (this.logistic_factors.length >= MAX_LOGISTIC_FACTORS) {
-      // wl can be chosen so as to preserve total weight or rating; we choose the former.
-      // Either way, the deleted element should be small enough not to matter.
-      const logistic = this.logistic_factors.shift();
-      const wn = Math.pow(this.normal_factor.sig, -2);
-      const wl = logistic.get_weight();
-      this.normal_factor.mu = (wn * this.normal_factor.mu + wl * logistic.mu) / (wn + wl);
-      this.normal_factor.sig = Math.sqrt(1.0 / (wn + wl));
-    }
-    this.logistic_factors.push(new TanhTerm(performance));
-
-    const normal_weight = Math.pow(this.normal_factor.sig, -2);
-    const mu = solve_newton((x) => {
-      let sum = -this.normal_factor.mu * normal_weight + normal_weight * x;
-      let sum_prime = normal_weight;
-      for (const term of this.logistic_factors) {
-        const tanh_z = Math.tanh((x - term.mu) * term.w_arg);
-        sum += tanh_z * term.w_out;
-        sum_prime += (1. - tanh_z * tanh_z) * term.w_arg * term.w_out;
-      }
-      return [sum, sum_prime];
-    });
-    const sig = Math.sqrt(1.0 / (Math.pow(this.approx_posterior.sig, -2) + Math.pow(performance.sig, -2)));
-
-    this.approx_posterior = new Rating(mu, sig);
-    // TODO: put the following in db
-    // -> this.approx_posterior
-    // -> this.normal_factor
-    // -> performance (as the last element in logistic_factors)
-    // also update rank # and textual representation
   }
 };
 
@@ -160,27 +230,16 @@ function solve_newton(f) {
   return guess;
 }
 
+async function update_mmr(db, lobby) {
+  const contest = new Contest(lobby);
+  await contest.init(db);
 
-// `contest_weight` is a float that depends on multiple factors:
-// - how full the lobby is. 1 player in lobby means 1/16 the weight
-// - how well the players scored on average. did they reach expected pp,
-//   or did they all fail the map? the contest weighs less if the map sucked.
-//
-// `standings` is an array of objects of the following type:
-// {
-//   player: <Player object>,
-//   lo: <ranking of the player, with the best player having index 0>,
-//   hi: <tie discriminator. if there's no tie, this is == lo>
-// }
-//
-// Here, 'ranking' means the ranking of the player in the current round.
-// In a round of 16 players, 0 <= lo <= 15.
-//
-// When there's a tie, all the players in a tie have the same `hi` and `lo`
-// values. For example, if the 3 first players were tied, their values
-// would be `lo = 0` and `hi = 2`. The fourth player would then be
-// `lo = 3` and `hi = 3`, and so on.
-function update_mmr(contest_weight, standings, contest_tms) {
+  // `contest_weight` is a float that depends on multiple factors:
+  // - how full the lobby is. 1 player in lobby means 1/16 the weight
+  // - TODO: how well the players scored on average. did they reach expected pp,
+  //   or did they all fail the map? the contest weighs less if the map sucked.
+  const contest_weight = contest.standings.length / 16.0;
+
   // Compute sig_perf and discrete_drift from contest_weight
   const excess_beta_sq = (BETA * BETA - SIG_LIMIT * SIG_LIMIT) / contest_weight;
   const sig_perf = Math.sqrt(SIG_LIMIT * SIG_LIMIT + excess_beta_sq);
@@ -190,16 +249,17 @@ function update_mmr(contest_weight, standings, contest_tms) {
   // create Gaussian terms for the Q-function. The rank must also be stored
   // in order to determine if it's a win, loss, or tie term.
   const tanh_terms = [];
-  for (const standing of standings) {
-    const continuous_drift = DRIFT_PER_SEC * contest_tms;
+  for (const standing of contest.standings) {
+    const continuous_drift = DRIFT_PER_SEC * contest.tms;
     const sig_drift = Math.sqrt(discrete_drift + continuous_drift);
     standing.player.add_noise_best(sig_drift);
     tanh_terms.push(new TanhTerm(standing.player.approx_posterior.with_noise(sig_perf)));
   }
 
-  // The computational bottleneck: update ratings based on contest
-  // performance
-  for (const standing of standings) {
+  // The computational bottleneck: update ratings based on contest performance
+  for (const standing of contest.standings) {
+    const player = standing.player;
+
     const mu_perf = solve_newton((x) => {
       let sum = 0.0;
       let sum_prime = 0.0;
@@ -219,43 +279,127 @@ function update_mmr(contest_weight, standings, contest_tms) {
 
       return [sum, sum_prime];
     });
-    standing.player.update_rating_with_logistic(new Rating(mu_perf, sig_perf));
-  }
-}
 
-function test_shit_out() {
-  const players = [];
-  for (let i = 0; i < 12; i++) {
-    const contest = JSON.parse(fs.readFileSync('/home/kiwec/Documents/Elo-MMR/cache/codeforces/' + i + '.json'));
-    const contest_standings = [];
-    for (const standing of contest.standings) {
-      const matches = players.filter(p => p.username == standing[0]);
-      let player = new Player(standing[0]);
-      if(matches.length) {
-        player = matches[0];
-      } else {
-        players.push(player);
-      }
-      contest_standings.push({
-        player: player,
-        lo: standing[1],
-        hi: standing[2],
-      });
+    const performance = new Rating(mu_perf, sig_perf);
+
+    if (player.logistic_factors.length >= MAX_LOGISTIC_FACTORS) {
+      // wl can be chosen so as to preserve total weight or rating; we choose the former.
+      // Either way, the deleted element should be small enough not to matter.
+      const logistic = player.logistic_factors.shift();
+      const wn = Math.pow(player.normal_factor.sig, -2);
+      const wl = logistic.get_weight();
+      player.normal_factor.mu = (wn * player.normal_factor.mu + wl * logistic.mu) / (wn + wl);
+      player.normal_factor.sig = Math.sqrt(1.0 / (wn + wl));
     }
+    player.logistic_factors.push(new TanhTerm(performance));
 
-    update_mmr(1.0, contest_standings, contest.time_seconds);
+    const normal_weight = Math.pow(player.normal_factor.sig, -2);
+    const mu = solve_newton((x) => {
+      let sum = -player.normal_factor.mu * normal_weight + normal_weight * x;
+      let sum_prime = normal_weight;
+      for (const term of player.logistic_factors) {
+        const tanh_z = Math.tanh((x - term.mu) * term.w_arg);
+        sum += tanh_z * term.w_out;
+        sum_prime += (1. - tanh_z * tanh_z) * term.w_arg * term.w_out;
+      }
+      return [sum, sum_prime];
+    });
+    const sig = Math.sqrt(1.0 / (Math.pow(player.approx_posterior.sig, -2) + Math.pow(performance.sig, -2)));
+    player.approx_posterior = new Rating(mu, sig);
+
+    await db.run(
+        'UPDATE user SET elo = ?, approx_mu = ?, approx_sig = ?, normal_mu = ?, normal_sig = ? WHERE user_id = ?',
+        player.approx_posterior.toFloat(), mu, sig, player.normal_factor.mu, player.normal_factor.sig, player.user_id,
+    );
+    await db.run(
+        'INSERT INTO score (user_id, contest_id, score, logistic_mu, logistic_sig, tms) VALUES (?, ?, ?, ?, ?, ?)',
+        player.user_id, contest.id, standing.score, performance.mu, performance.sig, contest.tms,
+    );
   }
 
-  players.sort((a, b) => b.approx_posterior.toFloat() - a.approx_posterior.toFloat());
-  let i = 1;
-  console.log('rank,display_rating,cur_sigma,last_perf,handle')
-  for (const player of players) {
-    let display_rating = player.approx_posterior.toInt();
-    let cur_sigma = Math.round(player.approx_posterior.sig);
-    let perf_score = Math.round(player.logistic_factors[player.logistic_factors.length - 1].mu);
-    console.log(i+','+display_rating+','+cur_sigma+','+perf_score+','+player.username);
-    i++;
+  // Return the users whose rank's display text changed
+  const rank_changes = [];
+  for (const standing of contest.standings) {
+    const better_users = await lobby_db.get('SELECT COUNT(*) AS nb FROM user WHERE elo > ?', standing.player.approx_posterior.toFloat());
+    const all_users = await lobby_db.get('SELECT COUNT(*) AS nb FROM user');
+    const new_rank_text = get_rank_text(1.0 - (better_users.nb / all_users.nb));
+    if (standing.player.rank_text != new_rank_text) {
+      standing.player.rank_text = new_rank_text;
+      rank_changes.push(standing.player);
+    }
   }
+  return rank_changes;
 }
 
-test_shit_out();
+
+function get_rank_text(rank_float) {
+  if (rank_float == 1.0) {
+    return 'The One';
+  }
+
+  // Epic rank distribution algorithm
+  const ranks = [
+    'Cardboard',
+    'Copper I', 'Copper II', 'Copper III', 'Copper IV',
+    'Bronze I', 'Bronze II', 'Bronze III', 'Bronze IV',
+    'Silver I', 'Silver II', 'Silver III', 'Silver IV',
+    'Gold I', 'Gold II', 'Gold III', 'Gold IV',
+    'Platinum I', 'Platinum II', 'Platinum III', 'Platinum IV',
+    'Diamond I', 'Diamond II', 'Diamond III', 'Diamond IV',
+    'Legendary',
+  ];
+  for (let i in ranks) {
+    if (!ranks.hasOwnProperty(i)) continue;
+
+    i = parseInt(i, 10); // FUCK YOU FUCK YOU FUCK YOU FUCK YOU
+
+    // Turn current 'Cardboard' rank into a value between 0 and 1
+    const rank_nb = (i + 1) / ranks.length;
+
+    // This turns a linear curve into a smoother curve (yeah I'm not good at maths)
+    // Visual representation: https://www.wolframalpha.com/input/?i=1+-+%28%28cos%28x+*+PI%29+%2F+2%29+%2B+0.5%29+with+x+from+0+to+1
+    const cutoff = 1 - ((Math.cos(rank_nb * Math.PI) / 2) + 0.5);
+    if (rank_float < cutoff) {
+      return ranks[i];
+    }
+  }
+
+  // Ok, floating point errors, who cares
+  return 'Super Legendary';
+}
+
+async function init_db() {
+  const db = await open({
+    filename: 'ranks.db',
+    driver: sqlite3.Database,
+  });
+
+  await db.exec(`CREATE TABLE IF NOT EXISTS user (
+    user_id INTEGER PRIMARY KEY,
+    username TEXT,
+    elo REAL,
+    approx_mu REAL,
+    approx_sig REAL,
+    normal_mu REAL,
+    normal_sig REAL
+  )`);
+
+  await db.exec(`CREATE TABLE IF NOT EXISTS contest (
+    lobby_id INTEGER,
+    map_id INTEGER,
+    tms INTEGER
+  )`);
+
+  await db.exec(`CREATE TABLE IF NOT EXISTS score (
+    user_id INTEGER,
+    contest_id INTEGER,
+    score INTEGER,
+    logistic_mu REAL,
+    logistic_sig REAL,
+    tms INTEGER
+  )`);
+
+  return db;
+}
+
+export default {init_db, update_mmr};
