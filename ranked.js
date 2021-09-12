@@ -162,9 +162,9 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
       let strings = [];
       for(let update of rank_updates) {
         if(update.rank_before > update.rank_after) {
-          strings.push(update.username + ' [https://osu.kiwec.net/u/' + update.username + '/ ▼' + get_rank_text(update.rank_after) + ']');
+          strings.push(update.username + ' [https://osu.kiwec.net/u/' + update.user_id + '/ ▼' + get_rank_text(update.rank_after) + ' ]');
         } else {
-          strings.push(update.username + ' [https://osu.kiwec.net/u/' + update.username + '/ ▲' + get_rank_text(update.rank_after) + ']');
+          strings.push(update.username + ' [https://osu.kiwec.net/u/' + update.user_id + '/ ▲' + get_rank_text(update.rank_after) + ' ]');
         }
       }
 
