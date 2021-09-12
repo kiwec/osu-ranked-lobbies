@@ -67,7 +67,7 @@ async function main() {
             'update user set last_version = ? where username = ?',
             CURRENT_VERSION, msg.user.ircUsername,
         );
-        await msg.user.sendMessage(`The bot has been updated to version ${CURRENT_VERSION}. For more details, [https://kiwec.net/blog/posts/osu-bot-update-2021-09-05 check out the changelog.]`);
+        await msg.user.sendMessage(`The bot has been updated to version ${CURRENT_VERSION}. For more details, [https://kiwec.net/blog/posts/osu-bot-update-2021-09-12/ check out the changelog.]`);
       }
     }
 
