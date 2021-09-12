@@ -141,6 +141,11 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
   };
 
   lobby.on('allPlayersReady', async () => {
+    if(get_nb_players() < 2) {
+      await lobby.channel.sendMessage('Cannot start until there are at least 2 players in the lobby.');
+      return;
+    }
+
     console.log(`[Lobby ${lobby.id}] Starting match.`);
 
     if (lobby.countdown) {
@@ -180,7 +185,7 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
 
     const user = await lobby_db.get('select * from user where user_id = ?', obj.player.user.id);
     if (!user) {
-      await lobby.channel.sendMessage(`Welcome, ${obj.player.user.ircUsername}! This is a ranked lobby, play one game to find out what your rank is :)`);
+      await obj.player.user.sendMessage(`Welcome to your first ranked lobby, ${obj.player.user.ircUsername}! There is no host: use !start if players aren't readying up, and !skip if the map is bad. It will only take a few games for your rank to be accurate.`);
       await lobby_db.run(
           'INSERT INTO user (user_id, username, last_version) VALUES (?, ?, ?)',
           obj.player.user.id, obj.player.user.username, CURRENT_VERSION,
@@ -262,6 +267,11 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
     }
 
     if (msg.message == '!start' && lobby.countdown == -1) {
+      if(get_nb_players() < 2) {
+        await lobby.channel.sendMessage('Cannot start until there are at least 2 players in the lobby.');
+        return;
+      }
+
       lobby.countdown = setTimeout(async () => {
         lobby.countdown = setTimeout(async () => {
           lobby.startMatch();
