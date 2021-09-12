@@ -153,7 +153,6 @@ async function update_lobby_filters(lobby_info, filter_string) {
 
   const {filters, mods} = parse_filter_string(filter_string);
   const query = build_query(filters, mods);
-  console.log(query);
 
   // Get number of matching maps
   const res = await map_db.get('select count(*) as nb_maps ' + query);
@@ -321,4 +320,4 @@ async function start(client, lobby_db, _map_db) {
   });
 }
 
-export default start;
+export {start, update_lobby_filters};

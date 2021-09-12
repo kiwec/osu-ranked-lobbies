@@ -2,6 +2,8 @@
 // Might be incorrect. I wish math people stopped using those weird runes.
 
 import {strict as assert} from 'assert';
+import {open} from 'sqlite';
+import sqlite3 from 'sqlite3';
 
 
 // Squared variation in individual performances, when the contest_weight is 1
@@ -58,6 +60,7 @@ class Contest {
     for (const score of lobby.scores) {
       this.standings.push({
         player_id: score.player.user.id,
+        bancho_user: score.player.user,
         score: score.score,
       });
     }
@@ -66,12 +69,12 @@ class Contest {
     let last_score = -1;
     let lo = 0;
     let hi = -1;
-    for (const standing of standings) {
+    for (const standing of this.standings) {
       standing.lo = lo;
       standing.hi = hi;
       if (standing.score == last_score) {
         hi++;
-        for (const s of standings) {
+        for (const s of this.standings) {
           if (s.lo == lo) {
             s.hi = hi;
           }
@@ -95,7 +98,7 @@ class Contest {
 
     for (const standing of this.standings) {
       if (!(standing.player_id in players)) {
-        players[standing.player_id] = new Player(score.player.user);
+        players[standing.player_id] = new Player(standing.bancho_user);
         await players[standing.player_id].fetch_from_database(db);
       }
       standing.player = players[standing.player_id];
@@ -129,6 +132,12 @@ class Player {
       return;
     }
 
+    // User changed their nickname - update it in database
+    if (this.username != user.username) {
+      console.log('INFO: ' + user.username + ' is now known as ' + this.username + '.');
+      await db.run('UPDATE user SET username = ? WHERE user_id = ?', this.username, this.user_id);
+    }
+
     this.approx_posterior = new Rating(user.approx_mu, user.approx_sig);
     this.normal_factor = new Rating(user.normal_mu, user.normal_sig);
 
@@ -141,8 +150,8 @@ class Player {
     }
 
     // Not used for computing new rank - but for knowing when the display text changed
-    const better_users = await lobby_db.get('SELECT COUNT(*) AS nb FROM user WHERE elo > ?', user.elo);
-    const all_users = await lobby_db.get('SELECT COUNT(*) AS nb FROM user');
+    const better_users = await db.get('SELECT COUNT(*) AS nb FROM user WHERE elo > ?', user.elo);
+    const all_users = await db.get('SELECT COUNT(*) AS nb FROM user');
     this.rank_text = get_rank_text(1.0 - (better_users.nb / all_users.nb));
   }
 
@@ -307,9 +316,10 @@ async function update_mmr(db, lobby) {
     const sig = Math.sqrt(1.0 / (Math.pow(player.approx_posterior.sig, -2) + Math.pow(performance.sig, -2)));
     player.approx_posterior = new Rating(mu, sig);
 
+    standing.bancho_user.elo = player.approx_posterior.toFloat();
     await db.run(
         'UPDATE user SET elo = ?, approx_mu = ?, approx_sig = ?, normal_mu = ?, normal_sig = ? WHERE user_id = ?',
-        player.approx_posterior.toFloat(), mu, sig, player.normal_factor.mu, player.normal_factor.sig, player.user_id,
+        standing.bancho_user.elo, mu, sig, player.normal_factor.mu, player.normal_factor.sig, player.user_id,
     );
     await db.run(
         'INSERT INTO score (user_id, contest_id, score, logistic_mu, logistic_sig, tms) VALUES (?, ?, ?, ?, ?, ?)',
@@ -320,8 +330,8 @@ async function update_mmr(db, lobby) {
   // Return the users whose rank's display text changed
   const rank_changes = [];
   for (const standing of contest.standings) {
-    const better_users = await lobby_db.get('SELECT COUNT(*) AS nb FROM user WHERE elo > ?', standing.player.approx_posterior.toFloat());
-    const all_users = await lobby_db.get('SELECT COUNT(*) AS nb FROM user');
+    const better_users = await db.get('SELECT COUNT(*) AS nb FROM user WHERE elo > ?', standing.player.approx_posterior.toFloat());
+    const all_users = await db.get('SELECT COUNT(*) AS nb FROM user');
     const new_rank_text = get_rank_text(1.0 - (better_users.nb / all_users.nb));
     if (standing.player.rank_text != new_rank_text) {
       standing.player.rank_text = new_rank_text;
@@ -333,6 +343,9 @@ async function update_mmr(db, lobby) {
 
 
 function get_rank_text(rank_float) {
+  if (rank_float == null || typeof rank_float === 'undefined') {
+    return 'Unranked';
+  }
   if (rank_float == 1.0) {
     return 'The One';
   }
@@ -402,4 +415,4 @@ async function init_db() {
   return db;
 }
 
-export default {init_db, update_mmr};
+export {init_db, update_mmr, get_rank_text};

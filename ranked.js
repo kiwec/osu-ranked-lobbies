@@ -1,5 +1,6 @@
 import fs from 'fs';
-import {init_db as init_ranking_db, update_mmr} from './elo_mmr.js';
+import {init_db as init_ranking_db, update_mmr, get_rank_text} from './elo_mmr.js';
+import {update_lobby_filters} from './casual.js';
 
 // fuck you, es6 modules, for making this inconvenient
 const CURRENT_VERSION = JSON.parse(fs.readFileSync('./package.json')).version;
@@ -44,15 +45,13 @@ async function select_next_map(lobby, map_db) {
   const pp = median(avg_pps);
   let pp_variance = pp / 20;
 
+  const filters = lobby.filters || 'from pp inner join map on map.id = pp.map_id where mods = (1<<15) AND length < 200';
   let tries = 0;
   do {
     new_map = await map_db.get(
-        `SELECT * FROM pp
-      INNER JOIN map ON map.id = pp.map_id
-      WHERE mods = (1<<15) AND pp < ? AND pp > ? AND length < 200
+        `SELECT * ${filters} AND pp < ? AND pp > ?
       ORDER BY RANDOM() LIMIT 1`,
-        pp + pp_variance,
-        pp - pp_variance,
+        pp + pp_variance, pp - pp_variance,
     );
     if (!new_map) {
       pp_variance *= 2;
@@ -143,10 +142,11 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
     if (!user) {
       await lobby.channel.sendMessage(`Welcome, ${obj.player.user.ircUsername}! This is a ranked lobby, play one game to find out what your rank is :)`);
       await lobby_db.run(
-          'INSERT INTO user (user_id, username, last_version) VALUES (?, ?, ?, ?)',
+          'INSERT INTO user (user_id, username, last_version) VALUES (?, ?, ?)',
           obj.player.user.id, obj.player.user.username, CURRENT_VERSION,
       );
     }
+
 
     if (get_nb_players() == 1) {
       await select_next_map(lobby, map_db);
@@ -180,6 +180,10 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
         console.error(`[Lobby ${lobby.id}] ${e}`);
         await lobby.channel.sendMessage(e.toString());
       }
+    }
+
+    if (msg.message == '!rank') {
+      await lobby.channel.sendMessage(msg.user.ircUsername + ': You are ' + get_rank_text(msg.user.elo) + '.');
     }
 
     if (msg.message == '!skip' && !lobby.voteskips.includes(msg.user.ircUsername)) {
@@ -243,6 +247,11 @@ async function start_ranked(client, lobby_db, map_db) {
       await lobby_db.run('INSERT INTO ranked_lobby (lobby_id, filters) VALUES (?, "")', channel.lobby.id);
       console.log('Created ranked lobby.');
       await channel.lobby.invitePlayer(msg.user.ircUsername);
+    }
+
+    if (msg.message == '!rank') {
+      const user = await ranking_db.get('select elo from user where username = ?', user.username);
+      await msg.user.sendMessage('You are ' + get_rank_text(user.elo) + '.');
     }
   });
 

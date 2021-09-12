@@ -7,7 +7,7 @@ import sqlite3 from 'sqlite3';
 const CURRENT_VERSION = JSON.parse(fs.readFileSync('./package.json')).version;
 const Config = JSON.parse(fs.readFileSync('./config.json'));
 
-import start_casual from './casual.js';
+import {start as start_casual} from './casual.js';
 import {start_ranked} from './ranked.js';
 
 
@@ -53,34 +53,34 @@ async function main() {
     driver: sqlite3.Database,
   });
 
-  // await start_casual(client, lobby_db, map_db);
+  await start_casual(client, lobby_db, map_db);
   await start_ranked(client, lobby_db, map_db);
 
-  // client.on('PM', async (msg) => {
-  //   console.log(`[PM] ${msg.user.ircUsername}: ${msg.message}`);
+  client.on('PM', async (msg) => {
+    console.log(`[PM] ${msg.user.ircUsername}: ${msg.message}`);
 
-  //   // Check for updates
-  //   if (msg.message.indexOf('!') == 0) {
-  //     const user = await lobby_db.get('select * from user where username = ?', msg.user.ircUsername);
-  //     if (user && user.last_version != CURRENT_VERSION) {
-  //       await lobby_db.run(
-  //           'update user set last_version = ? where username = ?',
-  //           CURRENT_VERSION, msg.user.ircUsername,
-  //       );
-  //       await msg.user.sendMessage(`The bot has been updated to version ${CURRENT_VERSION}. For more details, [https://kiwec.net/blog/posts/osu-bot-update-2021-09-05 check out the changelog.]`);
-  //     }
-  //   }
+    // Check for updates
+    if (msg.message.indexOf('!') == 0) {
+      const user = await lobby_db.get('select * from user where username = ?', msg.user.ircUsername);
+      if (user && user.last_version != CURRENT_VERSION) {
+        await lobby_db.run(
+            'update user set last_version = ? where username = ?',
+            CURRENT_VERSION, msg.user.ircUsername,
+        );
+        await msg.user.sendMessage(`The bot has been updated to version ${CURRENT_VERSION}. For more details, [https://kiwec.net/blog/posts/osu-bot-update-2021-09-05 check out the changelog.]`);
+      }
+    }
 
-  //   if (msg.message.indexOf('!help') == 0) {
-  //     await msg.user.sendMessage('The full command list is on my profile. :)');
-  //     return;
-  //   }
-  // });
+    if (msg.message.indexOf('!help') == 0) {
+      await msg.user.sendMessage('The full command list is on my profile. :)');
+      return;
+    }
+  });
 
-  // await client.emit('PM', {
-  //   message: '!makelobby stars>4.8 stars<5.2 +HDDT',
-  //   user: client.getSelf(),
-  // });
+  /*  await client.emit('PM', {
+    message: '!makelobby stars>4.8 stars<5.2 +HDDT',
+    user: client.getSelf(),
+  });*/
 
   console.log('All ready and fired up!');
 }

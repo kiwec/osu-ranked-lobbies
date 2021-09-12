@@ -26,7 +26,8 @@ async function main() {
   )`);
 
   await lobby_db.exec(`CREATE TABLE IF NOT EXISTS ranked_lobby (
-    lobby_id INTEGER
+    lobby_id INTEGER,
+    filters TEXT
   )`);
 
   await lobby_db.exec(`CREATE TABLE IF NOT EXISTS user (
