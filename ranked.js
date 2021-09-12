@@ -206,8 +206,8 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
     }
 
     // Remove user from voteskip list, if they voted to skip
-    if(lobby.voteskips.includes(obj.player.user.ircUsername)) {
-      lobby.voteskips.splice(lobby.voteskips.indexOf(obj.player.user.ircUsername), 1);
+    if(lobby.voteskips.includes(obj.user.ircUsername)) {
+      lobby.voteskips.splice(lobby.voteskips.indexOf(obj.user.ircUsername), 1);
     }
 
     // Check if we should skip
