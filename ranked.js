@@ -296,6 +296,8 @@ async function start_ranked(client, lobby_db, map_db) {
       channel.lobby.filters = lobby.filters;
       await join_lobby(channel.lobby, lobby_db, map_db, client);
       joined_lobbies.push(channel.lobby);
+      await close_or_idle_in_lobby(channel.lobby, lobby_db, map_db);
+      console.log('Rejoined ranked lobby #' + lobby.lobby_id);
     } catch (e) {
       console.error('Could not rejoin lobby ' + lobby.lobby_id + ':', e);
       await lobby_db.run(`DELETE FROM ranked_lobby WHERE lobby_id = ?`, lobby.lobby_id);
