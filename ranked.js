@@ -319,7 +319,7 @@ async function start_ranked(client, lobby_db, map_db) {
     }
 
     if (msg.message == '!rank') {
-      const res = await ranking_db.get('select elo from user where username = ?', msg.user.username);
+      const res = await ranking_db.get('select elo from user where username = ?', msg.user.ircUsername);
       const better_users = await ranking_db.get('SELECT COUNT(*) AS nb FROM user WHERE elo > ?', res.elo);
       const all_users = await ranking_db.get('SELECT COUNT(*) AS nb FROM user');
       await msg.user.sendMessage('You are ' + get_rank_text(1.0 - (better_users.nb / all_users.nb)) + '.');
