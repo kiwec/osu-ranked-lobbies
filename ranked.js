@@ -6,6 +6,7 @@ import {update_lobby_filters} from './casual.js';
 const CURRENT_VERSION = JSON.parse(fs.readFileSync('./package.json')).version;
 
 let ranking_db = null;
+let joined_lobbies = [];
 
 
 function median(numbers) {
@@ -37,15 +38,16 @@ async function select_next_map(lobby, map_db) {
   }
 
   if (avg_pps.length == 0) {
-    console.error(`[Ranked lobby ${lobby.id}] No users in the lobby, cannot select map. Aborting.`);
-    return;
+    // Lobby is empty, but we still want to switch a map to keep it around.
+    // Switch to a 120pp map, everyone likes 120pp maps.
+    avg_pps.push(120.0);
   }
 
   let new_map = null;
   const pp = median(avg_pps);
   let pp_variance = pp / 20;
 
-  const filters = lobby.filters || 'from pp inner join map on map.id = pp.map_id where mods = (1<<15) AND length < 200';
+  const filters = lobby.filters || 'from pp inner join map on map.id = pp.map_id where mods = (1<<15) AND length < 240';
   let tries = 0;
   do {
     new_map = await map_db.get(
@@ -76,6 +78,51 @@ async function select_next_map(lobby, map_db) {
   } catch (e) {
     console.error(`[Ranked lobby ${lobby.id}] Failed to switch to map ${new_map.id} ${new_map.file}:`, e);
   }
+}
+
+async function open_new_lobby_if_needed(client, lobby_db, map_db) {
+  let empty_slots = 0;
+  for(let jl of joined_lobbies) {
+    let nb_players = jl.slots.reduce((total, slot) => total+slot);
+    empty_slots += 16 - nb_players;
+  }
+
+  if(empty_slots == 0) {
+    const channel = await client.createLobby(`RANKED LOBBY | Auto map select`);
+    joined_lobbies.push(channel.lobby);
+    channel.lobby.filters = '';
+    await join_lobby(channel.lobby, lobby_db, map_db, client);
+    await lobby_db.run('INSERT INTO ranked_lobby (lobby_id, filters) VALUES (?, "")', channel.lobby.id);
+    await channel.sendMessage('!mp mods freemod');
+    console.log('Created new ranked lobby #' + channel.lobby.id);
+  }
+}
+
+async function close_or_idle_in_lobby(lobby, lobby_db, map_db) {
+  // 1. Check if the lobby is empty
+  let lobby_empty = lobby.slots.every((s) => s == null);
+  if(!lobby_empty) {
+    return;
+  }
+
+  // 2. Check if other lobbies have room
+  let empty_slots = 0;
+  for(let jl of joined_lobbies) {
+    if(jl == lobby) continue;
+    let nb_players = jl.slots.reduce((total, slot) => total+slot);
+    empty_slots += 16 - nb_players;
+  }
+  if(empty_slots > 4) {
+    joined_lobbies.splice(joined_lobbies.indexOf(lobby), 1);
+    await lobby_db.run(`DELETE FROM ranked_lobby WHERE lobby_id = ?`, lobby.id);
+    await lobby.closeLobby();
+    console.log('Closed ranked lobby ' + lobby.id);
+    return;
+  }
+
+  // 3. Other lobbies are (almost) full, let's keep it around for a bit longer.
+  await select_next_map(lobby, map_db);
+  setTimeout(() => close_or_idle_in_lobby(lobby, lobby_db, map_db), 30000);
 }
 
 async function join_lobby(lobby, lobby_db, map_db, client) {
@@ -112,23 +159,16 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
     await select_next_map(lobby, map_db);
 
     if (rank_updates.length > 0) {
-      let outstr = 'Rank updates: ';
-
-      for (const i in rank_updates) {
-        if (!rank_updates.hasOwnProperty(i)) continue;
-        const player = rank_updates[i];
-
-        if (i == 0) {
-          outstr += player.username + ' is now ' + player.rank_text;
-        } else if (i == rank_updates.length - 1) {
-          outstr += ' and ' + player.username + ' is now ' + player.rank_text;
+      let strings = [];
+      for(let update of rank_updates) {
+        if(update.rank_before > update.rank_after) {
+          strings.push(update.username + ' [https://osu.kiwec.net/u/' + update.username + '/ ▼' + get_rank_text(update.rank_after) + ']');
         } else {
-          outstr += ', ' + player.username + ' is now ' + player.rank_text;
+          strings.push(update.username + ' [https://osu.kiwec.net/u/' + update.username + '/ ▲' + get_rank_text(update.rank_after) + ']');
         }
       }
 
-      outstr += '.';
-      await lobby.channel.sendMessage(outstr);
+      await lobby.channel.sendMessage('Rank updates: ' + strings.join(' | '));
     }
   });
 
@@ -151,15 +191,37 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
     if (get_nb_players() == 1) {
       await select_next_map(lobby, map_db);
     }
+
+    await open_new_lobby_if_needed(client, lobby_db, map_db);
   });
 
   lobby.on('playerLeft', async (obj) => {
     // TODO: add 0pp score if the player was currently playing?
-    // TODO: keep the lobby open if it's the last one by idling in it?
-    if (get_nb_players() == 0) {
-      await lobby_db.run(`DELETE FROM ranked_lobby WHERE lobby_id = ?`, lobby.id);
-      await lobby.closeLobby();
-      console.log('Closed ranked lobby ' + lobby.id);
+
+    // Check if we should close the lobby
+    let nb_players = lobby.slots.reduce((total, slot) => total+slot);
+    if(nb_players == 0) {
+      await close_or_idle_in_lobby(lobby, lobby_db, map_db);
+      return;
+    }
+
+    // Remove user from voteskip list, if they voted to skip
+    if(lobby.voteskips.includes(obj.player.user.ircUsername)) {
+      lobby.voteskips.splice(lobby.voteskips.indexOf(obj.player.user.ircUsername), 1);
+    }
+
+    // Check if we should skip
+    if (lobby.voteskips.length >= nb_players / 2) {
+        lobby.voteskips = [];
+        await select_next_map(lobby, map_db);
+        return;
+      }
+
+    // Check if all players are ready
+    let all_ready = lobby.slots.every((s) => s == null || s.state == 'Ready');
+    if(all_ready) {
+      lobby.emit('allPlayersReady');
+      return;
     }
   });
 
@@ -183,7 +245,10 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
     }
 
     if (msg.message == '!rank') {
-      await lobby.channel.sendMessage(msg.user.ircUsername + ': You are ' + get_rank_text(msg.user.elo) + '.');
+      const res = await ranking_db.get('select elo from user where username = ?', msg.user.ircUsername);
+      const better_users = await ranking_db.get('SELECT COUNT(*) AS nb FROM user WHERE elo > ?', res.elo);
+      const all_users = await ranking_db.get('SELECT COUNT(*) AS nb FROM user');
+      await lobby.channel.sendMessage(msg.user.ircUsername + ': You are ' + get_rank_text(1.0 - (better_users.nb / all_users.nb)) + '.');
     }
 
     if (msg.message == '!skip' && !lobby.voteskips.includes(msg.user.ircUsername)) {
@@ -196,7 +261,7 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
       }
     }
 
-    if (msg.message == '!start' && !lobby.countdown) {
+    if (msg.message == '!start' && lobby.countdown == -1) {
       lobby.countdown = setTimeout(async () => {
         lobby.countdown = setTimeout(async () => {
           lobby.startMatch();
@@ -213,8 +278,6 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
 async function start_ranked(client, lobby_db, map_db) {
   ranking_db = await init_ranking_db();
 
-  const joined_lobbies = [];
-
   const lobbies = await lobby_db.all('SELECT * from ranked_lobby');
   for (const lobby of lobbies) {
     try {
@@ -229,14 +292,7 @@ async function start_ranked(client, lobby_db, map_db) {
     }
   }
 
-  if (joined_lobbies.length == 0) {
-    const channel = await client.createLobby(`RANKED LOBBY | Auto map select`);
-    channel.lobby.filters = '';
-    await join_lobby(channel.lobby, lobby_db, map_db, client);
-    joined_lobbies.push(channel.lobby);
-    await lobby_db.run('INSERT INTO ranked_lobby (lobby_id, filters) VALUES (?, "")', channel.lobby.id);
-    console.log('Created ranked lobby.');
-  }
+  await open_new_lobby_if_needed(client, lobby_db, map_db);
 
   client.on('PM', async (msg) => {
     if (msg.user.isClient() && msg.message == '!makerankedlobby') {
@@ -245,17 +301,18 @@ async function start_ranked(client, lobby_db, map_db) {
       await join_lobby(channel.lobby, lobby_db, map_db, client);
       joined_lobbies.push(channel.lobby);
       await lobby_db.run('INSERT INTO ranked_lobby (lobby_id, filters) VALUES (?, "")', channel.lobby.id);
+      await channel.sendMessage('!mp mods freemod');
       console.log('Created ranked lobby.');
       await channel.lobby.invitePlayer(msg.user.ircUsername);
     }
 
     if (msg.message == '!rank') {
-      const user = await ranking_db.get('select elo from user where username = ?', user.username);
-      await msg.user.sendMessage('You are ' + get_rank_text(user.elo) + '.');
+      const res = await ranking_db.get('select elo from user where username = ?', user.username);
+      const better_users = await ranking_db.get('SELECT COUNT(*) AS nb FROM user WHERE elo > ?', res.elo);
+      const all_users = await ranking_db.get('SELECT COUNT(*) AS nb FROM user');
+      await msg.user.sendMessage('You are ' + get_rank_text(1.0 - (better_users.nb / all_users.nb)) + '.');
     }
   });
-
-  // TODO: automatically create/close lobbies on demand
 }
 
 export {

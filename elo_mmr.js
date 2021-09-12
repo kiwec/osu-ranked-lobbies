@@ -150,9 +150,9 @@ class Player {
     }
 
     // Not used for computing new rank - but for knowing when the display text changed
-    const better_users = await db.get('SELECT COUNT(*) AS nb FROM user WHERE elo > ?', user.elo);
+    const better_users = await db.get('SELECT COUNT(*) AS nb FROM user WHERE elo > ?', this.approx_posterior.toFloat());
     const all_users = await db.get('SELECT COUNT(*) AS nb FROM user');
-    this.rank_text = get_rank_text(1.0 - (better_users.nb / all_users.nb));
+    this.rank_float = 1.0 - (better_users.nb / all_users.nb);
   }
 
   // Modifies the player object. Returns nothing.
@@ -316,10 +316,9 @@ async function update_mmr(db, lobby) {
     const sig = Math.sqrt(1.0 / (Math.pow(player.approx_posterior.sig, -2) + Math.pow(performance.sig, -2)));
     player.approx_posterior = new Rating(mu, sig);
 
-    standing.bancho_user.elo = player.approx_posterior.toFloat();
     await db.run(
         'UPDATE user SET elo = ?, approx_mu = ?, approx_sig = ?, normal_mu = ?, normal_sig = ? WHERE user_id = ?',
-        standing.bancho_user.elo, mu, sig, player.normal_factor.mu, player.normal_factor.sig, player.user_id,
+        player.approx_posterior.toFloat(), mu, sig, player.normal_factor.mu, player.normal_factor.sig, player.user_id,
     );
     await db.run(
         'INSERT INTO score (user_id, contest_id, score, logistic_mu, logistic_sig, tms) VALUES (?, ?, ?, ?, ?, ?)',
@@ -332,11 +331,16 @@ async function update_mmr(db, lobby) {
   for (const standing of contest.standings) {
     const better_users = await db.get('SELECT COUNT(*) AS nb FROM user WHERE elo > ?', standing.player.approx_posterior.toFloat());
     const all_users = await db.get('SELECT COUNT(*) AS nb FROM user');
+    const new_rank_float = 1.0 - (better_users.nb / all_users.nb);
     const new_rank_text = get_rank_text(1.0 - (better_users.nb / all_users.nb));
-    if (standing.player.rank_text != new_rank_text) {
-      standing.player.rank_text = new_rank_text;
-      rank_changes.push(standing.player);
+    if (get_rank_text(standing.player.rank_float) != get_rank_text(new_rank_float)) {
+      rank_changes.push({
+        username: standing.player.username,
+        rank_before: standing.player.rank_float,
+        rank_after: new_rank_float
+      });
     }
+    standing.player.rank_float = new_rank_float;
   }
   return rank_changes;
 }
