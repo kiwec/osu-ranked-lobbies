@@ -1,6 +1,7 @@
 import fs from 'fs';
 import {init_db as init_ranking_db, update_mmr, get_rank_text} from './elo_mmr.js';
 import {update_lobby_filters} from './casual.js';
+import BanchoLobbyPlayerStates from 'bancho.js/lib/Multiplayer/Enums/BanchoLobbyPlayerStates.js';
 
 // fuck you, es6 modules, for making this inconvenient
 const CURRENT_VERSION = JSON.parse(fs.readFileSync('./package.json')).version;
@@ -10,14 +11,20 @@ let joined_lobbies = [];
 
 
 function median(numbers) {
-  const sorted = numbers.slice().sort((a, b) => a - b);
-  const middle = Math.floor(sorted.length / 2);
+  const middle = Math.floor(numbers.length / 2);
+  if (numbers.length % 2 === 0) {
+    return (numbers[middle - 1] + numbers[middle]) / 2;
+  }
+  return numbers[middle];
+}
 
-  if (sorted.length % 2 === 0) {
-    return (sorted[middle - 1] + sorted[middle]) / 2;
+function get_nb_players(lobby) {
+  let nb_players = 0;
+  for (const player of lobby.slots) {
+    if (player != null) nb_players++;
   }
 
-  return sorted[middle];
+  return nb_players;
 }
 
 async function select_next_map(lobby, map_db) {
@@ -30,12 +37,15 @@ async function select_next_map(lobby, map_db) {
     lobby.recent_maps.shift();
   }
 
-  const avg_pps = [];
+  let avg_pps = [];
   for (const player of lobby.slots) {
     if (player && player.user.avg_pp) {
       avg_pps.push(player.user.avg_pp);
     }
   }
+
+  // Can't just .sort() because js is stupid
+  avg_pps = avg_pps.sort((a, b) => Math.round(a) - Math.round(b));
 
   if (avg_pps.length == 0) {
     // Lobby is empty, but we still want to switch a map to keep it around.
@@ -67,7 +77,6 @@ async function select_next_map(lobby, map_db) {
     return;
   }
 
-  console.log(`[Ranked lobby ${lobby.id}] New map: ${new_map.id}`);
   lobby.recent_maps.push(new_map.id);
 
   try {
@@ -83,7 +92,10 @@ async function select_next_map(lobby, map_db) {
 async function open_new_lobby_if_needed(client, lobby_db, map_db) {
   let empty_slots = 0;
   for(let jl of joined_lobbies) {
-    let nb_players = jl.slots.reduce((total, slot) => total+slot);
+    let nb_players = 0;
+    for(let s of jl.slots) {
+      if(s) nb_players++;
+    }
     empty_slots += 16 - nb_players;
   }
 
@@ -98,19 +110,34 @@ async function open_new_lobby_if_needed(client, lobby_db, map_db) {
   }
 }
 
-async function close_or_idle_in_lobby(lobby, lobby_db, map_db) {
+async function close_or_idle_in_lobby(lobby, lobby_db, map_db, nonce) {
+  // If two players leave at the same time, this function can get called
+  // twice, so let's prevent it using the dumbest method available.
+  if(lobby.idling && lobby.idling != nonce) {
+    return;
+  }
+  lobby.idling = nonce;
+
+  // 0. Check if we're still in the lobby
+  if(!lobby.channel.joined) {
+    joined_lobbies.splice(joined_lobbies.indexOf(lobby), 1);
+    await lobby_db.run(`DELETE FROM ranked_lobby WHERE lobby_id = ?`, lobby.id);
+    console.log('We no longer are in the ranked lobby #' + lobby.id + ' - stopping idling loop.');
+    lobby.idling = false;
+    return;
+  }
+
   // 1. Check if the lobby is empty
   let lobby_empty = lobby.slots.every((s) => s == null);
   if(!lobby_empty) {
+    lobby.idling = false;
     return;
   }
 
   // 2. Check if other lobbies have room
   let empty_slots = 0;
   for(let jl of joined_lobbies) {
-    if(jl == lobby) continue;
-    let nb_players = jl.slots.reduce((total, slot) => total+slot);
-    empty_slots += 16 - nb_players;
+    empty_slots += 16 - get_nb_players(jl);
   }
   if(empty_slots > 4) {
     joined_lobbies.splice(joined_lobbies.indexOf(lobby), 1);
@@ -122,7 +149,7 @@ async function close_or_idle_in_lobby(lobby, lobby_db, map_db) {
 
   // 3. Other lobbies are (almost) full, let's keep it around for a bit longer.
   await select_next_map(lobby, map_db);
-  setTimeout(() => close_or_idle_in_lobby(lobby, lobby_db, map_db), 30000);
+  setTimeout(() => close_or_idle_in_lobby(lobby, lobby_db, map_db, nonce), 60000);
 }
 
 async function join_lobby(lobby, lobby_db, map_db, client) {
@@ -131,17 +158,18 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
   lobby.countdown = -1;
   await lobby.setPassword('');
 
-  const get_nb_players = () => {
-    let nb_players = 0;
-    for (const player of lobby.slots) {
-      if (player != null) nb_players++;
-    }
+  // Fetch user info
+  for(const player of lobby.slots) {
+    if(!player) continue;
 
-    return nb_players;
-  };
+    await player.user.fetchFromAPI();
+
+    // EXTREMELY ACCURATE PP GUESSTIMATING
+    player.user.avg_pp = (player.user.ppRaw * player.user.accuracy) / 2500;
+  }
 
   lobby.on('allPlayersReady', async () => {
-    if(get_nb_players() < 2) {
+    if(get_nb_players(ĺobby) < 2) {
       await lobby.channel.sendMessage('Cannot start until there are at least 2 players in the lobby.');
       return;
     }
@@ -181,7 +209,7 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
     await obj.player.user.fetchFromAPI();
 
     // EXTREMELY ACCURATE PP GUESSTIMATING
-    obj.player.user.avg_pp = (obj.player.user.ppRaw * obj.player.user.accuracy) / 3000;
+    obj.player.user.avg_pp = (obj.player.user.ppRaw * obj.player.user.accuracy) / 2900;
 
     const user = await lobby_db.get('select * from user where user_id = ?', obj.player.user.id);
     if (!user) {
@@ -193,7 +221,7 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
     }
 
 
-    if (get_nb_players() == 1) {
+    if (get_nb_players(lobby) == 1) {
       await select_next_map(lobby, map_db);
     }
 
@@ -204,9 +232,10 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
     // TODO: add 0pp score if the player was currently playing?
 
     // Check if we should close the lobby
-    let nb_players = lobby.slots.reduce((total, slot) => total+slot);
+    let nb_players = get_nb_players(lobby);
+    console.log(nb_players + ' left in the lobby');
     if(nb_players == 0) {
-      await close_or_idle_in_lobby(lobby, lobby_db, map_db);
+      await close_or_idle_in_lobby(lobby, lobby_db, map_db, Math.random());
       return;
     }
 
@@ -223,7 +252,10 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
       }
 
     // Check if all players are ready
-    let all_ready = lobby.slots.every((s) => s == null || s.state == 'Ready');
+    for(let slot of lobby.slots) {
+      if(slot) console.log(slot.state, slot.state == BanchoLobbyPlayerStates.Ready, BanchoLobbyPlayerStates.Ready);
+    }
+    let all_ready = lobby.slots.every((s) => s == null || s.state == BanchoLobbyPlayerStates.Ready);
     if(all_ready) {
       lobby.emit('allPlayersReady');
       return;
@@ -258,16 +290,16 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
 
     if (msg.message == '!skip' && !lobby.voteskips.includes(msg.user.ircUsername)) {
       lobby.voteskips.push(msg.user.ircUsername);
-      if (lobby.voteskips.length >= get_nb_players() / 2) {
+      if (lobby.voteskips.length >= get_nb_players(lobby) / 2) {
         lobby.voteskips = [];
         await select_next_map(lobby, map_db);
       } else {
-        await lobby.channel.sendMessage(`${lobby.voteskips.length}/${get_nb_players() / 2} players voted to switch to another map.`);
+        await lobby.channel.sendMessage(`${lobby.voteskips.length}/${Math.ceil(get_nb_players(lobby) / 2)} players voted to switch to another map.`);
       }
     }
 
     if (msg.message == '!start' && lobby.countdown == -1) {
-      if(get_nb_players() < 2) {
+      if(get_nb_players(lobby) < 2) {
         await lobby.channel.sendMessage('Cannot start until there are at least 2 players in the lobby.');
         return;
       }
@@ -296,7 +328,7 @@ async function start_ranked(client, lobby_db, map_db) {
       channel.lobby.filters = lobby.filters;
       await join_lobby(channel.lobby, lobby_db, map_db, client);
       joined_lobbies.push(channel.lobby);
-      await close_or_idle_in_lobby(channel.lobby, lobby_db, map_db);
+      await close_or_idle_in_lobby(channel.lobby, lobby_db, map_db, Math.random());
       console.log('Rejoined ranked lobby #' + lobby.lobby_id);
     } catch (e) {
       console.error('Could not rejoin lobby ' + lobby.lobby_id + ':', e);
