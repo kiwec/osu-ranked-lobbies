@@ -110,7 +110,7 @@ async function open_new_lobby_if_needed(client, lobby_db, map_db) {
   }
 }
 
-async function close_or_idle_in_lobby(lobby, lobby_db, map_db, nonce) {
+async function close_or_idle_in_lobby(client, lobby, lobby_db, map_db, nonce) {
   // If two players leave at the same time, this function can get called
   // twice, so let's prevent it using the dumbest method available.
   if(lobby.idling && lobby.idling != nonce) {
@@ -124,6 +124,7 @@ async function close_or_idle_in_lobby(lobby, lobby_db, map_db, nonce) {
     await lobby_db.run(`DELETE FROM ranked_lobby WHERE lobby_id = ?`, lobby.id);
     console.log('We no longer are in the ranked lobby #' + lobby.id + ' - stopping idling loop.');
     lobby.idling = false;
+    await open_new_lobby_if_needed(client, lobby_db, map_db);
     return;
   }
 
@@ -137,6 +138,7 @@ async function close_or_idle_in_lobby(lobby, lobby_db, map_db, nonce) {
   // 2. Check if other lobbies have room
   let empty_slots = 0;
   for(let jl of joined_lobbies) {
+    if(jl == lobby) continue;
     empty_slots += 16 - get_nb_players(jl);
   }
   if(empty_slots > 4) {
@@ -149,7 +151,7 @@ async function close_or_idle_in_lobby(lobby, lobby_db, map_db, nonce) {
 
   // 3. Other lobbies are (almost) full, let's keep it around for a bit longer.
   await select_next_map(lobby, map_db);
-  setTimeout(() => close_or_idle_in_lobby(lobby, lobby_db, map_db, nonce), 60000);
+  setTimeout(() => close_or_idle_in_lobby(client, lobby, lobby_db, map_db, nonce), 60000);
 }
 
 async function join_lobby(lobby, lobby_db, map_db, client) {
@@ -168,8 +170,12 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
     player.user.avg_pp = (player.user.ppRaw * player.user.accuracy) / 2500;
   }
 
+  // When we start the bot, initially, the lobby is empty. Make sure it
+  // doesn't close before somebody joins.
+  await close_or_idle_in_lobby(client, lobby, lobby_db, map_db, Math.random());
+
   lobby.on('allPlayersReady', async () => {
-    if(get_nb_players(ĺobby) < 2) {
+    if(get_nb_players(lobby) < 2) {
       await lobby.channel.sendMessage('Cannot start until there are at least 2 players in the lobby.');
       return;
     }
@@ -233,9 +239,8 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
 
     // Check if we should close the lobby
     let nb_players = get_nb_players(lobby);
-    console.log(nb_players + ' left in the lobby');
     if(nb_players == 0) {
-      await close_or_idle_in_lobby(lobby, lobby_db, map_db, Math.random());
+      await close_or_idle_in_lobby(client, lobby, lobby_db, map_db, Math.random());
       return;
     }
 
@@ -328,7 +333,6 @@ async function start_ranked(client, lobby_db, map_db) {
       channel.lobby.filters = lobby.filters;
       await join_lobby(channel.lobby, lobby_db, map_db, client);
       joined_lobbies.push(channel.lobby);
-      await close_or_idle_in_lobby(channel.lobby, lobby_db, map_db, Math.random());
       console.log('Rejoined ranked lobby #' + lobby.lobby_id);
     } catch (e) {
       console.error('Could not rejoin lobby ' + lobby.lobby_id + ':', e);
