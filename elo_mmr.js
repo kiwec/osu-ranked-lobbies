@@ -357,12 +357,12 @@ function get_rank_text(rank_float) {
   // Epic rank distribution algorithm
   const ranks = [
     'Cardboard',
-    'Copper I', 'Copper II', 'Copper III', 'Copper IV',
-    'Bronze I', 'Bronze II', 'Bronze III', 'Bronze IV',
-    'Silver I', 'Silver II', 'Silver III', 'Silver IV',
-    'Gold I', 'Gold II', 'Gold III', 'Gold IV',
-    'Platinum I', 'Platinum II', 'Platinum III', 'Platinum IV',
-    'Diamond I', 'Diamond II', 'Diamond III', 'Diamond IV',
+    'Copper', 'Copper+', 'Copper++',
+    'Bronze', 'Bronze+', 'Bronze++',
+    'Silver', 'Silver+', 'Silver++',
+    'Gold', 'Gold+', 'Gold++',
+    'Platinum', 'Platinum+', 'Platinum++',
+    'Diamond', 'Diamond+', 'Diamond++',
     'Legendary',
   ];
   for (let i in ranks) {

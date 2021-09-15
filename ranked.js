@@ -83,13 +83,16 @@ async function open_new_lobby_if_needed(client, lobby_db, map_db) {
   }
 
   if (empty_slots == 0) {
-    const channel = await client.createLobby(`RANKED LOBBY | Auto map select`);
+    // Feel free to suggest more. lol
+    const clickbaits = ['(1-11*)', '(join or ligma)', '(real)', '(amogus)', '(uwu)', '(owo)', '😃', '😍', '😎', '😏', '😯', '😈', '👼'];
+    const clickbait = clickbaits[Math.floor(Math.random()*clickbaits.length)];
+    const channel = await client.createLobby(`RANKED LOBBY | Auto map select ${clickbait}`);
     joined_lobbies.push(channel.lobby);
     channel.lobby.filters = '';
     await join_lobby(channel.lobby, lobby_db, map_db, client);
     await lobby_db.run('INSERT INTO ranked_lobby (lobby_id, filters) VALUES (?, "")', channel.lobby.id);
     await channel.sendMessage('!mp mods freemod');
-    console.log(`[Ranked lobby #${lobby.id}] Created.`);
+    console.log(`[Ranked lobby #${channel.lobby.id}] Created.`);
   }
 }
 
@@ -209,11 +212,6 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
           'INSERT INTO user (user_id, username, last_version) VALUES (?, ?, ?)',
           obj.player.user.id, obj.player.user.username, CURRENT_VERSION,
       );
-    }
-
-
-    if (get_nb_players(lobby) == 1) {
-      await select_next_map(lobby, map_db);
     }
 
     await open_new_lobby_if_needed(client, lobby_db, map_db);
