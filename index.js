@@ -77,8 +77,8 @@ async function main() {
     }
 
     const lobby_only_commands = ['!skip', '!start', '!setfilter'];
-    for(let cmd of lobby_only_commands) {
-      if(msg.message.indexOf(cmd) == 0) {
+    for (const cmd of lobby_only_commands) {
+      if (msg.message.indexOf(cmd) == 0) {
         await msg.user.sendMessage('Sorry, you should send that command in #multiplayer.');
         return;
       }

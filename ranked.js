@@ -1,13 +1,12 @@
 import fs from 'fs';
 import {init_db as init_ranking_db, update_mmr, get_rank_text} from './elo_mmr.js';
 import {update_lobby_filters} from './casual.js';
-import BanchoLobbyPlayerStates from 'bancho.js/lib/Multiplayer/Enums/BanchoLobbyPlayerStates.js';
 
 // fuck you, es6 modules, for making this inconvenient
 const CURRENT_VERSION = JSON.parse(fs.readFileSync('./package.json')).version;
 
 let ranking_db = null;
-let joined_lobbies = [];
+const joined_lobbies = [];
 
 
 function median(numbers) {
@@ -75,15 +74,15 @@ async function select_next_map(lobby, map_db) {
 
 async function open_new_lobby_if_needed(client, lobby_db, map_db) {
   let empty_slots = 0;
-  for(let jl of joined_lobbies) {
+  for (const jl of joined_lobbies) {
     let nb_players = 0;
-    for(let s of jl.slots) {
-      if(s) nb_players++;
+    for (const s of jl.slots) {
+      if (s) nb_players++;
     }
     empty_slots += 16 - nb_players;
   }
 
-  if(empty_slots == 0) {
+  if (empty_slots == 0) {
     const channel = await client.createLobby(`RANKED LOBBY | Auto map select`);
     joined_lobbies.push(channel.lobby);
     channel.lobby.filters = '';
@@ -102,8 +101,8 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
   await lobby.setPassword('');
 
   // Fetch user info
-  for(const player of lobby.slots) {
-    if(!player) continue;
+  for (const player of lobby.slots) {
+    if (!player) continue;
 
     await player.user.fetchFromAPI();
 
@@ -131,13 +130,13 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
     lobby.median_pp = median(player_pps);
 
     // If median pp changed by more than 25%, update map
-    if(Math.abs(old_median_pp - lobby.median_pp) > 0.25 * Math.max(old_median_pp, lobby.median_pp)) {
+    if (Math.abs(old_median_pp - lobby.median_pp) > 0.25 * Math.max(old_median_pp, lobby.median_pp)) {
       await select_next_map(lobby, map_db);
       return true;
     }
 
     return false;
-  }
+  };
 
   const start_match = async () => {
     await lobby.startMatch();
@@ -149,9 +148,9 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
     lobby.countdown = -1;
   };
 
-  lobby.channel.on('PART', async member => {
+  lobby.channel.on('PART', async (member) => {
     // Lobby closed (intentionally or not), clean up
-    if(member.user.isClient()) {
+    if (member.user.isClient()) {
       joined_lobbies.splice(joined_lobbies.indexOf(lobby), 1);
       await lobby_db.run(`DELETE FROM ranked_lobby WHERE lobby_id = ?`, lobby.id);
       console.log(`[Ranked lobby #${lobby.id}] Closed.`);
@@ -161,7 +160,7 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
   });
 
   lobby.on('allPlayersReady', async () => {
-    if(get_nb_players(lobby) < 2) {
+    if (get_nb_players(lobby) < 2) {
       await lobby.channel.sendMessage('Cannot start until there are at least 2 players in the lobby.');
       return;
     }
@@ -174,9 +173,9 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
     await select_next_map(lobby, map_db);
 
     if (rank_updates.length > 0) {
-      let strings = [];
-      for(let update of rank_updates) {
-        if(update.rank_before > update.rank_after) {
+      const strings = [];
+      for (const update of rank_updates) {
+        if (update.rank_before > update.rank_after) {
           strings.push(update.username + ' [https://osu.kiwec.net/u/' + update.user_id + '/ ▼' + get_rank_text(update.rank_after) + ' ]');
         } else {
           strings.push(update.username + ' [https://osu.kiwec.net/u/' + update.user_id + '/ ▲' + get_rank_text(update.rank_after) + ' ]');
@@ -188,7 +187,7 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
       for (let i = 0, j = strings.length; i < j; i += MAX_UPDATES_PER_MSG) {
         const updates = strings.slice(i, i + MAX_UPDATES_PER_MSG);
 
-        if(i == 0) {
+        if (i == 0) {
           await lobby.channel.sendMessage('Rank updates: ' + updates.join(' | '));
         } else {
           await lobby.channel.sendMessage(updates.join(' | '));
@@ -223,16 +222,16 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
 
   lobby.on('playerLeft', async (obj) => {
     // Remove user from voteskip list, if they voted to skip
-    if(lobby.voteskips.includes(obj.user.ircUsername)) {
+    if (lobby.voteskips.includes(obj.user.ircUsername)) {
       lobby.voteskips.splice(lobby.voteskips.indexOf(obj.user.ircUsername), 1);
     }
 
-    if(await update_median_pp()) {
+    if (await update_median_pp()) {
       return;
     }
 
     // Check if we should skip
-    let nb_players = get_nb_players(lobby);
+    const nb_players = get_nb_players(lobby);
     if (lobby.voteskips.length >= nb_players / 2) {
       await select_next_map(lobby, map_db);
       return;
@@ -243,7 +242,7 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
     console.log(`[Ranked lobby #${lobby.id}] ${msg.user.ircUsername}: ${msg.message}`);
 
     if (msg.message.indexOf('!setfilter') == 0) {
-      if(!msg.user.isClient()) {
+      if (!msg.user.isClient()) {
         await lobby.channel.sendMessage(msg.user.ircUsername + ': That command only works in unranked lobbies.');
         return;
       }
@@ -265,7 +264,7 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
 
     if (msg.message == '!rank') {
       const res = await ranking_db.get('select elo from user where username = ?', msg.user.ircUsername);
-      if(!res || !res.elo) {
+      if (!res || !res.elo) {
         await lobby.channel.sendMessage(msg.user.ircUsername + ': You are Unranked.');
         return;
       }
@@ -285,7 +284,7 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
     }
 
     if (msg.message == '!start' && lobby.countdown == -1) {
-      if(get_nb_players(lobby) < 2) {
+      if (get_nb_players(lobby) < 2) {
         await lobby.channel.sendMessage('Cannot start until there are at least 2 players in the lobby.');
         return;
       }
@@ -333,28 +332,28 @@ async function start_ranked(client, lobby_db, map_db) {
       await channel.lobby.invitePlayer(msg.user.ircUsername);
     }
 
-    if(msg.message == '!ranked') {
+    if (msg.message == '!ranked') {
       // 1. Get the list of non-empty, non-full lobbies
       const available_lobbies = [];
-      for(let lobby of joined_lobbies) {
+      for (const lobby of joined_lobbies) {
         const nb_players = get_nb_players(lobby);
-        if(nb_players > 0 && nb_players < 16) {
+        if (nb_players > 0 && nb_players < 16) {
           available_lobbies.push(lobby);
         }
       }
 
       // 2. Sort by closest pp level
       available_lobbies.sort((a, b) => Math.abs(msg.user.avg_pp - a.median_pp) - Math.abs(msg.user.avg_pp - b.median_pp));
-      if(available_lobbies.length > 0) {
+      if (available_lobbies.length > 0) {
         await available_lobbies[0].invitePlayer(msg.user.ircUsername);
         return;
       }
 
       // 3. Fine, send them an empty lobby
       await open_new_lobby_if_needed(client, lobby_db, map_db);
-      for(let lobby of joined_lobbies) {
+      for (const lobby of joined_lobbies) {
         const nb_players = get_nb_players(lobby);
-        if(nb_players < 16) {
+        if (nb_players < 16) {
           await lobby.invitePlayer(msg.user.ircUsername);
           return;
         }
@@ -363,7 +362,7 @@ async function start_ranked(client, lobby_db, map_db) {
 
     if (msg.message == '!rank') {
       const res = await ranking_db.get('select elo from user where username = ?', msg.user.ircUsername);
-      if(!res || !res.elo) {
+      if (!res || !res.elo) {
         await msg.user.sendMessage('You are Unranked.');
         return;
       }

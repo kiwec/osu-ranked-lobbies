@@ -332,13 +332,12 @@ async function update_mmr(db, lobby) {
     const better_users = await db.get('SELECT COUNT(*) AS nb FROM user WHERE elo > ?', standing.player.approx_posterior.toFloat());
     const all_users = await db.get('SELECT COUNT(*) AS nb FROM user');
     const new_rank_float = 1.0 - (better_users.nb / all_users.nb);
-    const new_rank_text = get_rank_text(1.0 - (better_users.nb / all_users.nb));
     if (get_rank_text(standing.player.rank_float) != get_rank_text(new_rank_float)) {
       rank_changes.push({
         user_id: standing.player.user_id,
         username: standing.player.username,
         rank_before: standing.player.rank_float,
-        rank_after: new_rank_float
+        rank_after: new_rank_float,
       });
     }
     standing.player.rank_float = new_rank_float;
