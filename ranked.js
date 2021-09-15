@@ -28,6 +28,8 @@ function get_nb_players(lobby) {
 }
 
 async function select_next_map(lobby, map_db) {
+  lobby.voteskips = [];
+
   // When the bot restarts, re-add the currently selected map to recent maps
   if (!lobby.recent_maps.includes(lobby.beatmapId)) {
     lobby.recent_maps.push(lobby.beatmapId);
@@ -37,33 +39,15 @@ async function select_next_map(lobby, map_db) {
     lobby.recent_maps.shift();
   }
 
-  let avg_pps = [];
-  for (const player of lobby.slots) {
-    if (player && player.user.avg_pp) {
-      avg_pps.push(player.user.avg_pp);
-    }
-  }
-
-  // Can't just .sort() because js is stupid
-  avg_pps = avg_pps.sort((a, b) => Math.round(a) - Math.round(b));
-
-  if (avg_pps.length == 0) {
-    // Lobby is empty, but we still want to switch a map to keep it around.
-    // Switch to a 120pp map, everyone likes 120pp maps.
-    avg_pps.push(120.0);
-  }
-
+  let pp_variance = lobby.median_pp / 20;
   let new_map = null;
-  const pp = median(avg_pps);
-  let pp_variance = pp / 20;
-
   const filters = lobby.filters || 'from pp inner join map on map.id = pp.map_id where mods = (1<<15) AND length < 240';
   let tries = 0;
   do {
     new_map = await map_db.get(
         `SELECT * ${filters} AND pp < ? AND pp > ?
       ORDER BY RANDOM() LIMIT 1`,
-        pp + pp_variance, pp - pp_variance,
+        lobby.median_pp + pp_variance, lobby.median_pp - pp_variance,
     );
     if (!new_map) {
       pp_variance *= 2;
@@ -114,6 +98,7 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
   lobby.recent_maps = [];
   lobby.voteskips = [];
   lobby.countdown = -1;
+  lobby.median_pp = 120.0;
   await lobby.setPassword('');
 
   // Fetch user info
@@ -125,6 +110,44 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
     // EXTREMELY ACCURATE PP GUESSTIMATING
     player.user.avg_pp = (player.user.ppRaw * player.user.accuracy) / 2500;
   }
+
+  // Updates the lobby's median_pp value. Returns true if map changed.
+  const update_median_pp = async () => {
+    let player_pps = [];
+    for (const player of lobby.slots) {
+      if (player && player.user.avg_pp) {
+        player_pps.push(player.user.avg_pp);
+      }
+    }
+
+    // Can't just .sort() because js is stupid
+    player_pps = player_pps.sort((a, b) => Math.round(a) - Math.round(b));
+    if (player_pps.length == 0) {
+      // Lobby is empty, but we still want a median pp.
+      player_pps.push(120.0);
+    }
+
+    const old_median_pp = lobby.median_pp;
+    const lobby.median_pp = median(player_pps);
+
+    // If median pp changed by more than 25%, update map
+    if(Math.abs(old_median_pp - lobby.median_pp) > 0.25 * Math.max(old_median_pp, lobby.median_pp)) {
+      await select_next_map(lobby, map_db);
+      return true;
+    }
+
+    return false;
+  }
+
+  const start_match = async () => {
+    await lobby.startMatch();
+    lobby.voteskips = [];
+
+    if (lobby.countdown != -1) {
+      clearTimeout(lobby.countdown);
+    }
+    lobby.countdown = -1;
+  };
 
   lobby.channel.on('PART', async member => {
     // Lobby closed (intentionally or not), clean up
@@ -143,13 +166,7 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
       return;
     }
 
-    if (lobby.countdown) {
-      clearTimeout(lobby.countdown);
-    }
-
-    lobby.startMatch();
-    lobby.voteskips = [];
-    lobby.countdown = -1;
+    await start_match();
   });
 
   lobby.on('matchFinished', async (scores) => {
@@ -191,6 +208,7 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
     }
 
     await open_new_lobby_if_needed(client, lobby_db, map_db);
+    await update_median_pp();
   });
 
   lobby.on('playerLeft', async (obj) => {
@@ -199,10 +217,13 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
       lobby.voteskips.splice(lobby.voteskips.indexOf(obj.user.ircUsername), 1);
     }
 
+    if(await update_median_pp()) {
+      return;
+    }
+
     // Check if we should skip
     let nb_players = get_nb_players(lobby);
     if (lobby.voteskips.length >= nb_players / 2) {
-      lobby.voteskips = [];
       await select_next_map(lobby, map_db);
       return;
     }
@@ -242,7 +263,6 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
     if (msg.message == '!skip' && !lobby.voteskips.includes(msg.user.ircUsername)) {
       lobby.voteskips.push(msg.user.ircUsername);
       if (lobby.voteskips.length >= get_nb_players(lobby) / 2) {
-        lobby.voteskips = [];
         await select_next_map(lobby, map_db);
       } else {
         await lobby.channel.sendMessage(`${lobby.voteskips.length}/${Math.ceil(get_nb_players(lobby) / 2)} players voted to switch to another map.`);
@@ -257,9 +277,8 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
 
       lobby.countdown = setTimeout(async () => {
         lobby.countdown = setTimeout(async () => {
-          lobby.startMatch();
-          lobby.voteskips = [];
           lobby.countdown = -1;
+          await start_match();
         }, 10000);
         await lobby.channel.sendMessage('Starting the match in 10 seconds... Ready up to start sooner.');
       }, 20000);
@@ -297,6 +316,34 @@ async function start_ranked(client, lobby_db, map_db) {
       await lobby_db.run('INSERT INTO ranked_lobby (lobby_id, filters) VALUES (?, "")', channel.lobby.id);
       await channel.sendMessage('!mp mods freemod');
       await channel.lobby.invitePlayer(msg.user.ircUsername);
+    }
+
+    if(msg.message == '!ranked') {
+      // 1. Get the list of non-empty, non-full lobbies
+      const available_lobbies = [];
+      for(let lobby of joined_lobbies) {
+        const nb_players = get_nb_players(lobby);
+        if(nb_players > 0 && nb_players < 16) {
+          available_lobbies.push(lobby);
+        }
+      }
+
+      // 2. Sort by closest pp level
+      available_lobbies.sort((a, b) => Math.abs(msg.user.avg_pp - a.median_pp) - Math.abs(msg.user.avg_pp - b.median_pp));
+      if(available_lobbies.length > 0) {
+        await available_lobbies[0].invitePlayer(msg.user.ircUsername);
+        return;
+      }
+
+      // 3. Fine, send them an empty lobby
+      await open_new_lobby_if_needed(client, lobby_db, map_db);
+      for(let lobby of joined_lobbies) {
+        const nb_players = get_nb_players(lobby);
+        if(nb_players < 16) {
+          await lobby.invitePlayer(msg.user.ircUsername);
+          return;
+        }
+      }
     }
 
     if (msg.message == '!rank') {
