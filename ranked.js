@@ -255,16 +255,6 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
         await select_next_map(lobby, map_db);
         return;
       }
-
-    // Check if all players are ready
-    for(let slot of lobby.slots) {
-      if(slot) console.log(slot.state, slot.state == BanchoLobbyPlayerStates.Ready, BanchoLobbyPlayerStates.Ready);
-    }
-    let all_ready = lobby.slots.every((s) => s == null || s.state == BanchoLobbyPlayerStates.Ready);
-    if(all_ready) {
-      lobby.emit('allPlayersReady');
-      return;
-    }
   });
 
   lobby.channel.on('message', async (msg) => {
@@ -288,6 +278,11 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
 
     if (msg.message == '!rank') {
       const res = await ranking_db.get('select elo from user where username = ?', msg.user.ircUsername);
+      if(!res || !res.elo) {
+        await lobby.channel.sendMessage(msg.user.ircUsername + ': You are Unranked.');
+        return;
+      }
+
       const better_users = await ranking_db.get('SELECT COUNT(*) AS nb FROM user WHERE elo > ?', res.elo);
       const all_users = await ranking_db.get('SELECT COUNT(*) AS nb FROM user');
       await lobby.channel.sendMessage(msg.user.ircUsername + ': You are ' + get_rank_text(1.0 - (better_users.nb / all_users.nb)) + '.');
@@ -356,6 +351,11 @@ async function start_ranked(client, lobby_db, map_db) {
 
     if (msg.message == '!rank') {
       const res = await ranking_db.get('select elo from user where username = ?', msg.user.ircUsername);
+      if(!res || !res.elo) {
+        await await msg.user.sendMessage(msg.user.ircUsername + ': You are Unranked.');
+        return;
+      }
+  
       const better_users = await ranking_db.get('SELECT COUNT(*) AS nb FROM user WHERE elo > ?', res.elo);
       const all_users = await ranking_db.get('SELECT COUNT(*) AS nb FROM user');
       await msg.user.sendMessage('You are ' + get_rank_text(1.0 - (better_users.nb / all_users.nb)) + '.');
