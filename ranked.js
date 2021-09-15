@@ -73,7 +73,7 @@ async function select_next_map(lobby, map_db) {
   } while ((!new_map || lobby.recent_maps.includes(new_map.id)) && tries < 10);
 
   if (!new_map) {
-    console.error(`[Ranked lobby ${lobby.id}] Could not find new map. Aborting.`);
+    console.error(`[Ranked lobby #${lobby.id}] Could not find new map. Aborting.`);
     return;
   }
 
@@ -85,7 +85,7 @@ async function select_next_map(lobby, map_db) {
     const download_link = `[https://api.chimu.moe/v1/download/${new_map.set_id}?n=1&r=${lobby.randomString()} Direct download]`;
     await lobby.channel.sendMessage(`!mp map ${new_map.id} 0 | ${map_name} (${flavor}) ${download_link}`);
   } catch (e) {
-    console.error(`[Ranked lobby ${lobby.id}] Failed to switch to map ${new_map.id} ${new_map.file}:`, e);
+    console.error(`[Ranked lobby #${lobby.id}] Failed to switch to map ${new_map.id} ${new_map.file}:`, e);
   }
 }
 
@@ -106,52 +106,8 @@ async function open_new_lobby_if_needed(client, lobby_db, map_db) {
     await join_lobby(channel.lobby, lobby_db, map_db, client);
     await lobby_db.run('INSERT INTO ranked_lobby (lobby_id, filters) VALUES (?, "")', channel.lobby.id);
     await channel.sendMessage('!mp mods freemod');
-    console.log('Created new ranked lobby #' + channel.lobby.id);
+    console.log(`[Ranked lobby #${lobby.id}] Created.`);
   }
-}
-
-async function close_or_idle_in_lobby(client, lobby, lobby_db, map_db, nonce) {
-  // If two players leave at the same time, this function can get called
-  // twice, so let's prevent it using the dumbest method available.
-  if(lobby.idling && lobby.idling != nonce) {
-    return;
-  }
-  lobby.idling = nonce;
-
-  // 0. Check if we're still in the lobby
-  if(!lobby.channel.joined) {
-    joined_lobbies.splice(joined_lobbies.indexOf(lobby), 1);
-    await lobby_db.run(`DELETE FROM ranked_lobby WHERE lobby_id = ?`, lobby.id);
-    console.log('We no longer are in the ranked lobby #' + lobby.id + ' - stopping idling loop.');
-    lobby.idling = false;
-    await open_new_lobby_if_needed(client, lobby_db, map_db);
-    return;
-  }
-
-  // 1. Check if the lobby is empty
-  let lobby_empty = lobby.slots.every((s) => s == null);
-  if(!lobby_empty) {
-    lobby.idling = false;
-    return;
-  }
-
-  // 2. Check if other lobbies have room
-  let empty_slots = 0;
-  for(let jl of joined_lobbies) {
-    if(jl == lobby) continue;
-    empty_slots += 16 - get_nb_players(jl);
-  }
-  if(empty_slots > 4) {
-    joined_lobbies.splice(joined_lobbies.indexOf(lobby), 1);
-    await lobby_db.run(`DELETE FROM ranked_lobby WHERE lobby_id = ?`, lobby.id);
-    await lobby.closeLobby();
-    console.log('Closed ranked lobby ' + lobby.id);
-    return;
-  }
-
-  // 3. Other lobbies are (almost) full, let's keep it around for a bit longer.
-  await select_next_map(lobby, map_db);
-  setTimeout(() => close_or_idle_in_lobby(client, lobby, lobby_db, map_db, nonce), 60000);
 }
 
 async function join_lobby(lobby, lobby_db, map_db, client) {
@@ -170,17 +126,22 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
     player.user.avg_pp = (player.user.ppRaw * player.user.accuracy) / 2500;
   }
 
-  // When we start the bot, initially, the lobby is empty. Make sure it
-  // doesn't close before somebody joins.
-  await close_or_idle_in_lobby(client, lobby, lobby_db, map_db, Math.random());
+  lobby.channel.on('PART', async member => {
+    // Lobby closed (intentionally or not), clean up
+    if(member.isClient()) {
+      joined_lobbies.splice(joined_lobbies.indexOf(lobby), 1);
+      await lobby_db.run(`DELETE FROM ranked_lobby WHERE lobby_id = ?`, lobby.id);
+      console.log(`[Ranked lobby #${lobby.id}] Closed.`);
+
+      await open_new_lobby_if_needed(client, lobby_db, map_db);
+    }
+  });
 
   lobby.on('allPlayersReady', async () => {
     if(get_nb_players(lobby) < 2) {
       await lobby.channel.sendMessage('Cannot start until there are at least 2 players in the lobby.');
       return;
     }
-
-    console.log(`[Lobby ${lobby.id}] Starting match.`);
 
     if (lobby.countdown) {
       clearTimeout(lobby.countdown);
@@ -192,8 +153,6 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
   });
 
   lobby.on('matchFinished', async (scores) => {
-    console.log(`[Lobby ${lobby.id}] Finished match.`);
-
     const rank_updates = await update_mmr(ranking_db, lobby);
     await select_next_map(lobby, map_db);
 
@@ -235,30 +194,22 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
   });
 
   lobby.on('playerLeft', async (obj) => {
-    // TODO: add 0pp score if the player was currently playing?
-
-    // Check if we should close the lobby
-    let nb_players = get_nb_players(lobby);
-    if(nb_players == 0) {
-      await close_or_idle_in_lobby(client, lobby, lobby_db, map_db, Math.random());
-      return;
-    }
-
     // Remove user from voteskip list, if they voted to skip
     if(lobby.voteskips.includes(obj.user.ircUsername)) {
       lobby.voteskips.splice(lobby.voteskips.indexOf(obj.user.ircUsername), 1);
     }
 
     // Check if we should skip
+    let nb_players = get_nb_players(lobby);
     if (lobby.voteskips.length >= nb_players / 2) {
-        lobby.voteskips = [];
-        await select_next_map(lobby, map_db);
-        return;
-      }
+      lobby.voteskips = [];
+      await select_next_map(lobby, map_db);
+      return;
+    }
   });
 
   lobby.channel.on('message', async (msg) => {
-    console.log(`[Ranked lobby ${lobby.id}] ${msg.user.ircUsername}: ${msg.message}`);
+    console.log(`[Ranked lobby #${lobby.id}] ${msg.user.ircUsername}: ${msg.message}`);
 
     if (msg.user.isClient() && msg.message.indexOf('!setfilter') == 0) {
       try {
@@ -345,7 +296,6 @@ async function start_ranked(client, lobby_db, map_db) {
       joined_lobbies.push(channel.lobby);
       await lobby_db.run('INSERT INTO ranked_lobby (lobby_id, filters) VALUES (?, "")', channel.lobby.id);
       await channel.sendMessage('!mp mods freemod');
-      console.log('Created ranked lobby.');
       await channel.lobby.invitePlayer(msg.user.ircUsername);
     }
 
@@ -355,7 +305,7 @@ async function start_ranked(client, lobby_db, map_db) {
         await await msg.user.sendMessage(msg.user.ircUsername + ': You are Unranked.');
         return;
       }
-  
+
       const better_users = await ranking_db.get('SELECT COUNT(*) AS nb FROM user WHERE elo > ?', res.elo);
       const all_users = await ranking_db.get('SELECT COUNT(*) AS nb FROM user');
       await msg.user.sendMessage('You are ' + get_rank_text(1.0 - (better_users.nb / all_users.nb)) + '.');
