@@ -288,11 +288,6 @@ async function start(client, lobby_db, _map_db) {
   }
 
   client.on('PM', async (msg) => {
-    if (msg.message.indexOf('!setfilter') == 0 || msg.message.indexOf('!skip') == 0) {
-      await msg.user.sendMessage('Sorry, you should send that command in #multiplayer.');
-      return;
-    }
-
     if (msg.message.indexOf('!makelobby') == 0 || msg.message.indexOf('!createlobby') == 0) {
       try {
         const lobby_info = {creator: msg.user.ircUsername};

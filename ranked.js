@@ -128,7 +128,7 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
     }
 
     const old_median_pp = lobby.median_pp;
-    const lobby.median_pp = median(player_pps);
+    lobby.median_pp = median(player_pps);
 
     // If median pp changed by more than 25%, update map
     if(Math.abs(old_median_pp - lobby.median_pp) > 0.25 * Math.max(old_median_pp, lobby.median_pp)) {
@@ -151,7 +151,7 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
 
   lobby.channel.on('PART', async member => {
     // Lobby closed (intentionally or not), clean up
-    if(member.isClient()) {
+    if(member.user.isClient()) {
       joined_lobbies.splice(joined_lobbies.indexOf(lobby), 1);
       await lobby_db.run(`DELETE FROM ranked_lobby WHERE lobby_id = ?`, lobby.id);
       console.log(`[Ranked lobby #${lobby.id}] Closed.`);
@@ -183,7 +183,17 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
         }
       }
 
-      await lobby.channel.sendMessage('Rank updates: ' + strings.join(' | '));
+      // Max 8 rank updates per message - or else it starts getting truncated
+      const MAX_UPDATES_PER_MSG = 8;
+      for (let i = 0, j = strings.length; i < j; i += MAX_UPDATES_PER_MSG) {
+        const updates = strings.slice(i, i + MAX_UPDATES_PER_MSG);
+
+        if(i == 0) {
+          await lobby.channel.sendMessage('Rank updates: ' + updates.join(' | '));
+        } else {
+          await lobby.channel.sendMessage(updates.join(' | '));
+        }
+      }
     }
   });
 
@@ -232,7 +242,12 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
   lobby.channel.on('message', async (msg) => {
     console.log(`[Ranked lobby #${lobby.id}] ${msg.user.ircUsername}: ${msg.message}`);
 
-    if (msg.user.isClient() && msg.message.indexOf('!setfilter') == 0) {
+    if (msg.message.indexOf('!setfilter') == 0) {
+      if(!msg.user.isClient()) {
+        await lobby.channel.sendMessage(msg.user.ircUsername + ': That command only works in unranked lobbies.');
+        return;
+      }
+
       try {
         const lobby_info = {};
         await update_lobby_filters(lobby_info, msg.message);
@@ -257,7 +272,7 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
 
       const better_users = await ranking_db.get('SELECT COUNT(*) AS nb FROM user WHERE elo > ?', res.elo);
       const all_users = await ranking_db.get('SELECT COUNT(*) AS nb FROM user');
-      await lobby.channel.sendMessage(msg.user.ircUsername + ': You are ' + get_rank_text(1.0 - (better_users.nb / all_users.nb)) + '.');
+      await lobby.channel.sendMessage(msg.user.ircUsername + ': You are [https://osu.kiwec.net/u/' + msg.user.id + '/ ' + get_rank_text(1.0 - (better_users.nb / all_users.nb)) + ' ].');
     }
 
     if (msg.message == '!skip' && !lobby.voteskips.includes(msg.user.ircUsername)) {
@@ -349,13 +364,13 @@ async function start_ranked(client, lobby_db, map_db) {
     if (msg.message == '!rank') {
       const res = await ranking_db.get('select elo from user where username = ?', msg.user.ircUsername);
       if(!res || !res.elo) {
-        await await msg.user.sendMessage(msg.user.ircUsername + ': You are Unranked.');
+        await msg.user.sendMessage('You are Unranked.');
         return;
       }
 
       const better_users = await ranking_db.get('SELECT COUNT(*) AS nb FROM user WHERE elo > ?', res.elo);
       const all_users = await ranking_db.get('SELECT COUNT(*) AS nb FROM user');
-      await msg.user.sendMessage('You are ' + get_rank_text(1.0 - (better_users.nb / all_users.nb)) + '.');
+      await msg.user.sendMessage('You are [https://osu.kiwec.net/u/' + msg.user.id + '/ ' + get_rank_text(1.0 - (better_users.nb / all_users.nb)) + ' ].');
     }
   });
 }

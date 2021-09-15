@@ -71,9 +71,17 @@ async function main() {
       }
     }
 
-    if (msg.message.indexOf('!help') == 0) {
+    if (msg.message == '!help') {
       await msg.user.sendMessage('The full command list is on my profile. :)');
       return;
+    }
+
+    const lobby_only_commands = ['!skip', '!start', '!setfilter'];
+    for(let cmd of lobby_only_commands) {
+      if(msg.message.indexOf(cmd) == 0) {
+        await msg.user.sendMessage('Sorry, you should send that command in #multiplayer.');
+        return;
+      }
     }
   });
 
