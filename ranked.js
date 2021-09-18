@@ -84,7 +84,7 @@ async function open_new_lobby_if_needed(client, lobby_db, map_db) {
 
   if (empty_slots == 0) {
     // Feel free to suggest more. lol
-    const clickbaits = ['(1-11*)', '(join or ligma)', '(real)', '(amogus)', '(uwu)', '(owo)', '😃', '😍', '😎', '😏', '😯', '😈', '👼'];
+    const clickbaits = ['(0-∞*)', '(1-11*)', '(real)', '(NOT SUS)', '(pog)', '(uwu)', '(owo)', '(ADSADSAFDDFSFDASD)'];
     const clickbait = clickbaits[Math.floor(Math.random()*clickbaits.length)];
     const channel = await client.createLobby(`RANKED LOBBY | Auto map select ${clickbait}`);
     joined_lobbies.push(channel.lobby);
@@ -132,11 +132,13 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
     const old_median_pp = lobby.median_pp;
     lobby.median_pp = median(player_pps);
 
-    // If median pp changed by more than 25%, update map
-    if (Math.abs(old_median_pp - lobby.median_pp) > 0.25 * Math.max(old_median_pp, lobby.median_pp)) {
-      await select_next_map(lobby, map_db);
-      return true;
-    }
+    // If median pp changed by more than 50%, update map
+    // (disabled because of a case where user's pp would be 0 on rejoining)
+    //
+    // if (Math.abs(old_median_pp - lobby.median_pp) > 0.5 * Math.max(old_median_pp, lobby.median_pp)) {
+    //   await select_next_map(lobby, map_db);
+    //   return true;
+    // }
 
     return false;
   };
@@ -186,7 +188,7 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
       }
 
       // Max 8 rank updates per message - or else it starts getting truncated
-      const MAX_UPDATES_PER_MSG = 8;
+      const MAX_UPDATES_PER_MSG = 6;
       for (let i = 0, j = strings.length; i < j; i += MAX_UPDATES_PER_MSG) {
         const updates = strings.slice(i, i + MAX_UPDATES_PER_MSG);
 
@@ -207,11 +209,28 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
 
     const user = await lobby_db.get('select * from user where user_id = ?', obj.player.user.id);
     if (!user) {
-      await obj.player.user.sendMessage(`Welcome to your first ranked lobby, ${obj.player.user.ircUsername}! There is no host: use !start if players aren't readying up, and !skip if the map is bad. It will only take a few games for your rank to be accurate.`);
       await lobby_db.run(
           'INSERT INTO user (user_id, username, last_version) VALUES (?, ?, ?)',
           obj.player.user.id, obj.player.user.username, CURRENT_VERSION,
       );
+
+      // For some reason, a lot of players join the lobby and then
+      // leave *immediately*. So, wait a bit before sending the welcome
+      // message - or else they'll be confused a minute later as to which
+      // lobby they received this from.
+      setTimeout(async () => {
+        let present = false;
+        for(let slot of lobby.slots) {
+          if(slot.user.ircUsername == obj.player.user.ircUsername) {
+            await obj.player.user.sendMessage(`Welcome to your first ranked lobby, ${obj.player.user.ircUsername}! There is no host: use !start if players aren't readying up, and !skip if the map is bad. It will only take a few games for your rank to be accurate.`);
+            return;
+          }
+        }
+      }, 5000);
+    }
+
+    if (get_nb_players(lobby) == 1) {
+      await select_next_map(lobby, map_db);
     }
 
     await open_new_lobby_if_needed(client, lobby_db, map_db);
