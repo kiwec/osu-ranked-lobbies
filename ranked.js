@@ -101,6 +101,7 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
   lobby.voteskips = [];
   lobby.countdown = -1;
   lobby.median_pp = 120.0;
+  lobby.last_ready_msg = 0;
   await lobby.setPassword('');
 
   // Fetch user info
@@ -166,7 +167,15 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
 
   lobby.on('allPlayersReady', async () => {
     if (get_nb_players(lobby) < 2) {
+      if(lobby.last_ready_msg && lobby.last_ready_msg + 10 > Date.now()) {
+        // We already sent that message recently. Don't send it again, since
+        // people can spam the Ready button and we don't want to spam that
+        // error message ourselves.
+        return;
+      }
+
       await lobby.channel.sendMessage('Cannot start until there are at least 2 players in the lobby.');
+      lobby.last_ready_msg = Date.now();
       return;
     }
 
