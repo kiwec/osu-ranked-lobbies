@@ -221,9 +221,10 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
 
     const user = await lobby_db.get('select * from user where user_id = ?', obj.player.user.id);
     if (!user) {
+      const username = obj.player.user.username;
       await lobby_db.run(
           'INSERT INTO user (user_id, username, last_version) VALUES (?, ?, ?)',
-          obj.player.user.id, obj.player.user.username, CURRENT_VERSION,
+          obj.player.user.id, username, CURRENT_VERSION,
       );
 
       // For some reason, a lot of players join the lobby and then
@@ -233,8 +234,8 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
       setTimeout(async () => {
         let present = false;
         for(let slot of lobby.slots) {
-          if(slot.user.ircUsername == obj.player.user.ircUsername) {
-            await obj.player.user.sendMessage(`Welcome to your first ranked lobby, ${obj.player.user.ircUsername}! There is no host: use !start if players aren't readying up, and !skip if the map is bad. It will only take a few games for your rank to be accurate.`);
+          if(slot.user.ircUsername == username) {
+            await slot.user.sendMessage(`Welcome to your first ranked lobby, ${username}! There is no host: use !start if players aren't readying up, and !skip if the map is bad. It will only take a few games for your rank to be accurate.`);
             return;
           }
         }
