@@ -104,6 +104,8 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
   lobby.last_ready_msg = 0;
   await lobby.setPassword('');
 
+  const PP_GUESSTIMATING_CONSTANT = 2900;
+
   // Fetch user info
   for (const player of lobby.slots) {
     if (!player) continue;
@@ -111,7 +113,8 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
     await player.user.fetchFromAPI();
 
     // EXTREMELY ACCURATE PP GUESSTIMATING
-    player.user.avg_pp = (player.user.ppRaw * player.user.accuracy) / 2500;
+    player.user.avg_pp = (player.user.ppRaw * player.user.accuracy) / PP_GUESSTIMATING_CONSTANT;
+    console.log(`[Ranked lobby #${lobby.id}] Player '${player.user.ircUsername} should enjoy ${player.user.avg_pp}pp maps'`);
   }
 
   // Updates the lobby's median_pp value. Returns true if map changed.
@@ -214,7 +217,7 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
     await obj.player.user.fetchFromAPI();
 
     // EXTREMELY ACCURATE PP GUESSTIMATING
-    obj.player.user.avg_pp = (obj.player.user.ppRaw * obj.player.user.accuracy) / 2900;
+    obj.player.user.avg_pp = (obj.player.user.ppRaw * obj.player.user.accuracy) / PP_GUESSTIMATING_CONSTANT;
 
     const user = await lobby_db.get('select * from user where user_id = ?', obj.player.user.id);
     if (!user) {
@@ -266,6 +269,12 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
 
   lobby.channel.on('message', async (msg) => {
     console.log(`[Ranked lobby #${lobby.id}] ${msg.user.ircUsername}: ${msg.message}`);
+
+    if(msg.message == '!help' || msg.message == '!howdoesitwork' || msg.message == '!faq') {
+      // I should make a proper webpage with full FAQ and explanation. But this'll do for now.
+      await lobby.channel.sendMessage('Ranks are based on your score compared to other players in the lobby. Mods are preference. For more info, check my profile.');
+      return;
+    }
 
     if (msg.message.indexOf('!setfilter') == 0) {
       if (!msg.user.isClient()) {
