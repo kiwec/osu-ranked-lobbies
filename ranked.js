@@ -2,6 +2,16 @@ import fs from 'fs';
 import {init_db as init_ranking_db, update_mmr, get_rank_text} from './elo_mmr.js';
 import {update_lobby_filters} from './casual.js';
 
+// "ranked" column values
+// 1 = ranked but without ranked symbol?
+// 2 = graveyard
+// 3 = deleted?
+// 4 = ranked
+// 5 = approved
+// 6 = approved symbol but in graveyard?
+// 7 = loved
+
+
 // fuck you, es6 modules, for making this inconvenient
 const CURRENT_VERSION = JSON.parse(fs.readFileSync('./package.json')).version;
 
@@ -40,7 +50,7 @@ async function select_next_map(lobby, map_db) {
 
   let pp_variance = lobby.median_pp / 20;
   let new_map = null;
-  const filters = lobby.filters || 'from pp inner join map on map.id = pp.map_id where mods = (1<<15) AND length < 240';
+  const filters = lobby.filters || 'from pp inner join map on map.id = pp.map_id where mods = (1<<16) AND length < 240';
   let tries = 0;
   do {
     new_map = await map_db.get(
@@ -100,11 +110,11 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
   lobby.recent_maps = [];
   lobby.voteskips = [];
   lobby.countdown = -1;
-  lobby.median_pp = 120.0;
+  lobby.median_pp = 190.0;
   lobby.last_ready_msg = 0;
   await lobby.setPassword('');
 
-  const PP_GUESSTIMATING_CONSTANT = 2900;
+  const PP_GUESSTIMATING_CONSTANT = 1700;
 
   // Fetch user info
   for (const player of lobby.slots) {
@@ -130,7 +140,7 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
     player_pps = player_pps.sort((a, b) => Math.round(a) - Math.round(b));
     if (player_pps.length == 0) {
       // Lobby is empty, but we still want a median pp.
-      player_pps.push(120.0);
+      player_pps.push(190.0);
     }
 
     const old_median_pp = lobby.median_pp;
