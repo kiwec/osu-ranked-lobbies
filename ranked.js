@@ -107,6 +107,8 @@ async function open_new_lobby_if_needed(client, lobby_db, map_db) {
 }
 
 async function join_lobby(lobby, lobby_db, map_db, client) {
+  const PP_GUESSTIMATING_CONSTANT = 1700;
+
   lobby.recent_maps = [];
   lobby.voteskips = [];
   lobby.countdown = -1;
@@ -114,7 +116,8 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
   lobby.last_ready_msg = 0;
   await lobby.setPassword('');
 
-  const PP_GUESSTIMATING_CONSTANT = 1700;
+  // Fetch lobby information such as lobby slots
+  await lobby.updateSettings();
 
   // Fetch user info
   for (const player of lobby.slots) {
@@ -187,7 +190,7 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
         return;
       }
 
-      await lobby.channel.sendMessage('Cannot start until there are at least 2 players in the lobby.');
+      await lobby.channel.sendMessage('With less than 2 players in the lobby, your rank will not change. Type !start to start anyway.');
       lobby.last_ready_msg = Date.now();
       return;
     }
@@ -335,7 +338,7 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
 
     if (msg.message == '!start' && lobby.countdown == -1) {
       if (get_nb_players(lobby) < 2) {
-        await lobby.channel.sendMessage('Cannot start until there are at least 2 players in the lobby.');
+        await start_match();
         return;
       }
 

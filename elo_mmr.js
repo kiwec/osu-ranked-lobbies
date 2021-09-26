@@ -241,6 +241,8 @@ function solve_newton(f) {
 
 async function update_mmr(db, lobby) {
   const contest = new Contest(lobby);
+  if (contest.standings.length < 2) return [];
+
   await contest.init(db);
 
   // `contest_weight` is a float that depends on multiple factors:
