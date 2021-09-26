@@ -4,7 +4,6 @@ import {open} from 'sqlite';
 import sqlite3 from 'sqlite3';
 
 // fuck you, es6 modules, for making this inconvenient
-const CURRENT_VERSION = JSON.parse(fs.readFileSync('./package.json')).version;
 const Config = JSON.parse(fs.readFileSync('./config.json'));
 
 import {start as start_casual} from './casual.js';
@@ -59,20 +58,13 @@ async function main() {
   client.on('PM', async (msg) => {
     console.log(`[PM] ${msg.user.ircUsername}: ${msg.message}`);
 
-    // Check for updates
-    if (msg.message.indexOf('!') == 0) {
-      const user = await lobby_db.get('select * from user where username = ?', msg.user.ircUsername);
-      if (user && user.last_version != CURRENT_VERSION) {
-        await lobby_db.run(
-            'update user set last_version = ? where username = ?',
-            CURRENT_VERSION, msg.user.ircUsername,
-        );
-        await msg.user.sendMessage(`The bot has been updated to version ${CURRENT_VERSION}. For more details, [https://kiwec.net/blog/posts/osu-bot-update-2021-09-12/ check out the changelog.]`);
-      }
+    if (msg.message == '!discord') {
+      await msg.user.sendMessage('https://discord.gg/YWPBFSpH8v');
+      return;
     }
 
     if (msg.message == '!help') {
-      await msg.user.sendMessage('The full command list is on my profile. :)');
+      await msg.user.sendMessage('All bot commands and answers to your questions are [https://discord.gg/YWPBFSpH8v in the Discord.]');
       return;
     }
 

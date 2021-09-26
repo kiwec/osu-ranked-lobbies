@@ -180,7 +180,7 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
 
   lobby.on('allPlayersReady', async () => {
     if (get_nb_players(lobby) < 2) {
-      if(lobby.last_ready_msg && lobby.last_ready_msg + 10 > Date.now()) {
+      if (lobby.last_ready_msg && lobby.last_ready_msg + 10 > Date.now()) {
         // We already sent that message recently. Don't send it again, since
         // people can spam the Ready button and we don't want to spam that
         // error message ourselves.
@@ -242,10 +242,10 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
       // message - or else they'll be confused a minute later as to which
       // lobby they received this from.
       setTimeout(async () => {
-        let present = false;
-        for(let slot of lobby.slots) {
-          if(slot.user.ircUsername == username) {
-            await slot.user.sendMessage(`Welcome to your first ranked lobby, ${username}! There is no host: use !start if players aren't readying up, and !skip if the map is bad. It will only take a few games for your rank to be accurate.`);
+        for (const slot of lobby.slots) {
+          if (!slot) continue;
+          if (slot.user.ircUsername == username) {
+            await slot.user.sendMessage(`Welcome to your first ranked lobby, ${username}! There is no host: use !start if players aren't readying up, and !skip if the map is bad. [https://discord.gg/3JenuMRyuQ Join the Discord] for more info.`);
             return;
           }
         }
@@ -281,9 +281,13 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
   lobby.channel.on('message', async (msg) => {
     console.log(`[Ranked lobby #${lobby.id}] ${msg.user.ircUsername}: ${msg.message}`);
 
-    if(msg.message == '!help' || msg.message == '!howdoesitwork' || msg.message == '!faq') {
-      // I should make a proper webpage with full FAQ and explanation. But this'll do for now.
-      await lobby.channel.sendMessage('Ranks are based on your score compared to other players in the lobby. Mods are preference. For more info, check my profile.');
+    if (msg.message == '!discord') {
+      await lobby.channel.sendMessage('https://discord.gg/YWPBFSpH8v');
+      return;
+    }
+
+    if (msg.message == '!help') {
+      await lobby.channel.sendMessage('All bot commands and answers to your questions are [https://discord.gg/YWPBFSpH8v in the Discord.]');
       return;
     }
 
@@ -345,6 +349,8 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
       await lobby.channel.sendMessage('Starting the match in 30 seconds... Ready up to start sooner.');
     }
   });
+
+  await update_median_pp();
 }
 
 async function start_ranked(client, lobby_db, map_db) {
@@ -358,7 +364,7 @@ async function start_ranked(client, lobby_db, map_db) {
       channel.lobby.filters = lobby.filters;
       await join_lobby(channel.lobby, lobby_db, map_db, client);
       joined_lobbies.push(channel.lobby);
-      console.log('Rejoined ranked lobby #' + lobby.lobby_id);
+      console.log(`Rejoined ranked lobby #${lobby.lobby_id} - ${lobby.median_pp} median pp`);
     } catch (e) {
       console.error('Could not rejoin lobby ' + lobby.lobby_id + ':', e);
       await lobby_db.run(`DELETE FROM ranked_lobby WHERE lobby_id = ?`, lobby.lobby_id);
