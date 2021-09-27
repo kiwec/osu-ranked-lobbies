@@ -116,20 +116,6 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
   lobby.last_ready_msg = 0;
   await lobby.setPassword('');
 
-  // Fetch lobby information such as lobby slots
-  await lobby.updateSettings();
-
-  // Fetch user info
-  for (const player of lobby.slots) {
-    if (!player) continue;
-
-    await player.user.fetchFromAPI();
-
-    // EXTREMELY ACCURATE PP GUESSTIMATING
-    player.user.avg_pp = (player.user.ppRaw * player.user.accuracy) / PP_GUESSTIMATING_CONSTANT;
-    console.log(`[Ranked lobby #${lobby.id}] Player '${player.user.ircUsername} should enjoy ${player.user.avg_pp}pp maps'`);
-  }
-
   // Updates the lobby's median_pp value. Returns true if map changed.
   const update_median_pp = async () => {
     let player_pps = [];
@@ -159,6 +145,19 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
 
     return false;
   };
+
+  // Fetch user info
+  await lobby.updateSettings();
+  for (const player of lobby.slots) {
+    if (!player) continue;
+
+    await player.user.fetchFromAPI();
+
+    // EXTREMELY ACCURATE PP GUESSTIMATING
+    player.user.avg_pp = (player.user.ppRaw * player.user.accuracy) / PP_GUESSTIMATING_CONSTANT;
+    console.log(`[Ranked lobby #${lobby.id}] Player '${player.user.ircUsername} should enjoy ${player.user.avg_pp}pp maps'`);
+  }
+  await update_median_pp();
 
   const start_match = async () => {
     await lobby.startMatch();
@@ -248,7 +247,7 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
         for (const slot of lobby.slots) {
           if (!slot) continue;
           if (slot.user.ircUsername == username) {
-            await slot.user.sendMessage(`Welcome to your first ranked lobby, ${username}! There is no host: use !start if players aren't readying up, and !skip if the map is bad. [https://discord.gg/3JenuMRyuQ Join the Discord] for more info.`);
+            await slot.user.sendMessage(`Welcome to your first ranked lobby, ${username}! There is no host: use !start if players aren't readying up, and !skip if the map is bad. [https://kiwec.net/discord Join the Discord] for more info.`);
             return;
           }
         }
@@ -285,12 +284,12 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
     console.log(`[Ranked lobby #${lobby.id}] ${msg.user.ircUsername}: ${msg.message}`);
 
     if (msg.message == '!discord') {
-      await lobby.channel.sendMessage('https://discord.gg/YWPBFSpH8v');
+      await lobby.channel.sendMessage('https://kiwec.net/discord');
       return;
     }
 
-    if (msg.message == '!help') {
-      await lobby.channel.sendMessage('All bot commands and answers to your questions are [https://discord.gg/YWPBFSpH8v in the Discord.]');
+    if (msg.message == '!help' || msg.message == '!commands') {
+      await lobby.channel.sendMessage('All bot commands and answers to your questions are [https://kiwec.net/discord in the Discord.]');
       return;
     }
 
@@ -352,8 +351,6 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
       await lobby.channel.sendMessage('Starting the match in 30 seconds... Ready up to start sooner.');
     }
   });
-
-  await update_median_pp();
 }
 
 async function start_ranked(client, lobby_db, map_db) {

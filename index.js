@@ -59,12 +59,12 @@ async function main() {
     console.log(`[PM] ${msg.user.ircUsername}: ${msg.message}`);
 
     if (msg.message == '!discord') {
-      await msg.user.sendMessage('https://discord.gg/YWPBFSpH8v');
+      await msg.user.sendMessage('https://kiwec.net/discord');
       return;
     }
 
-    if (msg.message == '!help') {
-      await msg.user.sendMessage('All bot commands and answers to your questions are [https://discord.gg/YWPBFSpH8v in the Discord.]');
+    if (msg.message == '!help' || msg.message == '!commands') {
+      await msg.user.sendMessage('All bot commands and answers to your questions are [https://kiwec.net/discord in the Discord.]');
       return;
     }
 
