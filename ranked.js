@@ -110,6 +110,7 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
   const PP_GUESSTIMATING_CONSTANT = 1700;
 
   lobby.recent_maps = [];
+  lobby.votekicks = {};
   lobby.voteskips = [];
   lobby.countdown = -1;
   lobby.median_pp = 190.0;
@@ -135,6 +136,7 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
     const old_median_pp = lobby.median_pp;
     console.log(player_pps);
     lobby.median_pp = median(player_pps);
+    console.log(lobby.median_pp);
 
     // If median pp changed by more than 50%, update map
     // (disabled because of a case where user's pp would be 0 on rejoining)
@@ -159,16 +161,6 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
     console.log(`[Ranked lobby #${lobby.id}] Player '${player.user.ircUsername} should enjoy ${player.user.avg_pp}pp maps'`);
   }
   await update_median_pp();
-
-  const start_match = async () => {
-    await lobby.startMatch();
-    lobby.voteskips = [];
-
-    if (lobby.countdown != -1) {
-      clearTimeout(lobby.countdown);
-    }
-    lobby.countdown = -1;
-  };
 
   lobby.channel.on('PART', async (member) => {
     // Lobby closed (intentionally or not), clean up
@@ -195,7 +187,16 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
       return;
     }
 
-    await start_match();
+    await lobby.startMatch();
+  });
+
+  lobby.on('matchStarted', () => {
+    lobby.voteskips = [];
+
+    if (lobby.countdown != -1) {
+      clearTimeout(lobby.countdown);
+    }
+    lobby.countdown = -1;
   });
 
   lobby.on('matchFinished', async (scores) => {
@@ -227,6 +228,7 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
   });
 
   lobby.on('playerJoined', async (obj) => {
+    lobby.votekicks[obj.player.user.username] = [];
     await obj.player.user.fetchFromAPI();
 
     // EXTREMELY ACCURATE PP GUESSTIMATING
@@ -264,6 +266,14 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
   });
 
   lobby.on('playerLeft', async (obj) => {
+    // Remove user's votekicks, and votekicks against the user
+    delete lobby.votekicks[obj.user.ircUsername];
+    for (const annoyed_players of lobby.votekicks) {
+      if (annoyed_players.includes(obj.user.ircUsername)) {
+        annoyed_players.splice(annoyed_players.indexOf(obj.user.ircUsername), 1);
+      }
+    }
+
     // Remove user from voteskip list, if they voted to skip
     if (lobby.voteskips.includes(obj.user.ircUsername)) {
       lobby.voteskips.splice(lobby.voteskips.indexOf(obj.user.ircUsername), 1);
@@ -292,6 +302,31 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
     if (msg.message == '!help' || msg.message == '!commands') {
       await lobby.channel.sendMessage('All bot commands and answers to your questions are [https://kiwec.net/discord in the Discord.]');
       return;
+    }
+
+    if (msg.message.indexOf('!kick') == 0) {
+      const args = msg.message.split(' ');
+      if (args.length < 2) {
+        await lobby.channel.sendMessage(msg.user.ircUsername + ': You need to specify which player to kick.');
+        return;
+      }
+      args.shift(); // remove '!kick'
+      const bad_player = args.join(' ');
+
+      if (!lobby.votekicks[bad_player].includes(msg.user.ircUsername)) {
+        lobby.votekicks[bad_player].push(msg.user.ircUsername);
+
+        const nb_voted_to_kick = lobby.votekicks[bad_player].length;
+        const nb_required_to_kick = Math.ceil(get_nb_players(lobby) / 2);
+        if (nb_required_to_kick == 1) nb_required_to_kick = 2; // don't allow a player to hog the lobby
+
+        if (nb_voted_to_kick >= nb_required_to_kick) {
+          // I wonder what happens if people kick the bot?
+          await lobby.kickPlayer(bad_player);
+        } else {
+          await lobby.channel.sendMessage(`${msg.user.ircUsername} voted to kick ${bad_player}. ${nb_voted_to_kick}/${nb_required_to_kick} votes needed.`);
+        }
+      }
     }
 
     if (msg.message.indexOf('!setfilter') == 0) {
@@ -338,14 +373,14 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
 
     if (msg.message == '!start' && lobby.countdown == -1) {
       if (get_nb_players(lobby) < 2) {
-        await start_match();
+        await lobby.startMatch();
         return;
       }
 
       lobby.countdown = setTimeout(async () => {
         lobby.countdown = setTimeout(async () => {
           lobby.countdown = -1;
-          await start_match();
+          await lobby.startMatch();
         }, 10000);
         await lobby.channel.sendMessage('Starting the match in 10 seconds... Ready up to start sooner.');
       }, 20000);
