@@ -97,7 +97,6 @@ async function open_new_lobby_if_needed(client, lobby_db, map_db) {
     const clickbaits = ['(0-∞*)', '(1-11*)', '(real)', '(NOT SUS)', '(pog)', '(uwu)', '(owo)', '(ADSADSAFDDFSFDASD)'];
     const clickbait = clickbaits[Math.floor(Math.random()*clickbaits.length)];
     const channel = await client.createLobby(`RANKED LOBBY | Auto map select ${clickbait}`);
-    joined_lobbies.push(channel.lobby);
     channel.lobby.filters = '';
     await join_lobby(channel.lobby, lobby_db, map_db, client);
     await lobby_db.run('INSERT INTO ranked_lobby (lobby_id, filters) VALUES (?, "")', channel.lobby.id);
@@ -110,7 +109,7 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
   const PP_GUESSTIMATING_CONSTANT = 1700;
 
   lobby.recent_maps = [];
-  lobby.votekicks = {};
+  lobby.votekicks = [];
   lobby.voteskips = [];
   lobby.countdown = -1;
   lobby.median_pp = 190.0;
@@ -134,9 +133,7 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
     }
 
     const old_median_pp = lobby.median_pp;
-    console.log(player_pps);
     lobby.median_pp = median(player_pps);
-    console.log(lobby.median_pp);
 
     // If median pp changed by more than 50%, update map
     // (disabled because of a case where user's pp would be 0 on rejoining)
@@ -387,6 +384,9 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
       await lobby.channel.sendMessage('Starting the match in 30 seconds... Ready up to start sooner.');
     }
   });
+
+  joined_lobbies.push(lobby);
+  console.log(`Joined ranked lobby #${lobby.id} - ${lobby.median_pp.toFixed(2)} median pp`);
 }
 
 async function start_ranked(client, lobby_db, map_db) {
@@ -399,8 +399,6 @@ async function start_ranked(client, lobby_db, map_db) {
       await channel.join();
       channel.lobby.filters = lobby.filters;
       await join_lobby(channel.lobby, lobby_db, map_db, client);
-      joined_lobbies.push(channel.lobby);
-      console.log(`Rejoined ranked lobby #${lobby.lobby_id} - ${lobby.median_pp} median pp`);
     } catch (e) {
       console.error('Could not rejoin lobby ' + lobby.lobby_id + ':', e);
       await lobby_db.run(`DELETE FROM ranked_lobby WHERE lobby_id = ?`, lobby.lobby_id);
@@ -414,7 +412,6 @@ async function start_ranked(client, lobby_db, map_db) {
       const channel = await client.createLobby(`RANKED LOBBY | Auto map select`);
       channel.lobby.filters = '';
       await join_lobby(channel.lobby, lobby_db, map_db, client);
-      joined_lobbies.push(channel.lobby);
       await lobby_db.run('INSERT INTO ranked_lobby (lobby_id, filters) VALUES (?, "")', channel.lobby.id);
       await channel.sendMessage('!mp mods freemod');
       await channel.lobby.invitePlayer(msg.user.ircUsername);
