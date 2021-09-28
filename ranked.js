@@ -54,7 +54,7 @@ async function select_next_map(lobby, map_db) {
   let tries = 0;
   do {
     new_map = await map_db.get(
-        `SELECT * ${filters} AND pp < ? AND pp > ?
+        `SELECT * ${filters} AND pp < ? AND pp > ? AND ranked NOT IN (2, 3)
       ORDER BY RANDOM() LIMIT 1`,
         lobby.median_pp + pp_variance, lobby.median_pp - pp_variance,
     );
@@ -120,7 +120,7 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
   const update_median_pp = async () => {
     let player_pps = [];
     for (const player of lobby.slots) {
-      if (player && player.user.avg_pp) {
+      if (player != null && player.user.avg_pp) {
         player_pps.push(player.user.avg_pp);
       }
     }
@@ -133,6 +133,7 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
     }
 
     const old_median_pp = lobby.median_pp;
+    console.log(player_pps);
     lobby.median_pp = median(player_pps);
 
     // If median pp changed by more than 50%, update map
@@ -149,7 +150,7 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
   // Fetch user info
   await lobby.updateSettings();
   for (const player of lobby.slots) {
-    if (!player) continue;
+    if (player == null) continue;
 
     await player.user.fetchFromAPI();
 
@@ -245,7 +246,7 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
       // lobby they received this from.
       setTimeout(async () => {
         for (const slot of lobby.slots) {
-          if (!slot) continue;
+          if (slot == null) continue;
           if (slot.user.ircUsername == username) {
             await slot.user.sendMessage(`Welcome to your first ranked lobby, ${username}! There is no host: use !start if players aren't readying up, and !skip if the map is bad. [https://kiwec.net/discord Join the Discord] for more info.`);
             return;
