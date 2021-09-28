@@ -266,7 +266,7 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
     // Remove user's votekicks, and votekicks against the user
     delete lobby.votekicks[obj.user.ircUsername];
     for (const annoyed_players of lobby.votekicks) {
-      if (annoyed_players.includes(obj.user.ircUsername)) {
+      if (annoyed_players && annoyed_players.includes(obj.user.ircUsername)) {
         annoyed_players.splice(annoyed_players.indexOf(obj.user.ircUsername), 1);
       }
     }
