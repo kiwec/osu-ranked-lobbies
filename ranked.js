@@ -331,7 +331,7 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
     }
 
     if (msg.message == '!discord') {
-      await lobby.channel.sendMessage('https://kiwec.net/discord');
+      await lobby.channel.sendMessage('[https://kiwec.net/discord Come hang out in voice chat!] (or just text, no pressure)');
       return;
     }
 
