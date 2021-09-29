@@ -225,6 +225,8 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
   });
 
   lobby.on('playerJoined', async (obj) => {
+    console.log(obj.player.user.username + ' JOINED');
+
     lobby.votekicks[obj.player.user.username] = [];
     await obj.player.user.fetchFromAPI();
 
@@ -263,6 +265,8 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
   });
 
   lobby.on('playerLeft', async (obj) => {
+    console.log(obj.user.ircUsername + ' LEFT');
+
     // Remove user's votekicks, and votekicks against the user
     delete lobby.votekicks[obj.user.ircUsername];
     for (const annoyed_players of lobby.votekicks) {
