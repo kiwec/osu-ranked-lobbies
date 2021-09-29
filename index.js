@@ -2,6 +2,7 @@ import fs from 'fs';
 import Bancho from 'bancho.js';
 import {open} from 'sqlite';
 import sqlite3 from 'sqlite3';
+import {init_discord_bot} from './discord.js';
 
 // fuck you, es6 modules, for making this inconvenient
 const Config = JSON.parse(fs.readFileSync('./config.json'));
@@ -41,6 +42,8 @@ async function init_lobby_db() {
 
 async function main() {
   console.log('Starting...');
+
+  await init_discord_bot();
 
   const client = new Bancho.BanchoClient(Config);
   client.on('error', (err) => console.error(err));

@@ -1,6 +1,7 @@
 import fs from 'fs';
 import {init_db as init_ranking_db, update_mmr, get_rank_text} from './elo_mmr.js';
 import {update_lobby_filters} from './casual.js';
+import {update_ranked_lobby_on_discord, close_ranked_lobby_on_discord} from './discord.js';
 
 // "ranked" column values
 // 1 = ranked but without ranked symbol?
@@ -73,10 +74,15 @@ async function select_next_map(lobby, map_db) {
   lobby.recent_maps.push(new_map.id);
 
   try {
-    const flavor = `${new_map.stars.toFixed(2)}*, ${Math.floor(new_map.pp)}pp`;
+    // These are used in the Discord bot
+    lobby.map_sr = new_map.stars.toFixed(2);
+    lobby.map_pp = Math.floor(new_map.pp);
+
+    const flavor = `${lobby.map_sr}*, ${lobby.map_pp}pp`;
     const map_name = `[https://osu.ppy.sh/beatmapsets/${new_map.set_id}#osu/${new_map.id} ${new_map.name}]`;
     const download_link = `[https://api.chimu.moe/v1/download/${new_map.set_id}?n=1&r=${lobby.randomString()} Direct download]`;
     await lobby.channel.sendMessage(`!mp map ${new_map.id} 0 | ${map_name} (${flavor}) ${download_link}`);
+    await update_ranked_lobby_on_discord(lobby);
   } catch (e) {
     console.error(`[Ranked lobby #${lobby.id}] Failed to switch to map ${new_map.id} ${new_map.file}:`, e);
   }
@@ -141,6 +147,7 @@ async function on_player_joined(evt, lobby, client, map_db, lobby_db) {
   console.log(evt.username + ' JOINED (workaround)');
 
   lobby.votekicks[evt.username] = [];
+  lobby.nb_players = get_nb_players(lobby);
 
   const player = await client.getUser(evt.username);
   await player.fetchFromAPI();
@@ -180,6 +187,7 @@ async function on_player_joined(evt, lobby, client, map_db, lobby_db) {
 
 async function on_player_left(evt, lobby, map_db) {
   console.log(evt.username + ' LEFT (workaround)');
+  lobby.nb_players = get_nb_players(lobby);
 
   // Remove user's votekicks, and votekicks against the user
   delete lobby.votekicks[evt.username];
@@ -206,6 +214,29 @@ async function on_player_left(evt, lobby, map_db) {
   }
 }
 
+function get_lobby_invite_link(lobby, client) {
+  return new Promise((resolve, reject) => {
+    const invite_regex = /Come join my multiplayer match: "[(.+) (.+)]"/;
+
+    setTimeout(() => {
+      reject(new Error('Multiplayer lobby invite timeout has been reached!'));
+    }, 10000);
+
+    const BanchoBot = client.getUser('BanchoBot');
+    const listener = (msg) => {
+      const m = invite_regex.exec(msg.message);
+      console.log(m, lobby.name);
+      if (!m || m[2] != lobby.name) return;
+
+      BanchoBot.removeListener('message', listener);
+      resolve(m[1]);
+    };
+    BanchoBot.on('message', listener);
+
+    lobby.channel.sendMessage('!mp invite #12398096');
+  });
+}
+
 async function join_lobby(lobby, lobby_db, map_db, client) {
   const PP_GUESSTIMATING_CONSTANT = 1700;
 
@@ -219,6 +250,7 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
 
   // Fetch user info
   await lobby.updateSettings();
+  lobby.nb_players = get_nb_players(lobby);
   for (const player of lobby.slots) {
     if (player == null) continue;
 
@@ -235,17 +267,18 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
     if (member.user.isClient()) {
       joined_lobbies.splice(joined_lobbies.indexOf(lobby), 1);
       await lobby_db.run(`DELETE FROM ranked_lobby WHERE lobby_id = ?`, lobby.id);
+      await close_ranked_lobby_on_discord(lobby);
       console.log(`[Ranked lobby #${lobby.id}] Closed.`);
 
       await open_new_lobby_if_needed(client, lobby_db, map_db);
     }
   });
 
-  lobby.on('playerJoined', evt => {
+  lobby.on('playerJoined', (evt) => {
     console.log(evt.player.user.username + ' JOINED (bancho.js)');
   });
 
-  lobby.on('playerLeft', evt => {
+  lobby.on('playerLeft', (evt) => {
     console.log(evt.user.ircUsername + ' LEFT (bancho.js)');
   });
 
@@ -424,6 +457,12 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
     }
   });
 
+  // try {
+  //   lobby.invite_link = await get_lobby_invite_link(lobby, client);
+  // } catch (err) {
+  //   console.error(`[Ranked lobby #${lobby.id}] Failed to get invite link: ${err}`);
+  //   lobby.invite_link = null;
+  // }
   joined_lobbies.push(lobby);
   console.log(`Joined ranked lobby #${lobby.id} - ${lobby.median_pp.toFixed(2)} median pp`);
 }
@@ -441,6 +480,7 @@ async function start_ranked(client, lobby_db, map_db) {
     } catch (e) {
       console.error('Could not rejoin lobby ' + lobby.lobby_id + ':', e);
       await lobby_db.run(`DELETE FROM ranked_lobby WHERE lobby_id = ?`, lobby.lobby_id);
+      await close_ranked_lobby_on_discord({id: lobby.lobby_id});
     }
   }
 
