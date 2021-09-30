@@ -257,6 +257,12 @@ async function update_discord_role(osu_user_id, rank_text) {
       const guild = await client.guilds.fetch('891781932067749948');
       const member = await guild.members.fetch(user.discord_id);
 
+      if (rank_text == 'The One') {
+        const role = await guild.roles.fetch(DISCORD_ROLES['The One']);
+        role.members.each((member) => {
+          member.roles.remove(DISCORD_ROLES['The One']);
+        });
+      }
       if (user.discord_rank) {
         await member.roles.remove(DISCORD_ROLES[user.discord_rank]);
       }

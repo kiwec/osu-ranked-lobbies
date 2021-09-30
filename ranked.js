@@ -18,6 +18,8 @@ const CURRENT_VERSION = JSON.parse(fs.readFileSync('./package.json')).version;
 
 let ranking_db = null;
 const joined_lobbies = [];
+let deadlines = [];
+let deadline_id = 0;
 
 
 function median(numbers) {
@@ -143,69 +145,6 @@ async function update_median_pp(lobby) {
   return false;
 }
 
-async function on_player_joined(evt, lobby, client, map_db, lobby_db) {
-  const PP_GUESSTIMATING_CONSTANT = 1700;
-  console.log(evt.username + ' JOINED (workaround)');
-
-  lobby.votekicks[evt.username] = [];
-
-  const player = await client.getUser(evt.username);
-  await player.fetchFromAPI();
-
-  // EXTREMELY ACCURATE PP GUESSTIMATING
-  player.avg_pp = (player.ppRaw * player.accuracy) / PP_GUESSTIMATING_CONSTANT;
-
-  const user = await lobby_db.get('select * from user where user_id = ?', player.id);
-  if (!user) {
-    await lobby_db.run(
-        'INSERT INTO user (user_id, username, last_version) VALUES (?, ?, ?)',
-        player.id, evt.username, CURRENT_VERSION,
-    );
-
-    // For some reason, a lot of players join the lobby and then
-    // leave *immediately*. So, wait a bit before sending the welcome
-    // message - or else they'll be confused a minute later as to which
-    // lobby they received this from.
-    setTimeout(async () => {
-      for (const slot of lobby.slots) {
-        if (slot == null) continue;
-        if (slot.user.ircUsername == evt.username) {
-          await slot.user.sendMessage(`Welcome to your first ranked lobby, ${evt.username}! There is no host: use !start if players aren't readying up, and !skip if the map is bad. [https://kiwec.net/discord Join the Discord] for more info.`);
-          return;
-        }
-      }
-    }, 5000);
-  }
-};
-
-async function on_player_left(evt, lobby, map_db) {
-  console.log(evt.username + ' LEFT (workaround)');
-
-  // Remove user's votekicks, and votekicks against the user
-  delete lobby.votekicks[evt.username];
-  for (const annoyed_players of lobby.votekicks) {
-    if (annoyed_players && annoyed_players.includes(evt.username)) {
-      annoyed_players.splice(annoyed_players.indexOf(evt.username), 1);
-    }
-  }
-
-  // Remove user from voteskip list, if they voted to skip
-  if (lobby.voteskips.includes(evt.username)) {
-    lobby.voteskips.splice(lobby.voteskips.indexOf(evt.username), 1);
-  }
-
-  if (await update_median_pp(lobby)) {
-    return;
-  }
-
-  // Check if we should skip
-  const nb_players = get_nb_players(lobby);
-  if (lobby.voteskips.length >= nb_players / 2) {
-    await select_next_map(lobby, map_db);
-    return;
-  }
-}
-
 async function join_lobby(lobby, lobby_db, map_db, client) {
   const PP_GUESSTIMATING_CONSTANT = 1700;
 
@@ -243,18 +182,78 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
   });
 
   lobby.on('playerJoined', async (evt) => {
-    console.log(evt.player.user.username + ' JOINED (bancho.js)');
+    const PP_GUESSTIMATING_CONSTANT = 1700;
+    console.log(evt.player.user.username + ' JOINED');
+    deadlines = deadlines.filter((deadline) => deadline.username != evt.player.user.username);
+
+    lobby.votekicks[evt.username] = [];
+
+    const player = await client.getUser(evt.username);
+    await player.fetchFromAPI();
+
+    // EXTREMELY ACCURATE PP GUESSTIMATING
+    player.avg_pp = (player.ppRaw * player.accuracy) / PP_GUESSTIMATING_CONSTANT;
+
+    const user = await lobby_db.get('select * from user where user_id = ?', player.id);
+    if (!user) {
+      await lobby_db.run(
+          'INSERT INTO user (user_id, username, last_version) VALUES (?, ?, ?)',
+          player.id, evt.username, CURRENT_VERSION,
+      );
+
+      // For some reason, a lot of players join the lobby and then
+      // leave *immediately*. So, wait a bit before sending the welcome
+      // message - or else they'll be confused a minute later as to which
+      // lobby they received this from.
+      setTimeout(async () => {
+        for (const slot of lobby.slots) {
+          if (slot == null) continue;
+          if (slot.user.ircUsername == evt.username) {
+            await slot.user.sendMessage(`Welcome to your first ranked lobby, ${evt.username}! There is no host: use !start if players aren't readying up, and !skip if the map is bad. [https://kiwec.net/discord Join the Discord] for more info.`);
+            return;
+          }
+        }
+      }, 5000);
+    }
 
     if (get_nb_players(lobby) == 1) {
       await select_next_map(lobby, map_db);
+    } else {
+      await update_ranked_lobby_on_discord(lobby);
     }
 
     await open_new_lobby_if_needed(client, lobby_db, map_db);
     await update_median_pp(lobby);
   });
 
-  lobby.on('playerLeft', (evt) => {
-    console.log(evt.user.ircUsername + ' LEFT (bancho.js)');
+  lobby.on('playerLeft', async (evt) => {
+    console.log(evt.user.ircUsername + ' LEFT');
+
+    // Remove user's votekicks, and votekicks against the user
+    delete lobby.votekicks[evt.username];
+    for (const annoyed_players of lobby.votekicks) {
+      if (annoyed_players && annoyed_players.includes(evt.username)) {
+        annoyed_players.splice(annoyed_players.indexOf(evt.username), 1);
+      }
+    }
+
+    // Remove user from voteskip list, if they voted to skip
+    if (lobby.voteskips.includes(evt.username)) {
+      lobby.voteskips.splice(lobby.voteskips.indexOf(evt.username), 1);
+    }
+
+    if (await update_median_pp(lobby)) {
+      return;
+    }
+
+    // Check if we should skip
+    const nb_players = get_nb_players(lobby);
+    if (lobby.voteskips.length >= nb_players / 2) {
+      await select_next_map(lobby, map_db);
+      return;
+    }
+
+    await update_ranked_lobby_on_discord(lobby);
   });
 
   lobby.on('allPlayersReady', async () => {
@@ -318,21 +317,20 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
     // Mostly copy/pasted from bancho.js itself.
     if (msg.user.ircUsername == 'BanchoBot') {
       const join_regex = /^(.+) joined in slot (\d+)( for team (red|blue))?\.$/;
-      const quit_regex = /^(.+) left the game\.$/;
 
       if (join_regex.test(msg.message)) {
         const m = join_regex.exec(msg.message);
-        await on_player_joined({
+        const id = deadline_id++;
+        deadlines.push({
+          id: id,
           username: m[1],
-          slot: Number(m[2]),
-          team: (m[4] ? m[4] == 'blue' ? 'Blue' : 'Red' : null),
-        }, lobby, client, map_db, lobby_db);
-      } else if (quit_regex.test(msg.message)) {
-        const m = quit_regex.exec(msg.message);
-        await on_player_left({
-          username: m[1],
-          slot: Number(m[2]),
-        }, lobby, map_db);
+        });
+        setTimeout(() => {
+          if (deadlines.some((deadline) => deadline.id == id)) {
+            console.error('bancho.js didn\'t register ' + m[1] + ' joining, killing process.');
+            process.exit();
+          }
+        }, 30000);
       }
 
       return;
