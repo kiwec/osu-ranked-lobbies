@@ -8,21 +8,6 @@ const Config = JSON.parse(fs.readFileSync('./config.json'));
 let client = null;
 let db = null;
 
-async function create_account_linking_button() {
-  const discord_channel = client.channels.cache.get('892880734526795826');
-  await discord_channel.send({
-    content: 'Link your osu! account to get special roles, in-game invites, and more.',
-    components: [
-      new MessageActionRow().addComponents([
-        new MessageButton({
-          custom_id: 'orl_link_osu_account',
-          label: 'Link account',
-          style: 'PRIMARY',
-        }),
-      ]),
-    ],
-  });
-}
 
 function init_discord_bot() {
   return new Promise(async (resolve, reject) => {
@@ -160,16 +145,6 @@ async function update_ranked_lobby_on_discord(lobby) {
           fields: fields,
           color: lobby.nb_players > 0 ? get_sr_color(lobby.map_sr) : null,
         }),
-      ],
-      components: [
-        new MessageActionRow().addComponents([
-          new MessageButton({
-            label: 'Join lobby',
-            url: `https://osu.kiwec.net/lobby/${lobby.channel.topic.substr('multiplayer lobby #'.length)}/`,
-            style: 'LINK',
-            disabled: lobby.nb_players == 16,
-          }),
-        ]),
       ],
     };
   } catch (err) {

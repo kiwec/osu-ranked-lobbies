@@ -1,7 +1,11 @@
 import fs from 'fs';
 import {init_db as init_ranking_db, update_mmr, get_rank_text, get_rank_text_from_id} from './elo_mmr.js';
 import {update_lobby_filters} from './casual.js';
-import {update_ranked_lobby_on_discord, close_ranked_lobby_on_discord} from './discord.js';
+import {
+  update_ranked_lobby_on_discord,
+  close_ranked_lobby_on_discord,
+  update_discord_role,
+} from './discord.js';
 
 // "ranked" column values
 // 1 = ranked but without ranked symbol?
@@ -16,7 +20,6 @@ import {update_ranked_lobby_on_discord, close_ranked_lobby_on_discord} from './d
 // fuck you, es6 modules, for making this inconvenient
 const CURRENT_VERSION = JSON.parse(fs.readFileSync('./package.json')).version;
 
-let ranking_db = null;
 const joined_lobbies = [];
 let deadlines = [];
 let deadline_id = 0;
@@ -289,6 +292,8 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
     if (rank_updates.length > 0) {
       const strings = [];
       for (const update of rank_updates) {
+        await update_discord_role(update.user_id, update.rank_after);
+
         if (update.rank_before > update.rank_after) {
           strings.push(update.username + ' [https://osu.kiwec.net/u/' + update.user_id + '/ ▼' + get_rank_text(update.rank_after) + ' ]');
         } else {
@@ -428,7 +433,7 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
 }
 
 async function start_ranked(client, lobby_db, map_db) {
-  ranking_db = await init_ranking_db();
+  await init_ranking_db();
 
   const lobbies = await lobby_db.all('SELECT * from ranked_lobby');
   for (const lobby of lobbies) {
