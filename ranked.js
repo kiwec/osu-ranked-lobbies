@@ -186,9 +186,9 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
     console.log(evt.player.user.username + ' JOINED');
     deadlines = deadlines.filter((deadline) => deadline.username != evt.player.user.username);
 
-    lobby.votekicks[evt.username] = [];
+    lobby.votekicks[evt.player.user.username] = [];
 
-    const player = await client.getUser(evt.username);
+    const player = await client.getUser(evt.player.user.username);
     await player.fetchFromAPI();
 
     // EXTREMELY ACCURATE PP GUESSTIMATING
@@ -198,7 +198,7 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
     if (!user) {
       await lobby_db.run(
           'INSERT INTO user (user_id, username, last_version) VALUES (?, ?, ?)',
-          player.id, evt.username, CURRENT_VERSION,
+          player.id, evt.player.user.username, CURRENT_VERSION,
       );
 
       // For some reason, a lot of players join the lobby and then
@@ -208,8 +208,8 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
       setTimeout(async () => {
         for (const slot of lobby.slots) {
           if (slot == null) continue;
-          if (slot.user.ircUsername == evt.username) {
-            await slot.user.sendMessage(`Welcome to your first ranked lobby, ${evt.username}! There is no host: use !start if players aren't readying up, and !skip if the map is bad. [https://kiwec.net/discord Join the Discord] for more info.`);
+          if (slot.user.ircUsername == evt.player.user.username) {
+            await slot.user.sendMessage(`Welcome to your first ranked lobby, ${evt.player.user.username}! There is no host: use !start if players aren't readying up, and !skip if the map is bad. [https://kiwec.net/discord Join the Discord] for more info.`);
             return;
           }
         }
@@ -230,16 +230,16 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
     console.log(evt.user.ircUsername + ' LEFT');
 
     // Remove user's votekicks, and votekicks against the user
-    delete lobby.votekicks[evt.username];
+    delete lobby.votekicks[evt.user.ircUsername];
     for (const annoyed_players of lobby.votekicks) {
-      if (annoyed_players && annoyed_players.includes(evt.username)) {
-        annoyed_players.splice(annoyed_players.indexOf(evt.username), 1);
+      if (annoyed_players && annoyed_players.includes(evt.user.ircUsername)) {
+        annoyed_players.splice(annoyed_players.indexOf(evt.user.ircUsername), 1);
       }
     }
 
     // Remove user from voteskip list, if they voted to skip
-    if (lobby.voteskips.includes(evt.username)) {
-      lobby.voteskips.splice(lobby.voteskips.indexOf(evt.username), 1);
+    if (lobby.voteskips.includes(evt.user.ircUsername)) {
+      lobby.voteskips.splice(lobby.voteskips.indexOf(evt.user.ircUsername), 1);
     }
 
     if (await update_median_pp(lobby)) {
