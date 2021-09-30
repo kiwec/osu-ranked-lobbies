@@ -9,7 +9,7 @@ let client = null;
 let db = null;
 
 async function create_account_linking_button() {
-  const discord_channel = client.channels.cache.get('893057503355605012');
+  const discord_channel = client.channels.cache.get('892880734526795826');
   await discord_channel.send({
     content: 'Link your osu! account to get special roles, in-game invites, and more.',
     components: [
@@ -161,16 +161,16 @@ async function update_ranked_lobby_on_discord(lobby) {
           color: lobby.nb_players > 0 ? get_sr_color(lobby.map_sr) : null,
         }),
       ],
-      // components: [
-      //   new MessageActionRow().addComponents([
-      //     new MessageButton({
-      //       label: 'Join lobby',
-      //       url: lobby.invite_link,
-      //       style: 'LINK',
-      //       disabled: lobby.nb_players == 16 || !lobby.invite_link,
-      //     }),
-      //   ]),
-      // ],
+      components: [
+        new MessageActionRow().addComponents([
+          new MessageButton({
+            label: 'Join lobby',
+            url: `https://osu.kiwec.net/lobby/${lobby.channel.topic.substr('multiplayer lobby #'.length)}/`,
+            style: 'LINK',
+            disabled: lobby.nb_players == 16,
+          }),
+        ]),
+      ],
     };
   } catch (err) {
     console.error(`[Ranked lobby #${lobby.id}] Could not generate Discord message: ${err}`);
@@ -265,7 +265,7 @@ async function update_discord_role(osu_user_id, rank_text) {
       }
 
       await db.run(
-          'UPDATE discord_rank FROM user SET discord_rank = ? WHERE osu_id = ?',
+          'UPDATE user SET discord_rank = ? WHERE osu_id = ?',
           rank_text,
           osu_user_id,
       );

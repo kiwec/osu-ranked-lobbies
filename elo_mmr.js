@@ -243,8 +243,13 @@ function solve_newton(f) {
 }
 
 async function update_mmr(lobby) {
-  const contest = new Contest(lobby);
-  if (contest.standings.length < 2) return [];
+  try {
+    const contest = new Contest(lobby);
+    if (contest.standings.length < 2) return [];
+  } catch (err) {
+    console.error(`Could not update MMR for lobby ${lobby.id}: ${err}`);
+    return [];
+  }
 
   await contest.init();
 

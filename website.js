@@ -142,6 +142,10 @@ async function listen() {
     </html>`);
   });
 
+  app.get('/lobby/:lobbyId/', async (req, http_res) => {
+    http_res.redirect(`osu://mp/${req.params.lobbyId}/`);
+  });
+
   app.get('/u/:userId/', async (req, http_res) => {
     const res = await ranks_db.get('select * from user where user_id = ?', req.params.userId);
     if (!res) {

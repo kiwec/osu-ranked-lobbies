@@ -176,13 +176,6 @@ async function on_player_joined(evt, lobby, client, map_db, lobby_db) {
       }
     }, 5000);
   }
-
-  if (get_nb_players(lobby) == 1) {
-    await select_next_map(lobby, map_db);
-  }
-
-  await open_new_lobby_if_needed(client, lobby_db, map_db);
-  await update_median_pp(lobby);
 };
 
 async function on_player_left(evt, lobby, map_db) {
@@ -211,29 +204,6 @@ async function on_player_left(evt, lobby, map_db) {
     await select_next_map(lobby, map_db);
     return;
   }
-}
-
-function get_lobby_invite_link(lobby, client) {
-  return new Promise((resolve, reject) => {
-    const invite_regex = /Come join my multiplayer match: "[(.+) (.+)]"/;
-
-    setTimeout(() => {
-      reject(new Error('Multiplayer lobby invite timeout has been reached!'));
-    }, 10000);
-
-    const BanchoBot = client.getUser('BanchoBot');
-    const listener = (msg) => {
-      const m = invite_regex.exec(msg.message);
-      console.log(m, lobby.name);
-      if (!m || m[2] != lobby.name) return;
-
-      BanchoBot.removeListener('message', listener);
-      resolve(m[1]);
-    };
-    BanchoBot.on('message', listener);
-
-    lobby.channel.sendMessage('!mp invite #12398096');
-  });
 }
 
 async function join_lobby(lobby, lobby_db, map_db, client) {
@@ -272,8 +242,15 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
     }
   });
 
-  lobby.on('playerJoined', (evt) => {
+  lobby.on('playerJoined', async (evt) => {
     console.log(evt.player.user.username + ' JOINED (bancho.js)');
+
+    if (get_nb_players(lobby) == 1) {
+      await select_next_map(lobby, map_db);
+    }
+
+    await open_new_lobby_if_needed(client, lobby_db, map_db);
+    await update_median_pp(lobby);
   });
 
   lobby.on('playerLeft', (evt) => {
@@ -448,12 +425,6 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
     }
   });
 
-  // try {
-  //   lobby.invite_link = await get_lobby_invite_link(lobby, client);
-  // } catch (err) {
-  //   console.error(`[Ranked lobby #${lobby.id}] Failed to get invite link: ${err}`);
-  //   lobby.invite_link = null;
-  // }
   joined_lobbies.push(lobby);
   console.log(`Joined ranked lobby #${lobby.id} - ${lobby.median_pp.toFixed(2)} median pp`);
 }
