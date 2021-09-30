@@ -1,5 +1,5 @@
 import fs from 'fs';
-import {init_db as init_ranking_db, update_mmr, get_rank_text} from './elo_mmr.js';
+import {init_db as init_ranking_db, update_mmr, get_rank_text, get_rank_text_from_id} from './elo_mmr.js';
 import {update_lobby_filters} from './casual.js';
 import {update_ranked_lobby_on_discord, close_ranked_lobby_on_discord} from './discord.js';
 
@@ -34,6 +34,7 @@ function get_nb_players(lobby) {
     if (player != null) nb_players++;
   }
 
+  lobby.nb_players = nb_players;
   return nb_players;
 }
 
@@ -147,7 +148,6 @@ async function on_player_joined(evt, lobby, client, map_db, lobby_db) {
   console.log(evt.username + ' JOINED (workaround)');
 
   lobby.votekicks[evt.username] = [];
-  lobby.nb_players = get_nb_players(lobby);
 
   const player = await client.getUser(evt.username);
   await player.fetchFromAPI();
@@ -187,7 +187,6 @@ async function on_player_joined(evt, lobby, client, map_db, lobby_db) {
 
 async function on_player_left(evt, lobby, map_db) {
   console.log(evt.username + ' LEFT (workaround)');
-  lobby.nb_players = get_nb_players(lobby);
 
   // Remove user's votekicks, and votekicks against the user
   delete lobby.votekicks[evt.username];
@@ -250,7 +249,6 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
 
   // Fetch user info
   await lobby.updateSettings();
-  lobby.nb_players = get_nb_players(lobby);
   for (const player of lobby.slots) {
     if (player == null) continue;
 
@@ -420,15 +418,8 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
     }
 
     if (msg.message == '!rank') {
-      const res = await ranking_db.get('select elo from user where username = ?', msg.user.ircUsername);
-      if (!res || !res.elo) {
-        await lobby.channel.sendMessage(msg.user.ircUsername + ': You are Unranked.');
-        return;
-      }
-
-      const better_users = await ranking_db.get('SELECT COUNT(*) AS nb FROM user WHERE elo > ?', res.elo);
-      const all_users = await ranking_db.get('SELECT COUNT(*) AS nb FROM user');
-      await lobby.channel.sendMessage(msg.user.ircUsername + ': You are [https://osu.kiwec.net/u/' + msg.user.id + '/ ' + get_rank_text(1.0 - (better_users.nb / all_users.nb)) + ' ].');
+      const rank_text = await get_rank_text_from_id(msg.user.id);
+      await lobby.channel.sendMessage(`${msg.user.ircUsername}: You are [https://osu.kiwec.net/u/${msg.user.id}/ ${rank_text}].`);
     }
 
     if (msg.message == '!skip' && !lobby.voteskips.includes(msg.user.ircUsername)) {
@@ -525,15 +516,9 @@ async function start_ranked(client, lobby_db, map_db) {
     }
 
     if (msg.message == '!rank') {
-      const res = await ranking_db.get('select elo from user where username = ?', msg.user.ircUsername);
-      if (!res || !res.elo) {
-        await msg.user.sendMessage('You are Unranked.');
-        return;
-      }
-
-      const better_users = await ranking_db.get('SELECT COUNT(*) AS nb FROM user WHERE elo > ?', res.elo);
-      const all_users = await ranking_db.get('SELECT COUNT(*) AS nb FROM user');
-      await msg.user.sendMessage('You are [https://osu.kiwec.net/u/' + msg.user.id + '/ ' + get_rank_text(1.0 - (better_users.nb / all_users.nb)) + ' ].');
+      const rank_text = await get_rank_text_from_id(msg.user.id);
+      await msg.user.sendMessage(`You are [https://osu.kiwec.net/u/${msg.user.id}/ ${rank_text}].`);
+      return;
     }
   });
 }

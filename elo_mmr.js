@@ -6,6 +6,9 @@ import {open} from 'sqlite';
 import sqlite3 from 'sqlite3';
 
 
+let db = null;
+
+
 // Squared variation in individual performances, when the contest_weight is 1
 const BETA = 200.0;
 
@@ -89,7 +92,7 @@ class Contest {
 
   // Fills the missing values from `this.standings`
   // Fetches players from database if they're not already loaded - expensive operation.
-  async init(db) {
+  async init() {
     const res = await db.run(
         'INSERT INTO contest (lobby_id, map_id, tms) VALUES (?, ?, ?)',
         this.lobby_id, this.map_id, this.tms,
@@ -99,7 +102,7 @@ class Contest {
     for (const standing of this.standings) {
       if (!(standing.player_id in players)) {
         players[standing.player_id] = new Player(standing.bancho_user);
-        await players[standing.player_id].fetch_from_database(db);
+        await players[standing.player_id].fetch_from_database();
       }
       standing.player = players[standing.player_id];
     }
@@ -120,7 +123,7 @@ class Player {
   //
   // If the user is new -> initialize them in the database
   // If the user isn't new -> get their rating and logistic factors
-  async fetch_from_database(db) {
+  async fetch_from_database() {
     const user = await db.get('SELECT * FROM user WHERE user_id = ?', this.user_id);
     if (!user) {
       await db.run(
@@ -239,11 +242,11 @@ function solve_newton(f) {
   return guess;
 }
 
-async function update_mmr(db, lobby) {
+async function update_mmr(lobby) {
   const contest = new Contest(lobby);
   if (contest.standings.length < 2) return [];
 
-  await contest.init(db);
+  await contest.init();
 
   // `contest_weight` is a float that depends on multiple factors:
   // - how full the lobby is. 1 player in lobby means 1/16 the weight
@@ -384,11 +387,22 @@ function get_rank_text(rank_float) {
   }
 
   // Ok, floating point errors, who cares
-  return 'Super Legendary';
+  return 'Legendary+';
+}
+
+async function get_rank_text_from_id(osu_user_id) {
+  const res = await db.get('select elo from user where user_id = ?', osu_user_id);
+  if (!res || !res.elo) {
+    return 'Unranked';
+  }
+
+  const better_users = await db.get('SELECT COUNT(*) AS nb FROM user WHERE elo > ?', res.elo);
+  const all_users = await db.get('SELECT COUNT(*) AS nb FROM user');
+  return get_rank_text(1.0 - (better_users.nb / all_users.nb));
 }
 
 async function init_db() {
-  const db = await open({
+  db = await open({
     filename: 'ranks.db',
     driver: sqlite3.Database,
   });
@@ -421,4 +435,4 @@ async function init_db() {
   return db;
 }
 
-export {init_db, update_mmr, get_rank_text};
+export {init_db, update_mmr, get_rank_text, get_rank_text_from_id};

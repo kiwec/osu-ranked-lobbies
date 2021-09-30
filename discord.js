@@ -1,10 +1,28 @@
+import crypto from 'crypto';
 import fs from 'fs';
 import {open} from 'sqlite';
 import sqlite3 from 'sqlite3';
 import {Client, Intents, MessageActionRow, MessageButton, MessageEmbed} from 'discord.js';
 
+const Config = JSON.parse(fs.readFileSync('./config.json'));
 let client = null;
 let db = null;
+
+async function create_account_linking_button() {
+  const discord_channel = client.channels.cache.get('893057503355605012');
+  await discord_channel.send({
+    content: 'Link your osu! account to get special roles, in-game invites, and more.',
+    components: [
+      new MessageActionRow().addComponents([
+        new MessageButton({
+          custom_id: 'orl_link_osu_account',
+          label: 'Link account',
+          style: 'PRIMARY',
+        }),
+      ]),
+    ],
+  });
+}
 
 function init_discord_bot() {
   return new Promise(async (resolve, reject) => {
@@ -19,9 +37,66 @@ function init_discord_bot() {
       discord_msg_id TEXT
     )`);
 
+    await db.exec(`CREATE TABLE IF NOT EXISTS auth_tokens (
+      discord_user_id TEXT,
+      ephemeral_token TEXT
+    )`);
+
+    await db.exec(`CREATE TABLE IF NOT EXISTS user (
+      discord_id TEXT,
+      osu_id INTEGER,
+      osu_access_token TEXT,
+      osu_refresh_token TEXT,
+      discord_rank TEXT
+    )`);
+
     client = new Client({intents: [Intents.FLAGS.GUILDS]});
 
-    client.once('ready', () => {
+    client.once('ready', async () => {
+      client.on('interactionCreate', async (interaction) => {
+        if (interaction.customId == 'orl_link_osu_account') {
+          // Check if user already linked their account
+          const user = await db.get(
+              'SELECT * FROM user WHERE discord_id = ?', interaction.user.id,
+          );
+          if (user) {
+            await interaction.reply({
+              content: 'You already linked your account 👉 https://osu.ppy.sh/users/' + user.osu_id,
+              ephemeral: true,
+            });
+            return;
+          }
+
+          // Create ephemeral token
+          await db.run(
+              'DELETE from auth_tokens WHERE discord_user_id = ?',
+              interaction.user.id,
+          );
+          const ephemeral_token = crypto.randomBytes(16).toString('hex');
+          await db.run(
+              'INSERT INTO auth_tokens (discord_user_id, ephemeral_token) VALUES (?, ?)',
+              interaction.user.id,
+              ephemeral_token,
+          );
+
+          // Send authorization link
+          await interaction.reply({
+            content: `Hello ${interaction.user}, let's get your account linked!`,
+            ephemeral: true,
+            components: [
+              new MessageActionRow().addComponents([
+                new MessageButton({
+                  url: `https://osu.ppy.sh/oauth/authorize?client_id=${Config.client_id}&response_type=code&scope=identify&state=${ephemeral_token}&redirect_uri=https://osu.kiwec.net/auth`,
+                  label: 'Verify using osu!web',
+                  style: 'LINK',
+                }),
+              ]),
+            ],
+          });
+        }
+      });
+
+      // await create_account_linking_button();
       console.log('Discord bot is ready.');
       resolve();
     });
@@ -153,8 +228,56 @@ async function close_ranked_lobby_on_discord(lobby) {
   }
 }
 
+async function update_discord_role(osu_user_id, rank_text) {
+  const DISCORD_ROLES = {
+    'Cardboard': '893082878806732851',
+    'Copper': '893083179601260574',
+    'Bronze': '893083324673822771',
+    'Silver': '893083428260556801',
+    'Gold': '893083477531033613',
+    'Platinum': '893083535907377152',
+    'Diamond': '893083693244100608',
+    'Legendary': '893083871309082645',
+    'The One': '892966704991330364',
+  };
+
+  // Remove '++' suffix from the rank_text
+  rank_text = rank_text.split('+')[0];
+
+  const user = await db.get(
+      'SELECT * FROM user WHERE osu_id = ?', osu_user_id,
+  );
+  if (!user) {
+    // User hasn't linked their discord account yet.
+    return;
+  }
+
+  if (user.discord_rank != rank_text) {
+    try {
+      const guild = await client.guilds.fetch('891781932067749948');
+      const member = await guild.members.fetch(user.discord_id);
+
+      if (user.discord_rank) {
+        await member.roles.remove(DISCORD_ROLES[user.discord_rank]);
+      }
+      if (rank_text != 'Unranked') {
+        await member.roles.add(DISCORD_ROLES[rank_text]);
+      }
+
+      await db.run(
+          'UPDATE discord_rank FROM user SET discord_rank = ? WHERE osu_id = ?',
+          rank_text,
+          osu_user_id,
+      );
+    } catch (err) {
+      console.error(`Could not update Discord role for user ${osu_user_id}: ${err}`);
+    }
+  }
+}
+
 export {
   init_discord_bot,
   update_ranked_lobby_on_discord,
   close_ranked_lobby_on_discord,
+  update_discord_role,
 };
