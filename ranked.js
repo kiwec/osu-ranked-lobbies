@@ -292,7 +292,7 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
     if (rank_updates.length > 0) {
       const strings = [];
       for (const update of rank_updates) {
-        await update_discord_role(update.user_id, update.rank_after);
+        await update_discord_role(update.user_id, get_rank_text(update.rank_after));
 
         if (update.rank_before > update.rank_after) {
           strings.push(update.username + ' [https://osu.kiwec.net/u/' + update.user_id + '/ ▼' + get_rank_text(update.rank_after) + ' ]');
