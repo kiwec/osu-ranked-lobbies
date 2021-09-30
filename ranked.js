@@ -283,7 +283,7 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
   });
 
   lobby.on('matchFinished', async (scores) => {
-    const rank_updates = await update_mmr(ranking_db, lobby);
+    const rank_updates = await update_mmr(lobby);
     await select_next_map(lobby, map_db);
 
     if (rank_updates.length > 0) {
