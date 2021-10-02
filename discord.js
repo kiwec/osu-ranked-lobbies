@@ -6,10 +6,13 @@ import {Client, Intents, MessageActionRow, MessageButton, MessageEmbed} from 'di
 
 const Config = JSON.parse(fs.readFileSync('./config.json'));
 let client = null;
+let bancho_client = null;
 let db = null;
 
 
-function init_discord_bot() {
+function init_discord_bot(_bancho_client) {
+  bancho_client = _bancho_client;
+
   return new Promise(async (resolve, reject) => {
     db = await open({
       filename: 'discord.db',
@@ -39,11 +42,45 @@ function init_discord_bot() {
 
     client.once('ready', async () => {
       client.on('interactionCreate', async (interaction) => {
+        const user = await db.get(
+            'SELECT * FROM user WHERE discord_id = ?', interaction.user.id,
+        );
+
+        if (interaction.customId.indexOf('orl_get_lobby_invite_') == 0) {
+          const parts = interaction.customId.split('_');
+          const lobby_id = parseInt(parts[parts.length - 1], 10);
+
+          if (!user) {
+            await interaction.reply({
+              content: 'Before getting an invite, you need to click the button in #welcome to link your osu! account.',
+              ephemeral: true,
+            });
+            return;
+          }
+
+          await interaction.deferReply({ephemeral: true});
+          const player = await bancho_client.getUserById(user.osu_id);
+          for (const lobby of bancho_client.joined_lobbies) {
+            if (lobby.id == lobby_id) {
+              const lobby_invite_id = lobby.channel.topic.split('#')[1];
+              await player.sendMessage(`Here's your invite: [http://osump://${lobby_invite_id} ${lobby.name}]`);
+              await interaction.reply({
+                content: 'An invite to the lobby has been sent. Check your in-game messages. 😌',
+                ephemeral: true,
+              });
+              return;
+            }
+          }
+
+          await interaction.reply({
+            content: 'Failed to send the lobby invite. Are you online? 😨',
+            ephemeral: true,
+          });
+          return;
+        }
+
         if (interaction.customId == 'orl_link_osu_account') {
           // Check if user already linked their account
-          const user = await db.get(
-              'SELECT * FROM user WHERE discord_id = ?', interaction.user.id,
-          );
           if (user) {
             await interaction.reply({
               content: 'You already linked your account 👉 https://osu.ppy.sh/users/' + user.osu_id,
@@ -145,6 +182,15 @@ async function update_ranked_lobby_on_discord(lobby) {
           fields: fields,
           color: lobby.nb_players > 0 ? get_sr_color(lobby.map_sr) : null,
         }),
+      ],
+      components: [
+        new MessageActionRow().addComponents([
+          new MessageButton({
+            custom_id: 'orl_get_lobby_invite',
+            label: 'Get invite',
+            style: 'PRIMARY',
+          }),
+        ]),
       ],
     };
   } catch (err) {

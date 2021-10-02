@@ -44,10 +44,10 @@ async function init_lobby_db() {
 async function main() {
   console.log('Starting...');
 
-  await init_discord_bot();
+  const client = new Bancho.BanchoClient(Config);
+  await init_discord_bot(client);
   website_listen();
 
-  const client = new Bancho.BanchoClient(Config);
   client.on('error', (err) => console.error(err));
   await client.connect();
   console.log('Connected to bancho.');

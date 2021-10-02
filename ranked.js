@@ -11,7 +11,6 @@ import {
 // fuck you, es6 modules, for making this inconvenient
 const CURRENT_VERSION = JSON.parse(fs.readFileSync('./package.json')).version;
 
-const joined_lobbies = [];
 let deadlines = [];
 let deadline_id = 0;
 
@@ -97,7 +96,7 @@ async function select_next_map(lobby, map_db) {
 
 async function open_new_lobby_if_needed(client, lobby_db, map_db) {
   let empty_slots = 0;
-  for (const jl of joined_lobbies) {
+  for (const jl of client.joined_lobbies) {
     let nb_players = 0;
     for (const s of jl.slots) {
       if (s) nb_players++;
@@ -177,7 +176,7 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
   lobby.channel.on('PART', async (member) => {
     // Lobby closed (intentionally or not), clean up
     if (member.user.isClient()) {
-      joined_lobbies.splice(joined_lobbies.indexOf(lobby), 1);
+      client.joined_lobbies.splice(client.joined_lobbies.indexOf(lobby), 1);
       await lobby_db.run(`DELETE FROM ranked_lobby WHERE lobby_id = ?`, lobby.id);
       await close_ranked_lobby_on_discord(lobby);
       console.log(`[Ranked lobby #${lobby.id}] Closed.`);
@@ -435,11 +434,12 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
     }
   });
 
-  joined_lobbies.push(lobby);
+  client.joined_lobbies.push(lobby);
   console.log(`Joined ranked lobby #${lobby.id} - ${lobby.median_pp.toFixed(2)} median pp`);
 }
 
 async function start_ranked(client, lobby_db, map_db) {
+  client.joined_lobbies = [];
   await init_ranking_db();
 
   const lobbies = await lobby_db.all('SELECT * from ranked_lobby');
@@ -472,7 +472,7 @@ async function start_ranked(client, lobby_db, map_db) {
     if (msg.message == '!ranked') {
       // 1. Get the list of non-empty, non-full lobbies
       const available_lobbies = [];
-      for (const lobby of joined_lobbies) {
+      for (const lobby of client.joined_lobbies) {
         const nb_players = get_nb_players(lobby);
         if (nb_players > 0 && nb_players < 16) {
           available_lobbies.push(lobby);
@@ -488,7 +488,7 @@ async function start_ranked(client, lobby_db, map_db) {
 
       // 3. Fine, send them an empty lobby
       await open_new_lobby_if_needed(client, lobby_db, map_db);
-      for (const lobby of joined_lobbies) {
+      for (const lobby of client.joined_lobbies) {
         const nb_players = get_nb_players(lobby);
         if (nb_players < 16) {
           await lobby.invitePlayer(msg.user.ircUsername);
