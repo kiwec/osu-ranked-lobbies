@@ -160,7 +160,6 @@ async function update_ranked_lobby_on_discord(lobby) {
     try {
       const discord_channel = client.channels.cache.get(ranked_lobby.discord_channel_id);
       await discord_channel.messages.edit(ranked_lobby.discord_msg_id, msg);
-      console.log('debug: edited msg', ranked_lobby.discord_msg_id, 'for lobby', lobby.id);
     } catch (err) {
       console.error(`[Ranked lobby #${lobby.id}] Could not edit Discord message: ${err}`);
       return;
@@ -176,8 +175,6 @@ async function update_ranked_lobby_on_discord(lobby) {
           discord_channel.id,
           discord_msg.id,
       );
-
-      console.log('debug: created msg', discord_msg.id, 'for lobby', lobby.id);
     } catch (err) {
       console.error(`[Ranked lobby #${lobby.id}] Could not create Discord message: ${err}`);
       return;
@@ -197,7 +194,6 @@ async function close_ranked_lobby_on_discord(lobby) {
     const discord_channel = client.channels.cache.get(ranked_lobby.discord_channel_id);
     await discord_channel.messages.delete(ranked_lobby.discord_msg_id);
     await db.run('DELETE FROM ranked_lobby WHERE osu_lobby_id = ?', lobby.id);
-    console.log('debug: deleted msg', ranked_lobby.discord_msg_id, 'for lobby', lobby.id);
   } catch (err) {
     console.error(`[Ranked lobby #${lobby.id}] Could not remove Discord message: ${err}`);
   }
@@ -228,18 +224,29 @@ async function update_discord_role(osu_user_id, rank_text) {
   }
 
   if (user.discord_rank != rank_text) {
+    console.log('[Discord] Updating role for user ' + osu_user_id + ': ' + user.discord_rank + ' -> ' + rank_text);
+
     try {
       const guild = await client.guilds.fetch('891781932067749948');
       const member = await guild.members.fetch(user.discord_id);
 
+      console.log('debug:', rank_text, DISCORD_ROLES[rank_text]);
+
       if (rank_text == 'The One') {
-        const role = await guild.roles.fetch(DISCORD_ROLES['The One']);
-        role.members.each((member) => {
-          member.roles.remove(DISCORD_ROLES['The One']);
+        const role = await guild.roles.fetch(DISCORD_ROLES[rank_text]);
+        role.members.each(async (member) => {
+          console.log('debug: removing The One from', member);
+          await member.roles.remove(DISCORD_ROLES['The One']);
+          await member.roles.add(DISCORD_ROLES['Legendary']);
         });
       }
       if (user.discord_rank) {
-        await member.roles.remove(DISCORD_ROLES[user.discord_rank]);
+        try {
+          await member.roles.remove(DISCORD_ROLES[user.discord_rank]);
+        } catch (err) {
+          g;
+          console.log('[Discord] Failed to remove rank ' + user.discord_rank + ' from discord user ' + member.nickname);
+        }
       }
       if (rank_text != 'Unranked') {
         await member.roles.add(DISCORD_ROLES[rank_text]);
