@@ -160,6 +160,11 @@ async function update_ranked_lobby_on_discord(lobby) {
       {
         name: 'Players',
         value: lobby.nb_players + '/' + lobby.size,
+        inline: true,
+      },
+      {
+        name: 'Status',
+        value: lobby.playing ? 'Playing' : 'Waiting',
       },
     ];
     if (lobby.nb_players > 0 && typeof lobby.map_sr !== 'undefined') {
@@ -171,7 +176,6 @@ async function update_ranked_lobby_on_discord(lobby) {
       fields.push({
         name: 'Difficulty',
         value: lobby.map_pp + 'pp',
-        inline: true,
       });
     }
 
