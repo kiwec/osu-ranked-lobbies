@@ -113,6 +113,7 @@ async function open_new_lobby_if_needed(client, lobby_db, map_db) {
     await join_lobby(channel.lobby, lobby_db, map_db, client);
     await lobby_db.run('INSERT INTO ranked_lobby (lobby_id, filters) VALUES (?, "")', channel.lobby.id);
     await channel.sendMessage('!mp mods freemod');
+    await update_ranked_lobby_on_discord(channel.lobby);
     console.log(`[Ranked lobby #${channel.lobby.id}] Created.`);
   }
 }
@@ -464,6 +465,7 @@ async function start_ranked(client, lobby_db, map_db) {
       await lobby_db.run('INSERT INTO ranked_lobby (lobby_id, filters) VALUES (?, "")', channel.lobby.id);
       await channel.sendMessage('!mp mods freemod');
       await channel.lobby.invitePlayer(msg.user.ircUsername);
+      await update_ranked_lobby_on_discord(channel.lobby);
     }
 
     if (msg.message == '!ranked') {

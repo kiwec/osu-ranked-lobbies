@@ -125,7 +125,7 @@ async function update_ranked_lobby_on_discord(lobby) {
         value: lobby.nb_players + '/' + lobby.size,
       },
     ];
-    if (lobby.nb_players > 0) {
+    if (lobby.nb_players > 0 && typeof lobby.map_sr !== 'undefined') {
       fields.push({
         name: 'Star Rating',
         value: lobby.map_sr + '*',
