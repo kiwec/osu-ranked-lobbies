@@ -47,21 +47,21 @@ function parse_mods(arg) {
 
 function build_query(filters, mods) {
   const MODS_NOMOD = 0;
-  const MODS_NF = (1<<0);
+  // const MODS_NF = (1<<0);
   const MODS_EZ = (1<<1);
-  const MODS_TD = (1<<2);
+  // const MODS_TD = (1<<2);
   const MODS_HD = (1<<3);
   const MODS_HR = (1<<4);
-  const MODS_SD = (1<<5);
+  // const MODS_SD = (1<<5);
   const MODS_DT = (1<<6);
-  const MODS_RX = (1<<7);
+  // const MODS_RX = (1<<7);
   const MODS_HT = (1<<8);
-  const MODS_NC = (1<<9);
+  // const MODS_NC = (1<<9);
   const MODS_FL = (1<<10);
-  const MODS_AT = (1<<11);
-  const MODS_SO = (1<<12);
-  const MODS_AP = (1<<13);
-  const MODS_PF = (1<<14);
+  // const MODS_AT = (1<<11);
+  // const MODS_SO = (1<<12);
+  // const MODS_AP = (1<<13);
+  // const MODS_PF = (1<<14);
   const MODS_95ACC = (1<<15);
   const MODS_100ACC = (1<<16);
 

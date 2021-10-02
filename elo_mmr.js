@@ -413,7 +413,13 @@ async function init_db() {
     approx_mu REAL,
     approx_sig REAL,
     normal_mu REAL,
-    normal_sig REAL
+    normal_sig REAL,
+    aim_pp REAL,
+    acc_pp REAL,
+    speed_pp REAL,
+    overall_pp REAL,
+    last_top_score_tms INTEGER,
+    last_update_tms INTEGER
   )`);
 
   await db.exec(`CREATE TABLE IF NOT EXISTS contest (

@@ -1410,6 +1410,11 @@ object-assign@^4.1.0:
   resolved "https://registry.yarnpkg.com/object-assign/-/object-assign-4.1.1.tgz#2109adc7965887cfc05cbbd442cac8bfbb360863"
   integrity sha1-IQmtx5ZYh8/AXLvUQsrIv7s2CGM=
 
+ojsama@^2.2.0:
+  version "2.2.0"
+  resolved "https://registry.yarnpkg.com/ojsama/-/ojsama-2.2.0.tgz#ccff01b681fc25a66d7ee73c78ed3808cf1b9c52"
+  integrity sha512-kO0IaYP+u1QyMrajfm6m6a0xKNCf7psD/CjEHpLZ7gOx4YRJM6m2fEyNZd187Ocrlb+gOqbITDMyLpvOsqzsCg==
+
 on-finished@~2.3.0:
   version "2.3.0"
   resolved "https://registry.yarnpkg.com/on-finished/-/on-finished-2.3.0.tgz#20f1336481b083cd75337992a16971aa2d906947"

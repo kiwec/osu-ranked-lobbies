@@ -128,20 +128,25 @@ function init_discord_bot(_bancho_client) {
   });
 }
 
-function get_sr_color(sr) {
-  if (sr < 2.0) {
+function get_pp_color(pp) {
+  if (typeof pp === 'undefined' || !pp) {
+    return null;
+  }
+
+  // TODO: set better colors & brackets based on actual ranks
+  if (pp < 50) {
     // Easy
     return '#76b000';
-  } else if (sr < 2.7) {
+  } else if (pp < 100) {
     // Normal
     return '#58d6ff';
-  } else if (sr < 4) {
+  } else if (pp < 150) {
     // Hard
     return '#ffd60a';
-  } else if (sr < 5.3) {
+  } else if (pp < 250) {
     // Insane
     return '#ff58ac';
-  } else if (sr < 6.5) {
+  } else if (pp < 400) {
     // Expert
     return '#8158fe';
   } else {
@@ -165,17 +170,28 @@ async function update_ranked_lobby_on_discord(lobby) {
       {
         name: 'Status',
         value: lobby.playing ? 'Playing' : 'Waiting',
+        inline: true,
       },
     ];
-    if (lobby.nb_players > 0 && typeof lobby.map_sr !== 'undefined') {
+    if (lobby.nb_players > 0 && lobby.median_overall > 0) {
       fields.push({
-        name: 'Star Rating',
-        value: lobby.map_sr + '*',
+        name: 'Aim',
+        value: lobby.median_aim + 'pp',
         inline: true,
       });
       fields.push({
-        name: 'Difficulty',
-        value: lobby.map_pp + 'pp',
+        name: 'Speed',
+        value: lobby.median_speed + 'pp',
+        inline: true,
+      });
+      fields.push({
+        name: 'Accuracy',
+        value: lobby.median_acc + 'pp',
+        inline: true,
+      });
+      fields.push({
+        name: 'Overall',
+        value: lobby.median_overall + 'pp',
       });
     }
 
@@ -184,7 +200,7 @@ async function update_ranked_lobby_on_discord(lobby) {
         new MessageEmbed({
           title: lobby.name,
           fields: fields,
-          color: lobby.nb_players > 0 ? get_sr_color(lobby.map_sr) : null,
+          color: get_pp_color(lobby.median_overall),
         }),
       ],
       components: [
