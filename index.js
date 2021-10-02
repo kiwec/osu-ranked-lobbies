@@ -69,12 +69,12 @@ async function main() {
       return;
     }
 
-    if (msg.message == '!help' || msg.message == '!commands') {
+    if (msg.message == '!about' || msg.message == '!help' || msg.message == '!commands') {
       await msg.user.sendMessage('All bot commands and answers to your questions are [https://kiwec.net/discord in the Discord.]');
       return;
     }
 
-    const lobby_only_commands = ['!skip', '!start', '!setfilter'];
+    const lobby_only_commands = ['!skip', '!start', '!setfilter', '!kick', '!wait'];
     for (const cmd of lobby_only_commands) {
       if (msg.message.indexOf(cmd) == 0) {
         await msg.user.sendMessage('Sorry, you should send that command in #multiplayer.');

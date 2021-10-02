@@ -341,13 +341,13 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
       return;
     }
 
-    if (msg.message == '!discord') {
-      await lobby.channel.sendMessage('[https://kiwec.net/discord Come hang out in voice chat!] (or just text, no pressure)');
+    if (msg.message == '!about') {
+      await lobby.channel.sendMessage('In this lobby, you get a rank based on how well you play compared to other players. All commands and answers to your questions are [https://kiwec.net/discord in the Discord.]');
       return;
     }
 
-    if (msg.message == '!help' || msg.message == '!commands') {
-      await lobby.channel.sendMessage('All bot commands and answers to your questions are [https://kiwec.net/discord in the Discord.]');
+    if (msg.message == '!discord') {
+      await lobby.channel.sendMessage('[https://kiwec.net/discord Come hang out in voice chat!] (or just text, no pressure)');
       return;
     }
 
@@ -425,6 +425,11 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
         await lobby.channel.sendMessage('Starting the match in 10 seconds... Ready up to start sooner.');
       }, 20000);
       await lobby.channel.sendMessage('Starting the match in 30 seconds... Ready up to start sooner.');
+    }
+
+    if (msg.message == '!wait' && lobby.countdown != -1) {
+      clearTimeout(lobby.countdown);
+      await lobby.channel.sendMessage('Match auto-start is cancelled. Type !start to restart it.');
     }
   });
 
