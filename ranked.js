@@ -7,15 +7,6 @@ import {
   update_discord_role,
 } from './discord.js';
 
-// "ranked" column values
-// 1 = ranked but without ranked symbol?
-// 2 = graveyard
-// 3 = deleted?
-// 4 = ranked
-// 5 = approved
-// 6 = approved symbol but in graveyard?
-// 7 = loved
-
 
 // fuck you, es6 modules, for making this inconvenient
 const CURRENT_VERSION = JSON.parse(fs.readFileSync('./package.json')).version;
@@ -44,6 +35,16 @@ function get_nb_players(lobby) {
 }
 
 async function select_next_map(lobby, map_db) {
+  const MAP_TYPES = {
+    1: 'ranked',
+    2: 'graveyarded',
+    3: 'pending', // not sure
+    4: 'ranked',
+    5: 'approved',
+    6: 'approved', // but in graveyard?
+    7: 'loved',
+  };
+
   lobby.voteskips = [];
 
   // When the bot restarts, re-add the currently selected map to recent maps
@@ -84,7 +85,7 @@ async function select_next_map(lobby, map_db) {
     lobby.map_sr = new_map.stars.toFixed(2);
     lobby.map_pp = Math.floor(new_map.pp);
 
-    const flavor = `${lobby.map_sr}*, ${lobby.map_pp}pp`;
+    const flavor = `${MAP_TYPES[new_map.ranked]} ${lobby.map_sr}*, ${lobby.map_pp}pp`;
     const map_name = `[https://osu.ppy.sh/beatmapsets/${new_map.set_id}#osu/${new_map.id} ${new_map.name}]`;
     const download_link = `[https://api.chimu.moe/v1/download/${new_map.set_id}?n=1&r=${lobby.randomString()} Direct download]`;
     await lobby.channel.sendMessage(`!mp map ${new_map.id} 0 | ${map_name} (${flavor}) ${download_link}`);
