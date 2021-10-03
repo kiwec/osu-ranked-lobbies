@@ -51,19 +51,19 @@ function init_discord_bot(_bancho_client) {
           const lobby_id = parseInt(parts[parts.length - 1], 10);
 
           if (!user) {
+            const welcome = await client.channels.cache.get('892880734526795826');
             await interaction.reply({
-              content: 'Before getting an invite, you need to click the button in #welcome to link your osu! account.',
+              content: `Before getting an invite, you need to click the button in ${welcome} to link your osu! account.`,
               ephemeral: true,
             });
             return;
           }
 
-          await interaction.deferReply({ephemeral: true});
           const player = await bancho_client.getUserById(user.osu_id);
           for (const lobby of bancho_client.joined_lobbies) {
             if (lobby.id == lobby_id) {
               const lobby_invite_id = lobby.channel.topic.split('#')[1];
-              await player.sendMessage(`Here's your invite: [http://osump://${lobby_invite_id} ${lobby.name}]`);
+              await player.sendMessage(`Here's your invite: [http://osump://${lobby_invite_id}/ ${lobby.name}]`);
               await interaction.reply({
                 content: 'An invite to the lobby has been sent. Check your in-game messages. 😌',
                 ephemeral: true,
@@ -71,12 +71,6 @@ function init_discord_bot(_bancho_client) {
               return;
             }
           }
-
-          await interaction.reply({
-            content: 'Failed to send the lobby invite. Are you online? 😨',
-            ephemeral: true,
-          });
-          return;
         }
       });
 
@@ -168,7 +162,7 @@ async function update_ranked_lobby_on_discord(lobby) {
       components: [
         new MessageActionRow().addComponents([
           new MessageButton({
-            custom_id: 'orl_get_lobby_invite',
+            custom_id: 'orl_get_lobby_invite_' + lobby.id,
             label: 'Get invite',
             style: 'PRIMARY',
           }),

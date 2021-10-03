@@ -16,6 +16,8 @@ let deadline_id = 0;
 
 
 function median(numbers) {
+  if (numbers.length == 0) return 0;
+
   const middle = Math.floor(numbers.length / 2);
   if (numbers.length % 2 === 0) {
     return (numbers[middle - 1] + numbers[middle]) / 2;
@@ -109,7 +111,7 @@ async function open_new_lobby_if_needed(client, lobby_db, map_db) {
 
 
 // Updates the lobby's median_pp value. Returns true if map changed.
-async function update_median_pp(lobby) {
+async function update_median_pp(lobby, map_db) {
   const aims = [];
   const accs = [];
   const speeds = [];
@@ -130,17 +132,18 @@ async function update_median_pp(lobby) {
   overalls.sort();
   console.log(aims, accs, speeds, overalls);
 
-  lobby.median_aim = median(aims);
-  lobby.median_acc = median(accs);
-  lobby.median_speed = median(speeds);
+  lobby.median_aim = median(aims) * lobby.difficulty_modifier;
+  lobby.median_acc = median(accs) * lobby.difficulty_modifier;
+  lobby.median_speed = median(speeds) * lobby.difficulty_modifier;
 
   const old_median_overall = lobby.median_overall;
-  lobby.median_overall = median(overalls);
+  lobby.median_overall = median(overalls) * lobby.difficulty_modifier;
 
   await update_ranked_lobby_on_discord(lobby);
 
   // If median pp changed by more than 50%, update map
-  const difference = Math.abs(old_median_overall - lobby.median_overall) / Math.max(old_median_overall, 1.0);
+  const difference = Math.abs(old_median_overall - lobby.median_overall) / Math.max(old_median_overall, 0.000001);
+  console.log(old_median_overall, lobby.median_overall, difference, overalls.length);
   if (overalls.length > 0 && difference > 0.50) {
     await select_next_map(lobby, map_db);
     return true;
@@ -154,6 +157,9 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
   lobby.votekicks = [];
   lobby.voteskips = [];
   lobby.countdown = -1;
+  lobby.median_overall = 0;
+  lobby.nb_players = 0;
+  lobby.difficulty_modifier = 1.0;
   lobby.last_ready_msg = 0;
   await lobby.setPassword('');
 
@@ -164,7 +170,7 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
     await player.user.fetchFromAPI();
     await load_user_info(player.user);
   }
-  await update_median_pp(lobby);
+  await update_median_pp(lobby, map_db);
 
   lobby.channel.on('PART', async (member) => {
     // Lobby closed (intentionally or not), clean up
@@ -211,7 +217,7 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
 
     // Warning: load_user_info can be a slow call
     await load_user_info(player);
-    await update_median_pp(lobby);
+    await update_median_pp(lobby, map_db);
   });
 
   lobby.on('playerLeft', async (evt) => {
@@ -230,7 +236,7 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
       lobby.voteskips.splice(lobby.voteskips.indexOf(evt.user.ircUsername), 1);
     }
 
-    if (await update_median_pp(lobby)) {
+    if (await update_median_pp(lobby, map_db)) {
       return;
     }
 
@@ -331,6 +337,14 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
     if (msg.message == '!about') {
       await lobby.channel.sendMessage('In this lobby, you get a rank based on how well you play compared to other players. All commands and answers to your questions are [https://kiwec.net/discord in the Discord.]');
       return;
+    }
+
+    if (msg.message.indexOf('!diff') == 0 && msg.user.isClient()) {
+      lobby.difficulty_modifier = parseFloat(msg.message.split(' ')[1]);
+      const switched = await update_median_pp(lobby, map_db);
+      if (!switched) {
+        await select_next_map(lobby, map_db);
+      }
     }
 
     if (msg.message == '!discord') {

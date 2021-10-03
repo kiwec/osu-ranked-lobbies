@@ -67,13 +67,14 @@ async function load_user_info(bancho_user) {
   }
 
   // Try to fetch user info from database
-  const user = await ranks_db.get('SELECT * FROM user WHERE user_id = ?', bancho_user.id);
+  let user = await ranks_db.get('SELECT * FROM user WHERE user_id = ?', bancho_user.id);
   if (!user) {
     await ranks_db.run(
         `INSERT INTO user (user_id, username, approx_mu, approx_sig, normal_mu, normal_sig)
       VALUES (?, ?, 1500, 350, 1500, 350)`,
         bancho_user.id, bancho_user.ircUsername,
     );
+    user = await ranks_db.get('SELECT * FROM user WHERE user_id = ?', bancho_user.id);
   } else {
     bancho_user.id = user.user_id;
 
@@ -100,7 +101,7 @@ async function load_user_info(bancho_user) {
   const recent_scores = await res.json();
   let has_new_score = false;
   for (const score of recent_scores) {
-    const score_tms = Date.parse(score.created_at).getTime();
+    const score_tms = Date.parse(score.created_at) / 1000;
     if (score_tms > user.last_top_score_tms) {
       has_new_score = true;
       break;
@@ -121,7 +122,7 @@ async function load_user_info(bancho_user) {
     overall: 0,
   };
   for (const score of recent_scores) {
-    const score_tms = Date.parse(score.created_at).getTime();
+    const score_tms = Date.parse(score.created_at) / 1000;
     if (score_tms > last_top_score_tms) {
       last_top_score_tms = score_tms;
     }
@@ -129,7 +130,7 @@ async function load_user_info(bancho_user) {
     try {
       // Looking for .osu files? peppy provides monthly dumps here: https://data.ppy.sh/
       const file = 'maps/' + parseInt(score.beatmap.id, 10) + '.osu';
-      const contents = await fs.readFile(file);
+      const contents = await fs.readFile(file, 'utf-8');
       const parser = new ojsama.parser();
       parser.feed(contents);
 
@@ -156,10 +157,10 @@ async function load_user_info(bancho_user) {
   }
 
   if (total_weight > 0) {
-    pp.aim /= current_weight;
-    pp.acc /= current_weight;
-    pp.speed /= current_weight;
-    pp.overall /= current_weight;
+    pp.aim /= total_weight;
+    pp.acc /= total_weight;
+    pp.speed /= total_weight;
+    pp.overall /= total_weight;
   }
   bancho_user.pp = pp;
 
