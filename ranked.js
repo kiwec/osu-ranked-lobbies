@@ -101,7 +101,7 @@ async function open_new_lobby_if_needed(client, lobby_db, map_db) {
     // Feel free to suggest more. lol
     const clickbaits = ['(0-∞*)', '(1-11*)', '(real)', '(NOT SUS)', '(pog)', '(uwu)', '(owo)', '(ADSADSAFDDFSFDASD)'];
     const clickbait = clickbaits[Math.floor(Math.random()*clickbaits.length)];
-    const channel = await client.createLobby(`testing stuff do not join`);
+    const channel = await client.createLobby(`RANKED LOBBY | Auto map select ${clickbait}`);
     await join_lobby(channel.lobby, lobby_db, map_db, client);
     await lobby_db.run('INSERT INTO ranked_lobby (lobby_id) VALUES (?)', channel.lobby.id);
     await channel.sendMessage('!mp mods freemod');

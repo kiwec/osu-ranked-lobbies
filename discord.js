@@ -72,6 +72,44 @@ function init_discord_bot(_bancho_client) {
             }
           }
         }
+
+        if (interaction.customId == 'orl_link_osu_account') {
+          // Check if user already linked their account
+          if (user) {
+            await interaction.reply({
+              content: 'You already linked your account 👉 https://osu.ppy.sh/users/' + user.osu_id,
+              ephemeral: true,
+            });
+            return;
+          }
+
+          // Create ephemeral token
+          await db.run(
+              'DELETE from auth_tokens WHERE discord_user_id = ?',
+              interaction.user.id,
+          );
+          const ephemeral_token = crypto.randomBytes(16).toString('hex');
+          await db.run(
+              'INSERT INTO auth_tokens (discord_user_id, ephemeral_token) VALUES (?, ?)',
+              interaction.user.id,
+              ephemeral_token,
+          );
+
+          // Send authorization link
+          await interaction.reply({
+            content: `Hello ${interaction.user}, let's get your account linked!`,
+            ephemeral: true,
+            components: [
+              new MessageActionRow().addComponents([
+                new MessageButton({
+                  url: `https://osu.ppy.sh/oauth/authorize?client_id=${Config.client_id}&response_type=code&scope=identify&state=${ephemeral_token}&redirect_uri=https://osu.kiwec.net/auth`,
+                  label: 'Verify using osu!web',
+                  style: 'LINK',
+                }),
+              ]),
+            ],
+          });
+        }
       });
 
       // await create_account_linking_button();
@@ -188,7 +226,7 @@ async function update_ranked_lobby_on_discord(lobby) {
     }
   } else {
     try {
-      const discord_channel = client.channels.cache.get('893207661225594880');
+      const discord_channel = client.channels.cache.get('892789885335924786');
       const discord_msg = await discord_channel.send(msg);
 
       await db.run(
