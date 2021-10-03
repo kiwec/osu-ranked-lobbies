@@ -126,10 +126,10 @@ async function update_median_pp(lobby, map_db) {
     }
   }
 
-  aims.sort();
-  accs.sort();
-  speeds.sort();
-  overalls.sort();
+  aims.sort((a, b) => a - b);
+  accs.sort((a, b) => a - b);
+  speeds.sort((a, b) => a - b);
+  overalls.sort((a, b) => a - b);
   console.log(aims, accs, speeds, overalls);
 
   lobby.median_aim = median(aims) * lobby.difficulty_modifier;

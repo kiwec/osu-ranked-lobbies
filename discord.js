@@ -170,22 +170,22 @@ async function update_ranked_lobby_on_discord(lobby) {
     if (lobby.nb_players > 0 && lobby.median_overall > 0) {
       fields.push({
         name: 'Aim',
-        value: lobby.median_aim + 'pp',
-        inline: true,
+        value: Math.round(lobby.median_aim) + 'pp',
       });
       fields.push({
         name: 'Speed',
-        value: lobby.median_speed + 'pp',
+        value: Math.round(lobby.median_speed) + 'pp',
         inline: true,
       });
       fields.push({
         name: 'Accuracy',
-        value: lobby.median_acc + 'pp',
+        value: Math.round(lobby.median_acc) + 'pp',
         inline: true,
       });
       fields.push({
         name: 'Overall',
-        value: lobby.median_overall + 'pp',
+        value: Math.round(lobby.median_overall) + 'pp',
+        inline: true,
       });
     }
 
