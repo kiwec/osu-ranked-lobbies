@@ -58,29 +58,29 @@ async function main() {
     driver: sqlite3.Database,
   });
 
-  await start_casual(client, lobby_db, map_db);
+  // await start_casual(client, lobby_db, map_db);
   await start_ranked(client, lobby_db, map_db);
 
   client.on('PM', async (msg) => {
     console.log(`[PM] ${msg.user.ircUsername}: ${msg.message}`);
 
-    if (msg.message == '!discord') {
-      await msg.user.sendMessage('https://kiwec.net/discord');
-      return;
-    }
+    // if (msg.message == '!discord') {
+    //   await msg.user.sendMessage('https://kiwec.net/discord');
+    //   return;
+    // }
 
-    if (msg.message == '!about' || msg.message == '!help' || msg.message == '!commands') {
-      await msg.user.sendMessage('All bot commands and answers to your questions are [https://kiwec.net/discord in the Discord.]');
-      return;
-    }
+    // if (msg.message == '!about' || msg.message == '!help' || msg.message == '!commands') {
+    //   await msg.user.sendMessage('All bot commands and answers to your questions are [https://kiwec.net/discord in the Discord.]');
+    //   return;
+    // }
 
-    const lobby_only_commands = ['!skip', '!start', '!setfilter', '!kick', '!wait'];
-    for (const cmd of lobby_only_commands) {
-      if (msg.message.indexOf(cmd) == 0) {
-        await msg.user.sendMessage('Sorry, you should send that command in #multiplayer.');
-        return;
-      }
-    }
+    // const lobby_only_commands = ['!skip', '!start', '!setfilter', '!kick', '!wait'];
+    // for (const cmd of lobby_only_commands) {
+    //   if (msg.message.indexOf(cmd) == 0) {
+    //     await msg.user.sendMessage('Sorry, you should send that command in #multiplayer.');
+    //     return;
+    //   }
+    // }
   });
 
   /*  await client.emit('PM', {
