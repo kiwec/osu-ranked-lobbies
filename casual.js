@@ -95,6 +95,10 @@ function build_query(filters, mods) {
     }
 
     if (['stars', 'cs', 'ar', 'od'].includes(filter_name)) {
+      if (filter_name == 'stars') {
+        filter_name = 'pp.stars';
+      }
+
       // These filters vary depending on some mods - so we need to use the right mods value.
       query_filters.push(`((mods == ${enabled_mods | MODS_95ACC} OR mods == ${enabled_mods | MODS_100ACC}) AND ${filter_name} ${filter.operator} ${filter.value})`);
     } else if (filter_name == '95%pp' || filter_name == 'pp95%') {
