@@ -76,7 +76,7 @@ function build_query(filters, mods) {
 
   const query_filters = [];
   for (const filter of filters) {
-    const filter_name = filter.filter;
+    let filter_name = filter.filter;
 
     if (filter_name == 'length') {
       if (mods.includes('DT')) {

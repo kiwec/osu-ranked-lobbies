@@ -169,8 +169,14 @@ async function update_ranked_lobby_on_discord(lobby) {
     ];
     if (lobby.nb_players > 0 && lobby.median_overall > 0) {
       fields.push({
+        name: 'Difficulty',
+        value: Math.round(lobby.median_overall) + 'pp',
+        inline: true,
+      });
+      fields.push({
         name: 'Aim',
         value: Math.round(lobby.median_aim) + 'pp',
+        inline: true,
       });
       fields.push({
         name: 'Speed',
@@ -180,11 +186,6 @@ async function update_ranked_lobby_on_discord(lobby) {
       fields.push({
         name: 'Accuracy',
         value: Math.round(lobby.median_acc) + 'pp',
-        inline: true,
-      });
-      fields.push({
-        name: 'Overall',
-        value: Math.round(lobby.median_overall) + 'pp',
         inline: true,
       });
     }
