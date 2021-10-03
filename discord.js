@@ -305,7 +305,6 @@ async function update_discord_role(osu_user_id, rank_text) {
         try {
           await member.roles.remove(DISCORD_ROLES[user.discord_rank]);
         } catch (err) {
-          g;
           console.log('[Discord] Failed to remove rank ' + user.discord_rank + ' from discord user ' + member.nickname);
         }
       }
