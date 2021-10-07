@@ -63,8 +63,10 @@ async function select_next_map(lobby, map_db) {
     // Currently a spread of 500 maps, tweaking might be needed
     new_map = await map_db.get(
         `SELECT * FROM (
-          SELECT * FROM map WHERE length > 60 AND length < 420 AND ranked IN (4, 5, 7) ORDER BY (
-            ABS(? - aim_pp) + ABS(? - speed_pp) + ABS(? - acc_pp) + 10.0*ABS(? - avg_ar)
+          SELECT * FROM map
+          INNER JOIN pp ON map.id = pp.map_id
+          WHERE mods = (1<<16) AND length > 60 AND length < 420 AND ranked IN (4, 5, 7) ORDER BY (
+            ABS(? - aim_pp) + ABS(? - speed_pp) + ABS(? - acc_pp) + 10.0*ABS(? - pp.ar)
           ) LIMIT 100
         ) ORDER BY RANDOM() LIMIT 1`,
         lobby.median_aim, lobby.median_speed, lobby.median_acc, lobby.median_ar,

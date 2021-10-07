@@ -3,6 +3,7 @@ import fs from 'fs';
 import {open} from 'sqlite';
 import sqlite3 from 'sqlite3';
 import {Client, Intents, MessageActionRow, MessageButton, MessageEmbed} from 'discord.js';
+import {get_rank_text} from './elo_mmr.js';
 
 const Config = JSON.parse(fs.readFileSync('./config.json'));
 let client = null;
@@ -65,11 +66,13 @@ function init_discord_bot(_bancho_client) {
             }
 
             let division = 'Unranked';
+            let rank = '-';
             const profile = await ranks_db.get('SELECT * FROM user WHERE user_id = ?', user.osu_id);
             if (profile.elo) {
-              const better_users = await db.get('SELECT COUNT(*) AS nb FROM user WHERE elo > ?', profile.elo);
-              const all_users = await db.get('SELECT COUNT(*) AS nb FROM user');
+              const better_users = await ranks_db.get('SELECT COUNT(*) AS nb FROM user WHERE elo > ?', profile.elo);
+              const all_users = await ranks_db.get('SELECT COUNT(*) AS nb FROM user');
               division = get_rank_text(1.0 - (better_users.nb / all_users.nb));
+              rank = '#' + (better_users.nb + 1);
             }
 
             await interaction.reply({
@@ -79,7 +82,8 @@ function init_discord_bot(_bancho_client) {
                   fields: [
                     {
                       name: 'Rank',
-                      value: profile.elo ? ('#' + (better_users.nb + 1)) : '-',
+                      value: rank,
+                      inline: true,
                     },
                     {
                       name: 'Division',
@@ -102,7 +106,7 @@ function init_discord_bot(_bancho_client) {
                     },
                     {
                       name: 'Approach Rate',
-                      value: profile.avg_ar.toFixed(1),
+                      value: (profile.avg_ar || 0).toFixed(1),
                       inline: true,
                     },
                   ],
