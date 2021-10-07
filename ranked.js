@@ -59,18 +59,31 @@ async function select_next_map(lobby, map_db) {
 
   let new_map = null;
   let tries = 0;
+  const is_dt = lobby.median_ar >= 9.5;
   do {
-    // Currently a spread of 500 maps, tweaking might be needed
-    new_map = await map_db.get(
-        `SELECT * FROM (
-          SELECT * FROM map
-          INNER JOIN pp ON map.id = pp.map_id
-          WHERE mods = (1<<16) AND length > 60 AND length < 420 AND ranked IN (4, 5, 7) ORDER BY (
-            ABS(? - aim_pp) + ABS(? - speed_pp) + ABS(? - acc_pp) + 10.0*ABS(? - pp.ar)
-          ) LIMIT 100
-        ) ORDER BY RANDOM() LIMIT 1`,
-        lobby.median_aim, lobby.median_speed, lobby.median_acc, lobby.median_ar,
-    );
+    if (is_dt) {
+      new_map = await map_db.get(
+          `SELECT * FROM (
+            SELECT * FROM map
+            INNER JOIN pp ON map.id = pp.map_id
+            WHERE mods = 65600 AND length > 60 AND length < 420 AND ranked IN (4, 5, 7) ORDER BY (
+              ABS(? - aim_pp) + ABS(? - speed_pp) + ABS(? - acc_pp) + 10.0*ABS(? - pp.ar)
+            ) LIMIT 100
+          ) ORDER BY RANDOM() LIMIT 1`,
+          lobby.median_aim, lobby.median_speed, lobby.median_acc, lobby.median_ar,
+      );
+    } else {
+      new_map = await map_db.get(
+          `SELECT * FROM (
+            SELECT * FROM map
+            INNER JOIN pp ON map.id = pp.map_id
+            WHERE mods = (1<<16) AND length > 60 AND length < 420 AND ranked IN (4, 5, 7) ORDER BY (
+              ABS(? - aim_pp) + ABS(? - speed_pp) + ABS(? - acc_pp) + 10.0*ABS(? - pp.ar)
+            ) LIMIT 100
+          ) ORDER BY RANDOM() LIMIT 1`,
+          lobby.median_aim, lobby.median_speed, lobby.median_acc, lobby.median_ar,
+      );
+    }
     tries++;
   } while ((lobby.recent_maps.includes(new_map.id)) && tries < 10);
   if (!new_map) {
@@ -86,7 +99,22 @@ async function select_next_map(lobby, map_db) {
     const download_link = `[https://api.chimu.moe/v1/download/${new_map.set_id}?n=1&r=${lobby.randomString()} Direct download]`;
     await lobby.channel.sendMessage(`!mp map ${new_map.id} 0 | ${map_name} (${flavor}) ${download_link}`);
 
-    const new_title = `${new_map.stars.toFixed(1)}* | Ranked | Auto map select`;
+    if (lobby.is_dt != is_dt) {
+      if (is_dt) {
+        await lobby.channel.sendMessage('!mp mods DT freemod');
+      } else {
+        await lobby.channel.sendMessage('!mp mods freemod');
+      }
+
+      lobby.is_dt = is_dt;
+    }
+
+    let new_title;
+    if (is_dt) {
+      new_title = `${new_map.stars.toFixed(1)}* DT | Ranked | Auto map select`;
+    } else {
+      new_title = `${new_map.stars.toFixed(1)}* | Ranked | Auto map select`;
+    }
     if (lobby.title != new_title) {
       await lobby.channel.sendMessage(`!mp title ${new_title}`);
     }
@@ -143,7 +171,7 @@ async function update_median_pp(lobby, map_db) {
   lobby.median_acc = median(accs) * lobby.difficulty_modifier;
   lobby.median_speed = median(speeds) * lobby.difficulty_modifier;
   lobby.median_overall = median(overalls) * lobby.difficulty_modifier;
-  lobby.median_ar = median(ars) * lobby.difficulty_modifier;
+  lobby.median_ar = median(ars);
 
   await update_ranked_lobby_on_discord(lobby);
 
@@ -157,7 +185,7 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
   lobby.countdown = -1;
   lobby.median_overall = 0;
   lobby.nb_players = 0;
-  lobby.difficulty_modifier = 1.1;
+  lobby.difficulty_modifier = 1.0;
   lobby.last_ready_msg = 0;
   await lobby.setPassword('');
 

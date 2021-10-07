@@ -218,8 +218,8 @@ async function join_lobby(channel, lobby_info, lobby_db) {
   // Because we change the map *before* they rejoin the lobby, we need to re-select our map.
   // We could also remove host altogether, but not sure if that's a better solution...
   lobby.on('beatmapId', async (beatmap_id) => {
-    if (lobby.recent_maps.length >= 2 && lobby.recent_maps[Custom.recent_maps.length-2] == beatmap_id) {
-      await lobby.setMap(lobby.recent_maps[Custom.recent_maps.length-1]);
+    if (lobby.recent_maps.length >= 2 && lobby.recent_maps[lobby.recent_maps.length-2] == beatmap_id) {
+      await lobby.setMap(lobby.recent_maps[lobby.recent_maps.length-1]);
     }
   });
 

@@ -147,6 +147,7 @@ async function load_user_info(bancho_user) {
 
       const map_pp = ojsama.ppv2({
         map: parser.map,
+        mods: ojsama.modbits.from_string(score.mods.join('')),
         nmiss: score.statistics.count_miss,
         n50: score.statistics.count_50,
         n100: score.statistics.count_100,
@@ -158,17 +159,39 @@ async function load_user_info(bancho_user) {
       pp.speed += map_pp.speed * current_weight;
       pp.overall += map_pp.total * current_weight;
 
-      let approach_rate = score.beatmap.ar * current_weight;
+      let approach_rate = score.beatmap.ar;
       if (score.mods.includes('HR')) {
         approach_rate *= 1.4;
+        if (approach_rate > 10) approach_rate = 10;
       } else if (score.mods.includes('EZ')) {
-        approach_rate *= 0.5;
+        approach_rate /= 2;
       }
+
+      // For how long the circle is shown on screen, in milliseconds
+      // See https://osu.ppy.sh/wiki/en/Beatmapping/Approach_rate
+      let preempt;
+      if (approach_rate > 5) {
+        preempt = 1200 - 150 * (approach_rate - 5);
+      } else {
+        preempt = 1200 + 120 * (5 - approach_rate);
+      }
+
       if (score.mods.includes('DT')) {
-        approach_rate *= 1.5;
+        preempt *= 2/3;
+        if (preempt > 1200) {
+          approach_rate = 5 - (preempt - 1200) / 120;
+        } else {
+          approach_rate = (1200 - preempt) / 150 + 5;
+        }
       } else if (score.mods.includes('HT')) {
-        approach_rate *= 0.75;
+        preempt /= 0.75;
+        if (preempt > 1200) {
+          approach_rate = 5 - (preempt - 1200) / 120;
+        } else {
+          approach_rate = (1200 - preempt) / 150 + 5;
+        }
       }
+      approach_rate *= current_weight;
       pp.ar += approach_rate;
     } catch (err) {
       console.error('Failed to compute pp for map', score.beatmap.id, ':', err);
