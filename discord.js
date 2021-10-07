@@ -10,6 +10,7 @@ let bancho_client = null;
 let db = null;
 let ranks_db = null;
 
+import {get_rank_text_from_id} from './elo_mmr.js';
 async function fix_ranks_once(client) {
   const DISCORD_ROLES = {
     'Cardboard': '893082878806732851',
@@ -28,17 +29,13 @@ async function fix_ranks_once(client) {
   for (const user of users) {
     try {
       const member = await guild.members.fetch(user.discord_id);
-      console.log('Fixing roles for ' + member.nickname);
+      console.log('Fixing roles for ' + member.displayName);
 
-      const user = await db.run(
-          'SELECT osu_id FROM user WHERE discord_id = ?',
-          member.id,
-      );
-      let rank_text = get_rank_text_from_id(user.osu_id);
+      let rank_text = await get_rank_text_from_id(user.osu_id);
       rank_text = rank_text.split('+')[0];
 
       for (const role of member.roles.cache) {
-        if (DISCORD_ROLES.values().includes(role.id) && role.id != DISCORD_ROLES[rank_text]) {
+        if (Object.values(DISCORD_ROLES).includes(role.id) && role.id != DISCORD_ROLES[rank_text]) {
           await member.roles.remove(role);
           console.log('- Removed ' + role.name);
         }
@@ -424,7 +421,7 @@ async function update_discord_role(osu_user_id, rank_text) {
         try {
           await member.roles.remove(DISCORD_ROLES[user.discord_rank]);
         } catch (err) {
-          console.log('[Discord] Failed to remove rank ' + user.discord_rank + ' from discord user ' + member.nickname);
+          console.log('[Discord] Failed to remove rank ' + user.discord_rank + ' from discord user ' + member.displayName);
         }
       }
       if (rank_text != 'Unranked') {

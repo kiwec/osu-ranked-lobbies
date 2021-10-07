@@ -138,7 +138,7 @@ async function load_user_info(bancho_user) {
         // TODO: add to map/pp database?
         console.log(`Beatmap id ${score.beatmap.id} not found, downloading it.`);
         const new_file = await fetch(`https://osu.ppy.sh/osu/${score.beatmap.id}`);
-        await fs.writeFile(file, await new_file.body());
+        await fs.writeFile(file, await new_file.text());
       }
 
       const contents = await fs.readFile(file, 'utf-8');
@@ -159,14 +159,14 @@ async function load_user_info(bancho_user) {
       pp.overall += map_pp.total * current_weight;
 
       pp.ar = score.beatmap.ar * current_weight;
-      if (score.beatmap.mods.includes('HR')) {
+      if (score.mods.includes('HR')) {
         pp.ar *= 1.4;
-      } else if (score.beatmap.mods.includes('EZ')) {
+      } else if (score.mods.includes('EZ')) {
         pp.ar *= 0.5;
       }
-      if (score.beatmap.mods.includes('DT')) {
+      if (score.mods.includes('DT')) {
         pp.ar *= 1.5;
-      } else if (score.beatmap.mods.includes('HT')) {
+      } else if (score.mods.includes('HT')) {
         pp.ar *= 0.75;
       }
     } catch (err) {
