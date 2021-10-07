@@ -67,7 +67,7 @@ async function select_next_map(lobby, map_db) {
             SELECT * FROM map
             INNER JOIN pp ON map.id = pp.map_id
             WHERE mods = 65600 AND length > 60 AND length < 420 AND ranked IN (4, 5, 7) ORDER BY (
-              ABS(? - aim_pp) + ABS(? - speed_pp) + ABS(? - acc_pp) + 10.0*ABS(? - pp.ar)
+              ABS(? - dt_aim_pp) + ABS(? - dt_speed_pp) + ABS(? - dt_acc_pp) + 10.0*ABS(? - pp.ar)
             ) LIMIT 100
           ) ORDER BY RANDOM() LIMIT 1`,
           lobby.median_aim, lobby.median_speed, lobby.median_acc, lobby.median_ar,
@@ -94,7 +94,7 @@ async function select_next_map(lobby, map_db) {
   lobby.recent_maps.push(new_map.id);
 
   try {
-    const flavor = `${MAP_TYPES[new_map.ranked]} ${new_map.stars.toFixed(2)}*, ${Math.round(new_map.overall_pp)}pp`;
+    const flavor = `${MAP_TYPES[new_map.ranked]} ${new_map.stars.toFixed(2)}*, ${Math.round(new_map.pp)}pp`;
     const map_name = `[https://osu.ppy.sh/beatmapsets/${new_map.set_id}#osu/${new_map.id} ${new_map.name}]`;
     const download_link = `[https://api.chimu.moe/v1/download/${new_map.set_id}?n=1&r=${lobby.randomString()} Direct download]`;
     await lobby.channel.sendMessage(`!mp map ${new_map.id} 0 | ${map_name} (${flavor}) ${download_link}`);

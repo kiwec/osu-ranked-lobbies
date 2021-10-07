@@ -26,7 +26,7 @@ int main(int argc, char* argv[]) {
   sqlite3_exec(db, "BEGIN TRANSACTION", NULL, NULL, &errorMessage);
 
   sqlite3_prepare_v2(db, "select id from map", -1, &map_stmt, NULL);
-  sqlite3_prepare_v2(db, "update map set stars = ?1, aim_pp = ?2, speed_pp = ?3, acc_pp = ?4, overall_pp = ?5 where id = ?6", -1, &pp_stmt, NULL);
+  sqlite3_prepare_v2(db, "update map set dt_aim_pp = ?1, dt_speed_pp = ?2, dt_acc_pp = ?3, dt_overall_pp = ?4 where id = ?5", -1, &pp_stmt, NULL);
 
   while(sqlite3_step(map_stmt) != SQLITE_DONE) {
     char map_filename[32];
@@ -36,15 +36,15 @@ int main(int argc, char* argv[]) {
     
     ezpp_t oppai = ezpp_new();
     ezpp_set_accuracy_percent(oppai, 100);
+    ezpp_set_mods(oppai, MODS_DT);
     ezpp_set_autocalc(oppai, 1);
     ezpp(oppai, map_filename);
 
-    sqlite3_bind_double(pp_stmt, 1, ezpp_stars(oppai));
-    sqlite3_bind_double(pp_stmt, 2, ezpp_aim_pp(oppai));
-    sqlite3_bind_double(pp_stmt, 3, ezpp_speed_pp(oppai));
-    sqlite3_bind_double(pp_stmt, 4, ezpp_acc_pp(oppai));
-    sqlite3_bind_double(pp_stmt, 5, ezpp_pp(oppai));
-    sqlite3_bind_int(pp_stmt, 6, map_id);
+    sqlite3_bind_double(pp_stmt, 1, ezpp_aim_pp(oppai));
+    sqlite3_bind_double(pp_stmt, 2, ezpp_speed_pp(oppai));
+    sqlite3_bind_double(pp_stmt, 3, ezpp_acc_pp(oppai));
+    sqlite3_bind_double(pp_stmt, 4, ezpp_pp(oppai));
+    sqlite3_bind_int(pp_stmt, 5, map_id);
     sqlite3_step(pp_stmt);
     sqlite3_reset(pp_stmt);
 
