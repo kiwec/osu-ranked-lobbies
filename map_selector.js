@@ -158,17 +158,18 @@ async function load_user_info(bancho_user) {
       pp.speed += map_pp.speed * current_weight;
       pp.overall += map_pp.total * current_weight;
 
-      pp.ar = score.beatmap.ar * current_weight;
+      let approach_rate = score.beatmap.ar * current_weight;
       if (score.mods.includes('HR')) {
-        pp.ar *= 1.4;
+        approach_rate *= 1.4;
       } else if (score.mods.includes('EZ')) {
-        pp.ar *= 0.5;
+        approach_rate *= 0.5;
       }
       if (score.mods.includes('DT')) {
-        pp.ar *= 1.5;
+        approach_rate *= 1.5;
       } else if (score.mods.includes('HT')) {
-        pp.ar *= 0.75;
+        approach_rate *= 0.75;
       }
+      pp.ar += approach_rate;
     } catch (err) {
       console.error('Failed to compute pp for map', score.beatmap.id, ':', err);
       continue;

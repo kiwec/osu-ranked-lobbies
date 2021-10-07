@@ -117,7 +117,7 @@ function init_discord_bot(_bancho_client) {
           }
         }
 
-        if (interaction.customId.indexOf('orl_get_lobby_invite_') == 0) {
+        if (interaction.customId && interaction.customId.indexOf('orl_get_lobby_invite_') == 0) {
           const parts = interaction.customId.split('_');
           const lobby_id = parseInt(parts[parts.length - 1], 10);
 
