@@ -84,6 +84,7 @@ async function load_user_info(bancho_user) {
         acc: user.acc_pp,
         speed: user.speed_pp,
         overall: user.overall_pp,
+        ar: user.avg_ar,
       };
 
       // Already updated their profile recently enough

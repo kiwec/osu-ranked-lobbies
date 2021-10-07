@@ -67,7 +67,7 @@ async function select_next_map(lobby, map_db) {
             SELECT *, (ABS(? - dt_aim_pp) + ABS(? - dt_speed_pp) + ABS(? - dt_acc_pp) + 10*ABS(? - pp.ar)) AS match_accuracy FROM map
             INNER JOIN pp ON map.id = pp.map_id
             WHERE mods = 65600 AND length > 60 AND length < 420 AND ranked IN (4, 5, 7) AND match_accuracy IS NOT NULL
-            ORDER BY match_accuracy LIMIT 100
+            ORDER BY match_accuracy LIMIT 1000
           ) ORDER BY RANDOM() LIMIT 1`,
           lobby.median_aim, lobby.median_speed, lobby.median_acc, lobby.median_ar,
       );
@@ -77,15 +77,18 @@ async function select_next_map(lobby, map_db) {
             SELECT *, (ABS(? - aim_pp) + ABS(? - speed_pp) + ABS(? - acc_pp) + 10*ABS(? - pp.ar)) AS match_accuracy FROM map
             INNER JOIN pp ON map.id = pp.map_id
             WHERE mods = (1<<16) AND length > 60 AND length < 420 AND ranked IN (4, 5, 7) AND match_accuracy IS NOT NULL
-            ORDER BY match_accuracy LIMIT 100
+            ORDER BY match_accuracy LIMIT 1000
           ) ORDER BY RANDOM() LIMIT 1`,
           lobby.median_aim, lobby.median_speed, lobby.median_acc, lobby.median_ar,
       );
     }
     tries++;
+
+    if (!new_map) break;
   } while ((lobby.recent_maps.includes(new_map.id)) && tries < 10);
   if (!new_map) {
     console.error(`[Ranked #${lobby.id}] Could not find new map. Aborting.`);
+    console.log(`aim: ${lobby.median_aim} speed: ${lobby.median_speed} acc: ${lobby.median_acc} ar: ${lobby.median_ar}`);
     return;
   }
 
