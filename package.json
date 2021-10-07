@@ -6,7 +6,9 @@
   "license": "AGPL-3.0-only",
   "type": "module",
   "dependencies": {
+    "@discordjs/rest": "^0.1.0-canary.0",
     "bancho.js": "^0.10.0-rc.5",
+    "discord-api-types": "^0.23.1",
     "discord.js": "^13.1.0",
     "express": "^4.17.1",
     "morgan": "^1.10.0",

@@ -418,6 +418,7 @@ async function init_db() {
     acc_pp REAL,
     speed_pp REAL,
     overall_pp REAL,
+    avg_ar REAL,
     last_top_score_tms INTEGER,
     last_update_tms INTEGER
   )`);

@@ -186,7 +186,7 @@ async function switch_map(lobby) {
     new_map = await map_db.get('select * ' + lobby.info.query + ' limit 1 offset ' + offset);
   } while (lobby.recent_maps.includes(new_map.id));
 
-  console.log(`[Lobby ${lobby.id}] New map: ${new_map.id}`);
+  console.log(`[Custom ${lobby.id}] New map: ${new_map.id}`);
   lobby.recent_maps.push(new_map.id);
 
   try {
@@ -195,7 +195,7 @@ async function switch_map(lobby) {
     const download_link = `[https://api.chimu.moe/v1/download/${new_map.set_id}?n=1&r=${lobby.randomString()} Direct download]`;
     await lobby.channel.sendMessage(`!mp map ${new_map.id} 0 | ${map_name} (${flavor} with mods) ${download_link}`);
   } catch (e) {
-    console.error(`[Lobby ${lobby.id}] Failed to switch to map ${new_map.id} ${new_map.file}:`, e);
+    console.error(`[Custom ${lobby.id}] Failed to switch to map ${new_map.id} ${new_map.file}:`, e);
   }
 }
 
@@ -205,12 +205,12 @@ async function join_lobby(channel, lobby_info, lobby_db) {
   lobby.recent_maps = [];
 
   lobby.on('allPlayersReady', async () => {
-    console.log(`[Lobby ${lobby.id}] Starting match.`);
+    console.log(`[Custom ${lobby.id}] Starting match.`);
     await lobby.startMatch();
   });
 
   lobby.on('matchFinished', async (scores) => {
-    console.log(`[Lobby ${lobby.id}] Finished match.`);
+    console.log(`[Custom ${lobby.id}] Finished match.`);
     await switch_map(lobby);
   });
 
@@ -218,8 +218,8 @@ async function join_lobby(channel, lobby_info, lobby_db) {
   // Because we change the map *before* they rejoin the lobby, we need to re-select our map.
   // We could also remove host altogether, but not sure if that's a better solution...
   lobby.on('beatmapId', async (beatmap_id) => {
-    if (lobby.recent_maps.length >= 2 && lobby.recent_maps[lobby.recent_maps.length-2] == beatmap_id) {
-      await lobby.setMap(lobby.recent_maps[lobby.recent_maps.length-1]);
+    if (lobby.recent_maps.length >= 2 && lobby.recent_maps[Custom.recent_maps.length-2] == beatmap_id) {
+      await lobby.setMap(lobby.recent_maps[Custom.recent_maps.length-1]);
     }
   });
 
@@ -243,7 +243,7 @@ async function join_lobby(channel, lobby_info, lobby_db) {
   });
 
   lobby.channel.on('message', async (msg) => {
-    console.log(`[Lobby ${lobby.id}] ${msg.user.ircUsername}: ${msg.message}`);
+    console.log(`[Custom ${lobby.id}] ${msg.user.ircUsername}: ${msg.message}`);
     const host = lobby.getHost();
     let host_id = null;
     if (host != null) host_id = host.user.id;
@@ -262,7 +262,7 @@ async function join_lobby(channel, lobby_info, lobby_db) {
         await lobby.channel.sendMessage(`Updated filters, there are now ${lobby.info.nb_maps} maps in rotation. Switching map...`);
         await switch_map(lobby);
       } catch (e) {
-        console.error(`[Lobby ${lobby.id}] ${e}`);
+        console.error(`[Custom ${lobby.id}] ${e}`);
         await lobby.channel.sendMessage(e.toString());
       }
     }
@@ -286,7 +286,7 @@ async function start(client, lobby_db, _map_db) {
       await join_lobby(channel, full_info, lobby_db);
       console.log('Rejoined lobby ' + lobby_info.lobby_id);
     } catch (e) {
-      console.error('Could not rejoin lobby ' + lobby_info.lobby_id + ':', e);
+      console.error('Failed rejoin lobby ' + lobby_info.lobby_id + ':', e);
       await lobby_db.run(`DELETE FROM lobby WHERE lobby_id = ?`, lobby_info.lobby_id);
     }
   }

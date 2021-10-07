@@ -83,11 +83,6 @@ async function main() {
     }
   });
 
-  /*  await client.emit('PM', {
-    message: '!makelobby stars>4.8 stars<5.2 +HDDT',
-    user: client.getSelf(),
-  });*/
-
   console.log('All ready and fired up!');
 }
 

@@ -8,7 +8,55 @@ const Config = JSON.parse(fs.readFileSync('./config.json'));
 let client = null;
 let bancho_client = null;
 let db = null;
+let ranks_db = null;
 
+async function fix_ranks_once(client) {
+  const DISCORD_ROLES = {
+    'Cardboard': '893082878806732851',
+    'Copper': '893083179601260574',
+    'Bronze': '893083324673822771',
+    'Silver': '893083428260556801',
+    'Gold': '893083477531033613',
+    'Platinum': '893083535907377152',
+    'Diamond': '893083693244100608',
+    'Legendary': '893083871309082645',
+    'The One': '892966704991330364',
+  };
+
+  const guild = await client.guilds.fetch('891781932067749948');
+  const users = await db.all('SELECT osu_id, discord_id FROM user');
+  for (const user of users) {
+    try {
+      const member = await guild.members.fetch(user.discord_id);
+      console.log('Fixing roles for ' + member.nickname);
+
+      const user = await db.run(
+          'SELECT osu_id FROM user WHERE discord_id = ?',
+          member.id,
+      );
+      let rank_text = get_rank_text_from_id(user.osu_id);
+      rank_text = rank_text.split('+')[0];
+
+      for (const role of member.roles.cache) {
+        if (DISCORD_ROLES.values().includes(role.id) && role.id != DISCORD_ROLES[rank_text]) {
+          await member.roles.remove(role);
+          console.log('- Removed ' + role.name);
+        }
+      }
+
+      try {
+        await member.roles.add(DISCORD_ROLES[rank_text]);
+        console.log('+ Added ' + rank_text);
+      } catch (err) {
+        console.error('! Could not add role ' + rank_text);
+      }
+
+      await db.run('UPDATE user SET discord_rank = ? WHERE discord_id = ?', rank_text, member.id);
+    } catch (err) {
+      console.error(`Failed to fix roles for ${user.discord_id}: ${err}`);
+    }
+  }
+}
 
 function init_discord_bot(_bancho_client) {
   bancho_client = _bancho_client;
@@ -45,6 +93,72 @@ function init_discord_bot(_bancho_client) {
         const user = await db.get(
             'SELECT * FROM user WHERE discord_id = ?', interaction.user.id,
         );
+
+        if (interaction.isCommand()) {
+          if (interaction.commandName == 'profile') {
+            if (!ranks_db) {
+              ranks_db = await open({
+                filename: 'ranks.db',
+                driver: sqlite3.Database,
+              });
+            }
+
+            if (!user) {
+              await interaction.reply({
+                content: `To check your profile, you first need to click the button in ${welcome} to link your osu! account.`,
+                ephemeral: true,
+              });
+              return;
+            }
+
+            let division = 'Unranked';
+            const profile = await ranks_db.get('SELECT * FROM user WHERE user_id = ?', user.osu_id);
+            if (profile.elo) {
+              const better_users = await db.get('SELECT COUNT(*) AS nb FROM user WHERE elo > ?', profile.elo);
+              const all_users = await db.get('SELECT COUNT(*) AS nb FROM user');
+              division = get_rank_text(1.0 - (better_users.nb / all_users.nb));
+            }
+
+            await interaction.reply({
+              embeds: [
+                new MessageEmbed({
+                  title: 'Your profile',
+                  fields: [
+                    {
+                      name: 'Rank',
+                      value: profile.elo ? ('#' + (better_users.nb + 1)) : '-',
+                    },
+                    {
+                      name: 'Division',
+                      value: division,
+                    },
+                    {
+                      name: 'Aim',
+                      value: Math.round(profile.aim_pp) + 'pp',
+                      inline: true,
+                    },
+                    {
+                      name: 'Speed',
+                      value: Math.round(profile.speed_pp) + 'pp',
+                      inline: true,
+                    },
+                    {
+                      name: 'Accuracy',
+                      value: Math.round(profile.acc_pp) + 'pp',
+                      inline: true,
+                    },
+                    {
+                      name: 'Approach Rate',
+                      value: profile.avg_ar.toFixed(1),
+                      inline: true,
+                    },
+                  ],
+                }),
+              ],
+              ephemeral: true,
+            });
+          }
+        }
 
         if (interaction.customId.indexOf('orl_get_lobby_invite_') == 0) {
           const parts = interaction.customId.split('_');
@@ -114,6 +228,7 @@ function init_discord_bot(_bancho_client) {
 
       // await create_account_linking_button();
       console.log('Discord bot is ready.');
+      setTimeout(() => fix_ranks_once(client), 5000);
       resolve();
     });
 
@@ -204,12 +319,13 @@ async function update_ranked_lobby_on_discord(lobby) {
             custom_id: 'orl_get_lobby_invite_' + lobby.id,
             label: 'Get invite',
             style: 'PRIMARY',
+            disabled: lobby.nb_players == 16,
           }),
         ]),
       ],
     };
   } catch (err) {
-    console.error(`[Ranked lobby #${lobby.id}] Could not generate Discord message: ${err}`);
+    console.error(`[Ranked #${lobby.id}] Failed to generate Discord message: ${err}`);
     return;
   }
 
@@ -222,7 +338,7 @@ async function update_ranked_lobby_on_discord(lobby) {
       const discord_channel = client.channels.cache.get(ranked_lobby.discord_channel_id);
       await discord_channel.messages.edit(ranked_lobby.discord_msg_id, msg);
     } catch (err) {
-      console.error(`[Ranked lobby #${lobby.id}] Could not edit Discord message: ${err}`);
+      console.error(`[Ranked #${lobby.id}] Failed to edit Discord message: ${err}`);
       return;
     }
   } else {
@@ -237,7 +353,7 @@ async function update_ranked_lobby_on_discord(lobby) {
           discord_msg.id,
       );
     } catch (err) {
-      console.error(`[Ranked lobby #${lobby.id}] Could not create Discord message: ${err}`);
+      console.error(`[Ranked #${lobby.id}] Failed to create Discord message: ${err}`);
       return;
     }
   }
@@ -256,7 +372,7 @@ async function close_ranked_lobby_on_discord(lobby) {
     await discord_channel.messages.delete(ranked_lobby.discord_msg_id);
     await db.run('DELETE FROM ranked_lobby WHERE osu_lobby_id = ?', lobby.id);
   } catch (err) {
-    console.error(`[Ranked lobby #${lobby.id}] Could not remove Discord message: ${err}`);
+    console.error(`[Ranked #${lobby.id}] Failed to remove Discord message: ${err}`);
   }
 }
 
@@ -286,19 +402,22 @@ async function update_discord_role(osu_user_id, rank_text) {
 
   if (user.discord_rank != rank_text) {
     console.log('[Discord] Updating role for user ' + osu_user_id + ': ' + user.discord_rank + ' -> ' + rank_text);
+    console.log('debug:', rank_text, DISCORD_ROLES[rank_text]);
 
     try {
       const guild = await client.guilds.fetch('891781932067749948');
       const member = await guild.members.fetch(user.discord_id);
 
-      console.log('debug:', rank_text, DISCORD_ROLES[rank_text]);
-
       if (rank_text == 'The One') {
         const role = await guild.roles.fetch(DISCORD_ROLES[rank_text]);
         role.members.each(async (member) => {
           console.log('debug: removing The One from', member);
-          await member.roles.remove(DISCORD_ROLES['The One']);
-          await member.roles.add(DISCORD_ROLES['Legendary']);
+          try {
+            await member.roles.remove(DISCORD_ROLES['The One']);
+            await member.roles.add(DISCORD_ROLES['Legendary']);
+          } catch (err) {
+            console.error('Failed to remove the one/add legendary to ' + member + ': ' + err);
+          }
         });
       }
       if (user.discord_rank) {
@@ -318,7 +437,7 @@ async function update_discord_role(osu_user_id, rank_text) {
           osu_user_id,
       );
     } catch (err) {
-      console.error(`Could not update Discord role for user ${osu_user_id}: ${err}`);
+      console.error(`[Discord] Failed to update role for user ${osu_user_id}: ${err}`);
     }
   }
 }

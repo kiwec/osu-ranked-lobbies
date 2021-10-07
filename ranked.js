@@ -61,17 +61,18 @@ async function select_next_map(lobby, map_db) {
   let tries = 0;
   do {
     // Currently a spread of 500 maps, tweaking might be needed
-    new_map = await map_db.get(`SELECT * FROM (
-        SELECT * FROM map WHERE length > 60 AND length < 420 AND ranked IN (4, 5, 7) ORDER BY (
-          ABS(? - aim_pp) + ABS(? - speed_pp) + ABS(? - acc_pp)
-        ) LIMIT 500
-      ) ORDER BY RANDOM() LIMIT 1`,
-    lobby.median_aim, lobby.median_speed, lobby.median_acc,
+    new_map = await map_db.get(
+        `SELECT * FROM (
+          SELECT * FROM map WHERE length > 60 AND length < 420 AND ranked IN (4, 5, 7) ORDER BY (
+            ABS(? - aim_pp) + ABS(? - speed_pp) + ABS(? - acc_pp) + 10.0*ABS(? - avg_ar)
+          ) LIMIT 100
+        ) ORDER BY RANDOM() LIMIT 1`,
+        lobby.median_aim, lobby.median_speed, lobby.median_acc, lobby.median_ar,
     );
     tries++;
   } while ((lobby.recent_maps.includes(new_map.id)) && tries < 10);
   if (!new_map) {
-    console.error(`[Ranked lobby #${lobby.id}] Could not find new map. Aborting.`);
+    console.error(`[Ranked #${lobby.id}] Could not find new map. Aborting.`);
     return;
   }
 
@@ -82,8 +83,13 @@ async function select_next_map(lobby, map_db) {
     const map_name = `[https://osu.ppy.sh/beatmapsets/${new_map.set_id}#osu/${new_map.id} ${new_map.name}]`;
     const download_link = `[https://api.chimu.moe/v1/download/${new_map.set_id}?n=1&r=${lobby.randomString()} Direct download]`;
     await lobby.channel.sendMessage(`!mp map ${new_map.id} 0 | ${map_name} (${flavor}) ${download_link}`);
+
+    const new_title = `${new_map.stars.toFixed(1)}* | Ranked | Auto map select`;
+    if (lobby.title != new_title) {
+      await lobby.channel.sendMessage(`!mp title ${new_title}`);
+    }
   } catch (e) {
-    console.error(`[Ranked lobby #${lobby.id}] Failed to switch to map ${new_map.id} ${new_map.name}:`, e);
+    console.error(`[Ranked #${lobby.id}] Failed to switch to map ${new_map.id} ${new_map.name}:`, e);
   }
 }
 
@@ -98,14 +104,11 @@ async function open_new_lobby_if_needed(client, lobby_db, map_db) {
   }
 
   if (empty_slots == 0) {
-    // Feel free to suggest more. lol
-    const clickbaits = ['(0-∞*)', '(1-11*)', '(real)', '(NOT SUS)', '(pog)', '(uwu)', '(owo)', '(ADSADSAFDDFSFDASD)'];
-    const clickbait = clickbaits[Math.floor(Math.random()*clickbaits.length)];
-    const channel = await client.createLobby(`RANKED LOBBY | Auto map select ${clickbait}`);
+    const channel = await client.createLobby(`0-11* | Ranked | Auto map select`);
     await join_lobby(channel.lobby, lobby_db, map_db, client);
     await lobby_db.run('INSERT INTO ranked_lobby (lobby_id) VALUES (?)', channel.lobby.id);
     await channel.sendMessage('!mp mods freemod');
-    console.log(`[Ranked lobby #${channel.lobby.id}] Created.`);
+    console.log(`[Ranked #${channel.lobby.id}] Created.`);
   }
 }
 
@@ -116,6 +119,7 @@ async function update_median_pp(lobby, map_db) {
   const accs = [];
   const speeds = [];
   const overalls = [];
+  const ars = [];
 
   for (const player of lobby.slots) {
     if (player != null && player.user.pp) {
@@ -123,6 +127,7 @@ async function update_median_pp(lobby, map_db) {
       accs.push(player.user.pp.acc);
       speeds.push(player.user.pp.speed);
       overalls.push(player.user.pp.overall);
+      ars.push(player.user.pp.ar);
     }
   }
 
@@ -130,11 +135,13 @@ async function update_median_pp(lobby, map_db) {
   accs.sort((a, b) => a - b);
   speeds.sort((a, b) => a - b);
   overalls.sort((a, b) => a - b);
+  ars.sort((a, b) => a - b);
 
   lobby.median_aim = median(aims) * lobby.difficulty_modifier;
   lobby.median_acc = median(accs) * lobby.difficulty_modifier;
   lobby.median_speed = median(speeds) * lobby.difficulty_modifier;
   lobby.median_overall = median(overalls) * lobby.difficulty_modifier;
+  lobby.median_ar = median(ars) * lobby.difficulty_modifier;
 
   await update_ranked_lobby_on_discord(lobby);
 
@@ -156,8 +163,14 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
   await lobby.updateSettings();
   for (const player of lobby.slots) {
     if (player == null) continue;
-    await player.user.fetchFromAPI();
-    await load_user_info(player.user);
+
+    try {
+      await player.user.fetchFromAPI();
+      await load_user_info(player.user);
+    } catch (err) {
+      console.error(`[Ranked #${lobby.id}] Failed to fetch user data for '${player.user.ircUsername}'`);
+      await lobby.channel.sendMessage(`!mp ban ${player.user.ircUsername}`);
+    }
   }
   await update_median_pp(lobby, map_db);
 
@@ -167,7 +180,7 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
       client.joined_lobbies.splice(client.joined_lobbies.indexOf(lobby), 1);
       await lobby_db.run(`DELETE FROM ranked_lobby WHERE lobby_id = ?`, lobby.id);
       await close_ranked_lobby_on_discord(lobby);
-      console.log(`[Ranked lobby #${lobby.id}] Closed.`);
+      console.log(`[Ranked #${lobby.id}] Closed.`);
 
       await open_new_lobby_if_needed(client, lobby_db, map_db);
     }
@@ -178,10 +191,15 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
     const joined_alone = get_nb_players(lobby) == 1;
 
     deadlines = deadlines.filter((deadline) => deadline.username != evt.player.user.username);
-    lobby.votekicks[evt.player.user.username] = [];
 
     const player = await client.getUser(evt.player.user.username);
-    await player.fetchFromAPI();
+    try {
+      await player.fetchFromAPI();
+    } catch (err) {
+      console.error(`[Ranked #${lobby.id}] Failed to fetch user data for '${evt.player.user.username}'`);
+      await lobby.channel.sendMessage(`!mp ban ${evt.player.user.username}`);
+    }
+
     const user = await lobby_db.get('select * from user where user_id = ?', player.id);
     if (!user) {
       await lobby_db.run(
@@ -303,7 +321,7 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
   });
 
   lobby.channel.on('message', async (msg) => {
-    console.log(`[Ranked lobby #${lobby.id}] ${msg.user.ircUsername}: ${msg.message}`);
+    console.log(`[Ranked #${lobby.id}] ${msg.user.ircUsername}: ${msg.message}`);
 
     // Temporary workaround for bancho.js bug with playerJoined/playerLeft events
     // Mostly copy/pasted from bancho.js itself.
@@ -355,6 +373,11 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
       args.shift(); // remove '!kick'
       const bad_player = args.join(' ');
 
+      // TODO: check if bad_player is in the room
+
+      if (!lobby.votekicks[bad_player]) {
+        lobby.votekicks[bad_player] = [];
+      }
       if (!lobby.votekicks[bad_player].includes(msg.user.ircUsername)) {
         lobby.votekicks[bad_player].push(msg.user.ircUsername);
 
@@ -422,7 +445,7 @@ async function start_ranked(client, lobby_db, map_db) {
       await channel.join();
       await join_lobby(channel.lobby, lobby_db, map_db, client);
     } catch (e) {
-      console.error('Could not rejoin lobby ' + lobby.lobby_id + ':', e);
+      console.error('Failed to rejoin lobby ' + lobby.lobby_id + ':', e);
       await lobby_db.run(`DELETE FROM ranked_lobby WHERE lobby_id = ?`, lobby.lobby_id);
       await close_ranked_lobby_on_discord({id: lobby.lobby_id});
     }
@@ -431,14 +454,6 @@ async function start_ranked(client, lobby_db, map_db) {
   await open_new_lobby_if_needed(client, lobby_db, map_db);
 
   client.on('PM', async (msg) => {
-    if (msg.user.isClient() && msg.message == '!makerankedlobby') {
-      const channel = await client.createLobby(`RANKED LOBBY | Auto map select`);
-      await join_lobby(channel.lobby, lobby_db, map_db, client);
-      await lobby_db.run('INSERT INTO ranked_lobby (lobby_id) VALUES (?)', channel.lobby.id);
-      await channel.sendMessage('!mp mods freemod');
-      await channel.lobby.invitePlayer(msg.user.ircUsername);
-    }
-
     if (msg.message == '!ranked') {
       // 1. Get the list of non-empty, non-full lobbies
       const available_lobbies = [];
@@ -452,7 +467,7 @@ async function start_ranked(client, lobby_db, map_db) {
       // How far is the player from the lobby pp level?
       const distance = (player, lobby) => {
         if (!player.pp) return 0;
-        return Math.abs(player.pp.aim - lobby.median_aim) + Math.abs(player.pp.acc - lobby.median_acc) + Math.abs(player.pp.speed - lobby.median_speed);
+        return Math.abs(player.pp.aim - lobby.median_aim) + Math.abs(player.pp.acc - lobby.median_acc) + Math.abs(player.pp.speed - lobby.median_speed) + 10.0 * Math.abs(player.pp.ar - lobby.median_ar);
       };
 
       // 2. Sort by closest pp level

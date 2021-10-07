@@ -120,6 +120,7 @@ async function load_user_info(bancho_user) {
     acc: 0,
     speed: 0,
     overall: 0,
+    ar: 0,
   };
   for (const score of recent_scores) {
     const score_tms = Date.parse(score.created_at) / 1000;
@@ -130,6 +131,16 @@ async function load_user_info(bancho_user) {
     try {
       // Looking for .osu files? peppy provides monthly dumps here: https://data.ppy.sh/
       const file = 'maps/' + parseInt(score.beatmap.id, 10) + '.osu';
+
+      try {
+        await fs.access(file, fs.constants.F_OK);
+      } catch (err) {
+        // TODO: add to map/pp database?
+        console.log(`Beatmap id ${score.beatmap.id} not found, downloading it.`);
+        const new_file = await fetch(`https://osu.ppy.sh/osu/${score.beatmap.id}`);
+        await fs.writeFile(file, await new_file.body());
+      }
+
       const contents = await fs.readFile(file, 'utf-8');
       const parser = new ojsama.parser();
       parser.feed(contents);
@@ -146,9 +157,20 @@ async function load_user_info(bancho_user) {
       pp.acc += map_pp.acc * current_weight;
       pp.speed += map_pp.speed * current_weight;
       pp.overall += map_pp.total * current_weight;
+
+      pp.ar = score.beatmap.ar * current_weight;
+      if (score.beatmap.mods.includes('HR')) {
+        pp.ar *= 1.4;
+      } else if (score.beatmap.mods.includes('EZ')) {
+        pp.ar *= 0.5;
+      }
+      if (score.beatmap.mods.includes('DT')) {
+        pp.ar *= 1.5;
+      } else if (score.beatmap.mods.includes('HT')) {
+        pp.ar *= 0.75;
+      }
     } catch (err) {
-      // TODO: download map when needed
-      console.error('Could not compute pp for map', score.beatmap.id, ':', err);
+      console.error('Failed to compute pp for map', score.beatmap.id, ':', err);
       continue;
     }
 
@@ -161,15 +183,16 @@ async function load_user_info(bancho_user) {
     pp.acc /= total_weight;
     pp.speed /= total_weight;
     pp.overall /= total_weight;
+    pp.ar /= total_weight;
   }
   bancho_user.pp = pp;
 
   await ranks_db.run(
       `UPDATE user SET
-      aim_pp = ?, acc_pp = ?, speed_pp = ?, overall_pp = ?,
+      aim_pp = ?, acc_pp = ?, speed_pp = ?, overall_pp = ?, avg_ar = ?,
       last_top_score_tms = ?, last_update_tms = ?
     WHERE user_id = ?`,
-      pp.aim, pp.acc, pp.speed, pp.overall,
+      pp.aim, pp.acc, pp.speed, pp.overall, pp.ar,
       last_top_score_tms, Date.now(),
       bancho_user.id,
   );
