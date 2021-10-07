@@ -5,7 +5,7 @@ import fetch from 'node-fetch';
 import {promisify} from 'util';
 import ojsama from 'ojsama';
 
-import {readFileSync} from 'fs';
+import {readFileSync, constants} from 'fs';
 const Config = JSON.parse(readFileSync('./config.json'));
 
 let oauth_token = null;
@@ -133,10 +133,9 @@ async function load_user_info(bancho_user) {
       const file = 'maps/' + parseInt(score.beatmap.id, 10) + '.osu';
 
       try {
-        await fs.access(file, fs.constants.F_OK);
+        await fs.access(file, constants.F_OK);
       } catch (err) {
         // TODO: add to map/pp database?
-        console.error('Not found:', err);
         console.log(`Beatmap id ${score.beatmap.id} not found, downloading it.`);
         const new_file = await fetch(`https://osu.ppy.sh/osu/${score.beatmap.id}`);
         await fs.writeFile(file, await new_file.text());
