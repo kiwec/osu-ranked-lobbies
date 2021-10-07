@@ -10,50 +10,6 @@ let bancho_client = null;
 let db = null;
 let ranks_db = null;
 
-import {get_rank_text_from_id} from './elo_mmr.js';
-async function fix_ranks_once(client) {
-  const DISCORD_ROLES = {
-    'Cardboard': '893082878806732851',
-    'Copper': '893083179601260574',
-    'Bronze': '893083324673822771',
-    'Silver': '893083428260556801',
-    'Gold': '893083477531033613',
-    'Platinum': '893083535907377152',
-    'Diamond': '893083693244100608',
-    'Legendary': '893083871309082645',
-    'The One': '892966704991330364',
-  };
-
-  const guild = await client.guilds.fetch('891781932067749948');
-  const users = await db.all('SELECT osu_id, discord_id FROM user');
-  for (const user of users) {
-    try {
-      const member = await guild.members.fetch(user.discord_id);
-      console.log('Fixing roles for ' + member.displayName);
-
-      let rank_text = await get_rank_text_from_id(user.osu_id);
-      rank_text = rank_text.split('+')[0];
-
-      for (const role of member.roles.cache) {
-        if (Object.values(DISCORD_ROLES).includes(role.id) && role.id != DISCORD_ROLES[rank_text]) {
-          await member.roles.remove(role);
-          console.log('- Removed ' + role.name);
-        }
-      }
-
-      try {
-        await member.roles.add(DISCORD_ROLES[rank_text]);
-        console.log('+ Added ' + rank_text);
-      } catch (err) {
-        console.error('! Could not add role ' + rank_text);
-      }
-
-      await db.run('UPDATE user SET discord_rank = ? WHERE discord_id = ?', rank_text, member.id);
-    } catch (err) {
-      console.error(`Failed to fix roles for ${user.discord_id}: ${err}`);
-    }
-  }
-}
 
 function init_discord_bot(_bancho_client) {
   bancho_client = _bancho_client;
@@ -223,9 +179,7 @@ function init_discord_bot(_bancho_client) {
         }
       });
 
-      // await create_account_linking_button();
       console.log('Discord bot is ready.');
-      setTimeout(() => fix_ranks_once(client), 5000);
       resolve();
     });
 
