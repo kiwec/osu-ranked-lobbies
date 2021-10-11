@@ -1,4 +1,6 @@
 import fs from 'fs';
+import {open} from 'sqlite';
+import sqlite3 from 'sqlite3';
 import SQL from 'sql-template-strings';
 import {init_db as init_ranking_db, update_mmr, get_rank_text, get_rank_text_from_id} from './elo_mmr.js';
 import {load_user_info} from './map_selector.js';
