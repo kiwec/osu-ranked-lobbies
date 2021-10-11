@@ -51,30 +51,94 @@ async function osu_fetch(url, options) {
   }
 }
 
+// Scans a beatmap to return the max possible score
+// This is an approximation; we ignore spinners, mods
+// TODO: this is wrong on slider ticks, fix it
+async function get_max_score(beatmap_id) {
+  const HIT_VALUE = 300;
+  const MOD_MULTIPLIER = 1.0;
+
+  const file = 'maps/' + parseInt(beatmap_id, 10) + '.osu';
+
+  try {
+    await fs.access(file, constants.F_OK);
+  } catch (err) {
+    // TODO: add to map/pp database?
+    console.log(`Beatmap id ${beatmap_id} not found, downloading it.`);
+    const new_file = await fetch(`https://osu.ppy.sh/osu/${beatmap_id}`);
+    await fs.writeFile(file, await new_file.text());
+  }
+
+  const contents = await fs.readFile(file, 'utf-8');
+  const parser = new ojsama.parser();
+  parser.feed(contents);
+
+  // TODO: breaks shouldn't be included in drain time, fix it
+  // TODO: properly handle case when last object has no time
+  let time_multiplier = 1.0;
+  try {
+    const min_time = parser.map.objects[0].time;
+    const max_time = parser.map.objects[parser.map.objects.length - 1].time;
+    time_multiplier = Math.max(
+        0,
+        Math.min(
+            parser.map.objects.length / (max_time - min_time) * 8,
+            16,
+        ),
+    );
+  } catch (err) {
+    console.log('Failed to get drain time for beatmap', beatmap_id);
+    time_multiplier = 8.0;
+  }
+
+  const DIFFICULTY_MULTIPLIER = Math.round(
+      (
+        parser.map.hp +
+        parser.map.cs +
+        parser.map.od +
+        time_multiplier
+      ) / 38 * 5,
+  );
+
+  let total_score = 0;
+  const max_combo = parser.map.max_combo();
+
+  // TODO: we shouldn't award the score calculated in this loop for each combo
+  //       but only for hit circles and slider ends
+  // TODO: Additionally each slider start, end and repeat tick awards 30 points,
+  //       each slider middle tick awards 10 points and each spin of a spinner awards 100 points.
+  for (let combo = 0; combo < max_combo; combo++) {
+    const combo_multiplier = Math.max(0, combo - 1);
+    const points = HIT_VALUE + (HIT_VALUE * ((combo_multiplier * DIFFICULTY_MULTIPLIER * MOD_MULTIPLIER) / 25));
+    total_score += points;
+  }
+
+  return total_score;
+}
+
 // We assume bancho_user.id is already set.
 async function load_user_info(bancho_user) {
   if (!maps_db) {
     maps_db = await open({
       filename: 'maps.db',
-      driver: sqlite3.Database,
+      driver: sqlite3.cached.Database,
     });
   }
   if (!ranks_db) {
     ranks_db = await open({
       filename: 'ranks.db',
-      driver: sqlite3.Database,
+      driver: sqlite3.cached.Database,
     });
   }
 
   // Try to fetch user info from database
-  let user = await ranks_db.get('SELECT * FROM user WHERE user_id = ?', bancho_user.id);
+  let user = await ranks_db.get(SQL`SELECT * FROM user WHERE user_id = ${bancho_user.id}`);
   if (!user) {
-    await ranks_db.run(
-        `INSERT INTO user (user_id, username, approx_mu, approx_sig, normal_mu, normal_sig)
-      VALUES (?, ?, 1500, 350, 1500, 350)`,
-        bancho_user.id, bancho_user.ircUsername,
+    await ranks_db.run(SQL`
+      INSERT INTO user (user_id, username, approx_mu, approx_sig, normal_mu, normal_sig)
+      VALUES (${bancho_user.id}, ${bancho_user.ircUsername}, 1500, 350, 1500, 350)`,
     );
-    user = await ranks_db.get('SELECT * FROM user WHERE user_id = ?', bancho_user.id);
+    user = await ranks_db.get(SQL`SELECT * FROM user WHERE user_id = ${bancho_user.id}`);
   } else {
     bancho_user.id = user.user_id;
 
@@ -212,16 +276,19 @@ async function load_user_info(bancho_user) {
   }
   bancho_user.pp = pp;
 
-  await ranks_db.run(
-      `UPDATE user SET
-      aim_pp = ?, acc_pp = ?, speed_pp = ?, overall_pp = ?, avg_ar = ?,
-      last_top_score_tms = ?, last_update_tms = ?
-    WHERE user_id = ?`,
-      pp.aim, pp.acc, pp.speed, pp.overall, pp.ar,
-      last_top_score_tms, Date.now(),
-      bancho_user.id,
+  await ranks_db.run(SQL`
+    UPDATE user
+    SET
+      aim_pp = ${pp.aim},
+      acc_pp = ${pp.acc},
+      speed_pp = ${pp.speed},
+      overall_pp = ${pp.overall},
+      avg_ar = ${pp.ar},
+      last_top_score_tms = ${last_top_score_tms},
+      last_update_tms = ${Date.now()}
+    WHERE user_id = ${bancho_user.id}`,
   );
   console.log('Finished recalculating pp for ' + bancho_user.ircUsername);
 }
 
-export {load_user_info};
+export {load_user_info, get_max_score};

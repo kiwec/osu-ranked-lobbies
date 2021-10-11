@@ -1,4 +1,5 @@
 import fs from 'fs';
+import SQL from 'sql-template-strings';
 import {init_db as init_ranking_db, update_mmr, get_rank_text, get_rank_text_from_id} from './elo_mmr.js';
 import {load_user_info} from './map_selector.js';
 import {
@@ -59,7 +60,7 @@ async function select_next_map(lobby, map_db) {
 
   let new_map = null;
   let tries = 0;
-  const is_dt = lobby.median_ar >= 9.5;
+  const is_dt = lobby.median_ar >= 10.0;
   do {
     if (is_dt) {
       new_map = await map_db.get(
@@ -210,7 +211,7 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
     // Lobby closed (intentionally or not), clean up
     if (member.user.isClient()) {
       client.joined_lobbies.splice(client.joined_lobbies.indexOf(lobby), 1);
-      await lobby_db.run(`DELETE FROM ranked_lobby WHERE lobby_id = ?`, lobby.id);
+      await lobby_db.run(SQL`DELETE FROM ranked_lobby WHERE lobby_id = ${lobby.id}`);
       await close_ranked_lobby_on_discord(lobby);
       console.log(`[Ranked #${lobby.id}] Closed.`);
 
@@ -232,7 +233,7 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
       await lobby.channel.sendMessage(`!mp ban ${evt.player.user.username}`);
     }
 
-    const user = await lobby_db.get('select * from user where user_id = ?', player.id);
+    const user = await lobby_db.get(SQL`SELECT * FROM user WHERE user_id = ${player.id}`);
     if (!user) {
       await lobby_db.run(
           'INSERT INTO user (user_id, username, last_version) VALUES (?, ?, ?)',
@@ -428,7 +429,15 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
 
     if (msg.message == '!rank') {
       const rank_text = await get_rank_text_from_id(msg.user.id);
-      await lobby.channel.sendMessage(`${msg.user.ircUsername}: You are [https://osu.kiwec.net/u/${msg.user.id}/ ${rank_text}].`);
+      if (rank_text == 'Unranked') {
+        const res = await db.get(SQL`
+          SELECT games_played FROM user
+          WHERE user_id = ${msg.user.id}`,
+        );
+        await msg.user.sendMessage(`${msg.user.ircUsername}: You are unranked. Play ${5 - res.games_played} more games to get a rank!`);
+      } else {
+        await lobby.channel.sendMessage(`${msg.user.ircUsername}: You are [https://osu.kiwec.net/u/${msg.user.id}/ ${rank_text}].`);
+      }
     }
 
     if (msg.message == '!skip' && !lobby.voteskips.includes(msg.user.ircUsername)) {
@@ -478,7 +487,7 @@ async function start_ranked(client, lobby_db, map_db) {
       await join_lobby(channel.lobby, lobby_db, map_db, client);
     } catch (e) {
       console.error('Failed to rejoin lobby ' + lobby.lobby_id + ':', e);
-      await lobby_db.run(`DELETE FROM ranked_lobby WHERE lobby_id = ?`, lobby.lobby_id);
+      await lobby_db.run(SQL`DELETE FROM ranked_lobby WHERE lobby_id = ${lobby.lobby_id}`);
       await close_ranked_lobby_on_discord({id: lobby.lobby_id});
     }
   }
@@ -522,7 +531,15 @@ async function start_ranked(client, lobby_db, map_db) {
 
     if (msg.message == '!rank') {
       const rank_text = await get_rank_text_from_id(msg.user.id);
-      await msg.user.sendMessage(`You are [https://osu.kiwec.net/u/${msg.user.id}/ ${rank_text}].`);
+      if (rank_text == 'Unranked') {
+        const res = await db.get(SQL`
+          SELECT games_played FROM user
+          WHERE user_id = ${msg.user.id}`,
+        );
+        await msg.user.sendMessage(`You are unranked. Play ${5 - res.games_played} more games to get a rank!`);
+      } else {
+        await msg.user.sendMessage(`You are [https://osu.kiwec.net/u/${msg.user.id}/ ${rank_text}].`);
+      }
       return;
     }
   });

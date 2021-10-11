@@ -1,3 +1,5 @@
+import SQL from 'sql-template-strings';
+
 let map_db = null;
 
 
@@ -236,7 +238,7 @@ async function join_lobby(channel, lobby_info, lobby_db) {
     }
 
     if (nb_players == 0) {
-      await lobby_db.run(`DELETE FROM lobby WHERE lobby_id = ?`, lobby.id);
+      await lobby_db.run(SQL`DELETE FROM lobby WHERE lobby_id = ${lobby.id}`);
       await lobby.closeLobby();
       console.log('Closed lobby ' + lobby.id);
     }
@@ -255,9 +257,10 @@ async function join_lobby(channel, lobby_info, lobby_db) {
     if (msg.user.id == host_id && msg.message.indexOf('!setfilter') == 0) {
       try {
         await update_lobby_filters(lobby.info, msg.message);
-        await lobby_db.run(
-            'update lobby set filters = ? where lobby_id = ?',
-            lobby.info.filters, lobby.id,
+        await lobby_db.run(SQL`
+          UPDATE lobby
+          SET filters = ${lobby.info.filters}
+          WHERE lobby_id = ${lobby.id}`,
         );
         await lobby.channel.sendMessage(`Updated filters, there are now ${lobby.info.nb_maps} maps in rotation. Switching map...`);
         await switch_map(lobby);
@@ -287,7 +290,10 @@ async function start(client, lobby_db, _map_db) {
       console.log('Rejoined lobby ' + lobby_info.lobby_id);
     } catch (e) {
       console.error('Failed rejoin lobby ' + lobby_info.lobby_id + ':', e);
-      await lobby_db.run(`DELETE FROM lobby WHERE lobby_id = ?`, lobby_info.lobby_id);
+      await lobby_db.run(SQL`
+        DELETE FROM lobby
+        WHERE lobby_id = ${lobby_info.lobby_id}`,
+      );
     }
   }
 

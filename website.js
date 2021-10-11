@@ -6,6 +6,7 @@ import {open} from 'sqlite';
 import sqlite3 from 'sqlite3';
 import {get_rank_text, get_rank_text_from_id} from './elo_mmr.js';
 import {update_discord_role} from './discord.js';
+import SQL from 'sql-template-strings';
 
 const Config = JSON.parse(fs.readFileSync('./config.json'));
 
@@ -13,12 +14,12 @@ const Config = JSON.parse(fs.readFileSync('./config.json'));
 async function listen() {
   const discord_db = await open({
     filename: 'discord.db',
-    driver: sqlite3.Database,
+    driver: sqlite3.cached.Database,
   });
 
   const ranks_db = await open({
     filename: 'ranks.db',
-    driver: sqlite3.Database,
+    driver: sqlite3.cached.Database,
   });
 
 
@@ -42,24 +43,24 @@ async function listen() {
 
     // Get discord user id from ephemeral token
     const ephemeral_token = req.query.state;
-    res = await discord_db.get(
-        'SELECT * FROM auth_tokens WHERE ephemeral_token = ?',
-        ephemeral_token,
+    res = await discord_db.get(SQL`
+      SELECT * FROM auth_tokens
+      WHERE ephemeral_token = ${ephemeral_token}`,
     );
     if (!res) {
       http_res.status(403).send('Discord token invalid or expired. Please click the "Link account" button once again.');
       return;
     }
-    await discord_db.run(
-        'DELETE FROM auth_tokens WHERE ephemeral_token = ?',
-        ephemeral_token,
+    await discord_db.run(SQL`
+      DELETE FROM auth_tokens
+      WHERE ephemeral_token = ${ephemeral_token}`,
     );
     const discord_user_id = res.discord_user_id;
 
     // Check if user didn't already link their account
-    res = await discord_db.get(
-        'SELECT * FROM user WHERE discord_id = ?',
-        discord_user_id,
+    res = await discord_db.get(SQL`
+      SELECT * FROM user
+      WHERE discord_id = ${discord_user_id}`,
     );
     if (res) {
       http_res.redirect('/success');
@@ -147,14 +148,17 @@ async function listen() {
   });
 
   app.get('/u/:userId/', async (req, http_res) => {
-    const res = await ranks_db.get('select * from user where user_id = ?', req.params.userId);
+    const res = await ranks_db.get(SQL`
+      SELECT * FROM user
+      WHERE user_id = ${req.params.userId}`,
+    );
     if (!res) {
       http_res.status(404).send(`Profile not found. Have you played a game in a ranked lobby yet?`);
       return;
     }
 
-    const better_users = await ranks_db.get('SELECT COUNT(*) AS nb FROM user WHERE elo > ?', res.elo);
-    const all_users = await ranks_db.get('SELECT COUNT(*) AS nb FROM user');
+    const better_users = await ranks_db.get('SELECT COUNT(*) AS nb FROM user WHERE elo > ? AND games_played > 4', res.elo);
+    const all_users = await ranks_db.get('SELECT COUNT(*) AS nb FROM user WHERE games_played > 4');
 
     http_res.send(`<html>
     <head>
@@ -166,7 +170,6 @@ async function listen() {
 
         user id: ${res.user_id}
         username: ${res.username}
-        elo-mmr: ${Math.round(res.elo)}
         rank: ${get_rank_text(1.0 - (better_users.nb / all_users.nb))} (#${better_users.nb + 1}/${all_users.nb})
       </pre>
     </body>

@@ -15,7 +15,7 @@ import {start_ranked} from './ranked.js';
 async function init_lobby_db() {
   const lobby_db = await open({
     filename: 'lobbies.db',
-    driver: sqlite3.Database,
+    driver: sqlite3.cached.Database,
   });
 
   await lobby_db.exec(`CREATE TABLE IF NOT EXISTS lobby (
@@ -55,7 +55,7 @@ async function main() {
   const lobby_db = await init_lobby_db();
   const map_db = await open({
     filename: 'maps.db',
-    driver: sqlite3.Database,
+    driver: sqlite3.cached.Database,
   });
 
   await start_casual(client, lobby_db, map_db);

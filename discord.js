@@ -2,6 +2,7 @@ import crypto from 'crypto';
 import fs from 'fs';
 import {open} from 'sqlite';
 import sqlite3 from 'sqlite3';
+import SQL from 'sql-template-strings';
 import {Client, Intents, MessageActionRow, MessageButton, MessageEmbed} from 'discord.js';
 import {get_rank_text} from './elo_mmr.js';
 
@@ -18,7 +19,7 @@ function init_discord_bot(_bancho_client) {
   return new Promise(async (resolve, reject) => {
     db = await open({
       filename: 'discord.db',
-      driver: sqlite3.Database,
+      driver: sqlite3.cached.Database,
     });
 
     await db.exec(`CREATE TABLE IF NOT EXISTS ranked_lobby (
@@ -45,7 +46,7 @@ function init_discord_bot(_bancho_client) {
     client.once('ready', async () => {
       client.on('interactionCreate', async (interaction) => {
         const user = await db.get(
-            'SELECT * FROM user WHERE discord_id = ?', interaction.user.id,
+            SQL`SELECT * FROM user WHERE discord_id = ${interaction.user.id}`,
         );
 
         if (interaction.isCommand()) {
@@ -53,7 +54,7 @@ function init_discord_bot(_bancho_client) {
             if (!ranks_db) {
               ranks_db = await open({
                 filename: 'ranks.db',
-                driver: sqlite3.Database,
+                driver: sqlite3.cached.Database,
               });
             }
 
@@ -67,10 +68,10 @@ function init_discord_bot(_bancho_client) {
 
             let division = 'Unranked';
             let rank = '-';
-            const profile = await ranks_db.get('SELECT * FROM user WHERE user_id = ?', user.osu_id);
+            const profile = await ranks_db.get(SQL`SELECT * FROM user WHERE user_id = ${user.osu_id}`);
             if (profile.elo) {
-              const better_users = await ranks_db.get('SELECT COUNT(*) AS nb FROM user WHERE elo > ?', profile.elo);
-              const all_users = await ranks_db.get('SELECT COUNT(*) AS nb FROM user');
+              const better_users = await ranks_db.get('SELECT COUNT(*) AS nb FROM user WHERE elo > ? AND games_played > 4', profile.elo);
+              const all_users = await ranks_db.get('SELECT COUNT(*) AS nb FROM user WHERE games_played > 4');
               division = get_rank_text(1.0 - (better_users.nb / all_users.nb));
               rank = '#' + (better_users.nb + 1);
             }
@@ -155,15 +156,14 @@ function init_discord_bot(_bancho_client) {
           }
 
           // Create ephemeral token
-          await db.run(
-              'DELETE from auth_tokens WHERE discord_user_id = ?',
-              interaction.user.id,
+          await db.run(SQL`
+            DELETE from auth_tokens
+            WHERE discord_user_id = ${interaction.user.id}`,
           );
           const ephemeral_token = crypto.randomBytes(16).toString('hex');
-          await db.run(
-              'INSERT INTO auth_tokens (discord_user_id, ephemeral_token) VALUES (?, ?)',
-              interaction.user.id,
-              ephemeral_token,
+          await db.run(SQL`
+            INSERT INTO auth_tokens (discord_user_id, ephemeral_token)
+            VALUES (${interaction.user.id}, ${ephemeral_token})`,
           );
 
           // Send authorization link
@@ -285,8 +285,7 @@ async function update_ranked_lobby_on_discord(lobby) {
   }
 
   const ranked_lobby = await db.get(
-      `SELECT * FROM ranked_lobby WHERE osu_lobby_id = ?`,
-      lobby.id,
+      SQL`SELECT * FROM ranked_lobby WHERE osu_lobby_id = ${lobby.id}`,
   );
   if (ranked_lobby) {
     try {
@@ -316,16 +315,15 @@ async function update_ranked_lobby_on_discord(lobby) {
 
 // Removes the lobby information from the o!rl #lobbies channel.
 async function close_ranked_lobby_on_discord(lobby) {
-  const ranked_lobby = await db.get(
-      `SELECT * FROM ranked_lobby WHERE osu_lobby_id = ?`,
-      lobby.id,
+  const ranked_lobby = await db.get(SQL`
+    SELECT * FROM ranked_lobby WHERE osu_lobby_id = ${lobby.id}`,
   );
   if (!ranked_lobby) return;
 
   try {
     const discord_channel = client.channels.cache.get(ranked_lobby.discord_channel_id);
     await discord_channel.messages.delete(ranked_lobby.discord_msg_id);
-    await db.run('DELETE FROM ranked_lobby WHERE osu_lobby_id = ?', lobby.id);
+    await db.run(SQL`DELETE FROM ranked_lobby WHERE osu_lobby_id = ${lobby.id}`);
   } catch (err) {
     console.error(`[Ranked #${lobby.id}] Failed to remove Discord message: ${err}`);
   }
@@ -347,8 +345,8 @@ async function update_discord_role(osu_user_id, rank_text) {
   // Remove '++' suffix from the rank_text
   rank_text = rank_text.split('+')[0];
 
-  const user = await db.get(
-      'SELECT * FROM user WHERE osu_id = ?', osu_user_id,
+  const user = await db.get(SQL`
+    SELECT * FROM user WHERE osu_id = ${osu_user_id}`,
   );
   if (!user) {
     // User hasn't linked their discord account yet.
@@ -386,10 +384,10 @@ async function update_discord_role(osu_user_id, rank_text) {
         await member.roles.add(DISCORD_ROLES[rank_text]);
       }
 
-      await db.run(
-          'UPDATE user SET discord_rank = ? WHERE osu_id = ?',
-          rank_text,
-          osu_user_id,
+      await db.run(SQL`
+        UPDATE user
+        SET discord_rank = ${rank_text}
+        WHERE osu_id = ${osu_user_id}`,
       );
     } catch (err) {
       console.error(`[Discord] Failed to update role for user ${osu_user_id}: ${err}`);

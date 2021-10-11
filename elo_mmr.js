@@ -4,7 +4,9 @@
 import {strict as assert} from 'assert';
 import {open} from 'sqlite';
 import sqlite3 from 'sqlite3';
+import SQL from 'sql-template-strings';
 
+import {get_max_score} from './map_selector.js';
 
 let db = null;
 
@@ -43,7 +45,13 @@ class Contest {
   constructor(lobby) {
     this.lobby_id = lobby.id;
     this.map_id = lobby.beatmapId;
-    this.tms = Date.now();
+    this.tms = lobby.mock_tms || Date.now();
+    this.winCondition = lobby.winCondition;
+    this.mods = 0;
+    for (const mod of lobby.mods) {
+      console.log('debug: lobby mod', mod);
+      this.mods |= mod.enumValue;
+    }
 
     // `standings` is an array of objects of the following type:
     // {
@@ -61,10 +69,17 @@ class Contest {
     // `lo = 3` and `hi = 3`, and so on.
     this.standings = [];
     for (const score of lobby.scores) {
+      let player_mods = 0;
+      for (const mod of score.player.mods) {
+        console.log('debug: player mod', mod);
+        player_mods |= mod.enumValue;
+      }
+
       this.standings.push({
         player_id: score.player.user.id,
         bancho_user: score.player.user,
         score: score.score,
+        mods: player_mods,
       });
     }
     this.standings.sort((a, b) => a.score - b.score);
@@ -93,9 +108,9 @@ class Contest {
   // Fills the missing values from `this.standings`
   // Fetches players from database if they're not already loaded - expensive operation.
   async init() {
-    const res = await db.run(
-        'INSERT INTO contest (lobby_id, map_id, tms) VALUES (?, ?, ?)',
-        this.lobby_id, this.map_id, this.tms,
+    const res = await db.run(SQL`
+      INSERT INTO contest (lobby_id, map_id, scoring_system, mods, tms)
+      VALUES (${this.lobby_id}, ${this.map_id}, ${this.winCondition}, ${this.mods}, ${this.tms})`,
     );
     this.id = res.lastID;
 
@@ -114,6 +129,7 @@ class Player {
   constructor(bancho_user) {
     this.user_id = bancho_user.id;
     this.username = bancho_user.ircUsername;
+    this.games_played = 0;
     this.approx_posterior = new Rating(1500.0, 350.0);
     this.normal_factor = new Rating(1500.0, 350.0);
     this.logistic_factors = [];
@@ -124,12 +140,11 @@ class Player {
   // If the user is new -> initialize them in the database
   // If the user isn't new -> get their rating and logistic factors
   async fetch_from_database() {
-    const user = await db.get('SELECT * FROM user WHERE user_id = ?', this.user_id);
+    const user = await db.get(SQL`SELECT * FROM user WHERE user_id = ${this.user_id}`);
     if (!user) {
-      await db.run(
-          `INSERT INTO user (user_id, username, approx_mu, approx_sig, normal_mu, normal_sig)
-        VALUES (?, ?, 1500, 350, 1500, 350)`,
-          this.user_id, this.username,
+      await db.run(SQL`
+        INSERT INTO user (user_id, username, approx_mu, approx_sig, normal_mu, normal_sig, games_played)
+        VALUES (${this.user_id}, ${this.username}, 1500, 350, 1500, 350, 0)`,
       );
       this.old_rating = null;
       return;
@@ -138,23 +153,32 @@ class Player {
     // User changed their nickname - update it in database
     if (this.username != user.username) {
       console.log('INFO: ' + user.username + ' is now known as ' + this.username + '.');
-      await db.run('UPDATE user SET username = ? WHERE user_id = ?', this.username, this.user_id);
+      await db.run(SQL`
+        UPDATE user
+        SET username = ${this.username}
+        WHERE user_id = ${this.user_id}`,
+      );
     }
 
+    this.games_played = user.games_played;
     this.approx_posterior = new Rating(user.approx_mu, user.approx_sig);
     this.normal_factor = new Rating(user.normal_mu, user.normal_sig);
 
-    const scores = await db.all(
-        'SELECT logistic_mu, logistic_sig FROM score WHERE user_id = ? ORDER BY tms DESC LIMIT ?',
-        this.user_id, MAX_LOGISTIC_FACTORS,
+    const scores = await db.all(SQL`
+      SELECT logistic_mu, logistic_sig FROM score
+      WHERE user_id = ${this.user_id}
+      ORDER BY tms DESC LIMIT ${MAX_LOGISTIC_FACTORS}`,
     );
     for (const score of scores) {
       this.logistic_factors.push(new TanhTerm(new Rating(score.logistic_mu, score.logistic_sig)));
     }
 
     // Not used for computing new rank - but for knowing when the display text changed
-    const better_users = await db.get('SELECT COUNT(*) AS nb FROM user WHERE elo > ?', this.approx_posterior.toFloat());
-    const all_users = await db.get('SELECT COUNT(*) AS nb FROM user');
+    const better_users = await db.get(SQL`
+      SELECT COUNT(*) AS nb FROM user
+      WHERE elo > ${this.approx_posterior.toFloat()} AND games_played > 4`,
+    );
+    const all_users = await db.get('SELECT COUNT(*) AS nb FROM user WHERE games_played > 4');
     this.rank_float = 1.0 - (better_users.nb / all_users.nb);
   }
 
@@ -247,11 +271,26 @@ async function update_mmr(lobby) {
   if (contest.standings.length < 2) return [];
   await contest.init();
 
-  // `contest_weight` is a float that depends on multiple factors:
-  // - how full the lobby is. 1 player in lobby means 1/16 the weight
-  // - TODO: how well the players scored on average. did they reach expected pp,
-  //   or did they all fail the map? the contest weighs less if the map sucked.
-  const contest_weight = contest.standings.length / 16.0;
+  function median(numbers) {
+    if (numbers.length == 0) return 0;
+
+    const middle = Math.floor(numbers.length / 2);
+    if (numbers.length % 2 === 0) {
+      return (numbers[middle - 1] + numbers[middle]) / 2;
+    }
+    return numbers[middle];
+  }
+
+  const scores_flat = [];
+  for (const score of lobby.scores) {
+    scores_flat.push(score.score);
+  }
+
+  // `contest_weight` is a float that depends on how well the players scored.
+  // If they all failed the map, it doesn't weigh much.
+  const max_estimated_score = await get_max_score(lobby.beatmapId);
+  const contest_weight = Math.min(1.0, median(scores_flat) / max_estimated_score);
+  console.log('median:', median(scores_flat), 'max:', max_estimated_score, 'weight:', contest_weight);
 
   // Compute sig_perf and discrete_drift from contest_weight
   const excess_beta_sq = (BETA * BETA - SIG_LIMIT * SIG_LIMIT) / contest_weight;
@@ -320,21 +359,36 @@ async function update_mmr(lobby) {
     const sig = Math.sqrt(1.0 / (Math.pow(player.approx_posterior.sig, -2) + Math.pow(performance.sig, -2)));
     player.approx_posterior = new Rating(mu, sig);
 
-    await db.run(
-        'UPDATE user SET elo = ?, approx_mu = ?, approx_sig = ?, normal_mu = ?, normal_sig = ? WHERE user_id = ?',
-        player.approx_posterior.toFloat(), mu, sig, player.normal_factor.mu, player.normal_factor.sig, player.user_id,
+    await db.run(SQL`
+      UPDATE user
+      SET elo = ${player.approx_posterior.toFloat()}, approx_mu = ${mu}, approx_sig = ${sig},
+          normal_mu = ${player.normal_factor.mu}, normal_sig = ${player.normal_factor.sig}
+      WHERE user_id = ${player.user_id}`,
     );
-    await db.run(
-        'INSERT INTO score (user_id, contest_id, score, logistic_mu, logistic_sig, tms) VALUES (?, ?, ?, ?, ?, ?)',
-        player.user_id, contest.id, standing.score, performance.mu, performance.sig, contest.tms,
+    await db.run(SQL`
+      INSERT INTO score (
+        user_id, contest_id, score, mods,
+        logistic_mu, logistic_sig, tms
+      )
+      VALUES (
+        ${player.user_id}, ${contest.id}, ${standing.score}, ${standing.mods},
+        ${performance.mu}, ${performance.sig}, ${contest.tms}
+      )`,
+    );
+    await db.run(SQL`
+      UPDATE user
+      SET games_played = (SELECT COUNT(*) FROM score WHERE user_id = ${player.user_id})
+      WHERE user_id = ${player.user_id}`,
     );
   }
 
   // Return the users whose rank's display text changed
   const rank_changes = [];
   for (const standing of contest.standings) {
-    const better_users = await db.get('SELECT COUNT(*) AS nb FROM user WHERE elo > ?', standing.player.approx_posterior.toFloat());
-    const all_users = await db.get('SELECT COUNT(*) AS nb FROM user');
+    if (standing.player.games_played < 5) continue;
+
+    const better_users = await db.get('SELECT COUNT(*) AS nb FROM user WHERE elo > ? AND games_played > 4', standing.player.approx_posterior.toFloat());
+    const all_users = await db.get('SELECT COUNT(*) AS nb FROM user WHERE games_played > 4');
     const new_rank_float = 1.0 - (better_users.nb / all_users.nb);
     if (get_rank_text(standing.player.rank_float) != get_rank_text(new_rank_float)) {
       rank_changes.push({
@@ -390,20 +444,23 @@ function get_rank_text(rank_float) {
 }
 
 async function get_rank_text_from_id(osu_user_id) {
-  const res = await db.get('select elo from user where user_id = ?', osu_user_id);
-  if (!res || !res.elo) {
+  const res = await db.get(SQL`
+    SELECT elo, games_played FROM user
+    WHERE user_id = ${osu_user_id}`,
+  );
+  if (!res || !res.elo || res.games_played < 5) {
     return 'Unranked';
   }
 
-  const better_users = await db.get('SELECT COUNT(*) AS nb FROM user WHERE elo > ?', res.elo);
-  const all_users = await db.get('SELECT COUNT(*) AS nb FROM user');
+  const better_users = await db.get('SELECT COUNT(*) AS nb FROM user WHERE elo > ? AND games_played > 4', res.elo);
+  const all_users = await db.get('SELECT COUNT(*) AS nb FROM user WHERE games_played > 4');
   return get_rank_text(1.0 - (better_users.nb / all_users.nb));
 }
 
 async function init_db() {
   db = await open({
     filename: 'ranks.db',
-    driver: sqlite3.Database,
+    driver: sqlite3.cached.Database,
   });
 
   await db.exec(`CREATE TABLE IF NOT EXISTS user (
@@ -420,12 +477,15 @@ async function init_db() {
     overall_pp REAL,
     avg_ar REAL,
     last_top_score_tms INTEGER,
-    last_update_tms INTEGER
+    last_update_tms INTEGER,
+    games_played INTEGER NOT NULL
   )`);
 
   await db.exec(`CREATE TABLE IF NOT EXISTS contest (
     lobby_id INTEGER,
     map_id INTEGER,
+    scoring_system INTEGER,
+    mods INTEGER,
     tms INTEGER
   )`);
 
@@ -435,6 +495,7 @@ async function init_db() {
     score INTEGER,
     logistic_mu REAL,
     logistic_sig REAL,
+    mods INTEGER,
     tms INTEGER
   )`);
 

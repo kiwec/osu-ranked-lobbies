@@ -14,6 +14,7 @@
     "morgan": "^1.10.0",
     "node-fetch": "^3.0.0",
     "ojsama": "^2.2.0",
+    "sql-template-strings": "^2.2.2",
     "sqlite": "^4.0.23",
     "sqlite3": "^5.0.2"
   },
