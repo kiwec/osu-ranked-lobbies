@@ -4,6 +4,7 @@ import sqlite3 from 'sqlite3';
 import fetch from 'node-fetch';
 import {promisify} from 'util';
 import ojsama from 'ojsama';
+import SQL from 'sql-template-strings';
 
 import {readFileSync, constants} from 'fs';
 const Config = JSON.parse(readFileSync('./config.json'));
@@ -70,8 +71,8 @@ async function load_user_info(bancho_user) {
   let user = await ranks_db.get(SQL`SELECT * FROM user WHERE user_id = ${bancho_user.id}`);
   if (!user) {
     await ranks_db.run(SQL`
-      INSERT INTO user (user_id, username, approx_mu, approx_sig, normal_mu, normal_sig)
-      VALUES (${bancho_user.id}, ${bancho_user.ircUsername}, 1500, 350, 1500, 350)`,
+      INSERT INTO user (user_id, username, approx_mu, approx_sig, normal_mu, normal_sig, games_played)
+      VALUES (${bancho_user.id}, ${bancho_user.ircUsername}, 1500, 350, 1500, 350, 0)`,
     );
     user = await ranks_db.get(SQL`SELECT * FROM user WHERE user_id = ${bancho_user.id}`);
   } else {
