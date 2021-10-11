@@ -192,6 +192,11 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
   lobby.is_dt = false;
   await lobby.setPassword('');
 
+  const ranking_db = await open({
+    filename: 'ranks.db',
+    driver: sqlite3.cached.Database,
+  });
+
   // Fetch user info
   await lobby.updateSettings();
   for (const player of lobby.slots) {
@@ -430,7 +435,7 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
     if (msg.message == '!rank') {
       const rank_text = await get_rank_text_from_id(msg.user.id);
       if (rank_text == 'Unranked') {
-        const res = await db.get(SQL`
+        const res = await ranking_db.get(SQL`
           SELECT games_played FROM user
           WHERE user_id = ${msg.user.id}`,
         );
@@ -532,7 +537,7 @@ async function start_ranked(client, lobby_db, map_db) {
     if (msg.message == '!rank') {
       const rank_text = await get_rank_text_from_id(msg.user.id);
       if (rank_text == 'Unranked') {
-        const res = await db.get(SQL`
+        const res = await ranking_db.get(SQL`
           SELECT games_played FROM user
           WHERE user_id = ${msg.user.id}`,
         );
