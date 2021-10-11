@@ -51,71 +51,6 @@ async function osu_fetch(url, options) {
   }
 }
 
-// Scans a beatmap to return the max possible score
-// This is an approximation; we ignore spinners, mods
-// TODO: this is wrong on slider ticks, fix it
-async function get_max_score(beatmap_id) {
-  const HIT_VALUE = 300;
-  const MOD_MULTIPLIER = 1.0;
-
-  const file = 'maps/' + parseInt(beatmap_id, 10) + '.osu';
-
-  try {
-    await fs.access(file, constants.F_OK);
-  } catch (err) {
-    // TODO: add to map/pp database?
-    console.log(`Beatmap id ${beatmap_id} not found, downloading it.`);
-    const new_file = await fetch(`https://osu.ppy.sh/osu/${beatmap_id}`);
-    await fs.writeFile(file, await new_file.text());
-  }
-
-  const contents = await fs.readFile(file, 'utf-8');
-  const parser = new ojsama.parser();
-  parser.feed(contents);
-
-  // TODO: breaks shouldn't be included in drain time, fix it
-  // TODO: properly handle case when last object has no time
-  let time_multiplier = 1.0;
-  try {
-    const min_time = parser.map.objects[0].time;
-    const max_time = parser.map.objects[parser.map.objects.length - 1].time;
-    time_multiplier = Math.max(
-        0,
-        Math.min(
-            parser.map.objects.length / (max_time - min_time) * 8,
-            16,
-        ),
-    );
-  } catch (err) {
-    console.log('Failed to get drain time for beatmap', beatmap_id);
-    time_multiplier = 8.0;
-  }
-
-  const DIFFICULTY_MULTIPLIER = Math.round(
-      (
-        parser.map.hp +
-        parser.map.cs +
-        parser.map.od +
-        time_multiplier
-      ) / 38 * 5,
-  );
-
-  let total_score = 0;
-  const max_combo = parser.map.max_combo();
-
-  // TODO: we shouldn't award the score calculated in this loop for each combo
-  //       but only for hit circles and slider ends
-  // TODO: Additionally each slider start, end and repeat tick awards 30 points,
-  //       each slider middle tick awards 10 points and each spin of a spinner awards 100 points.
-  for (let combo = 0; combo < max_combo; combo++) {
-    const combo_multiplier = Math.max(0, combo - 1);
-    const points = HIT_VALUE + (HIT_VALUE * ((combo_multiplier * DIFFICULTY_MULTIPLIER * MOD_MULTIPLIER) / 25));
-    total_score += points;
-  }
-
-  return total_score;
-}
-
 // We assume bancho_user.id is already set.
 async function load_user_info(bancho_user) {
   if (!maps_db) {
@@ -291,4 +226,4 @@ async function load_user_info(bancho_user) {
   console.log('Finished recalculating pp for ' + bancho_user.ircUsername);
 }
 
-export {load_user_info, get_max_score};
+export {load_user_info};

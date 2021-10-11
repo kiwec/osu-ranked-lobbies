@@ -157,7 +157,12 @@ async function listen() {
       return;
     }
 
-    const better_users = await ranks_db.get('SELECT COUNT(*) AS nb FROM user WHERE elo > ? AND games_played > 4', res.elo);
+    if (res.games_played < 5) {
+      http_res.send('unranked');
+      return;
+    }
+
+    const better_users = await ranks_db.get(SQL`SELECT COUNT(*) AS nb FROM user WHERE elo > ${res.elo} AND games_played > 4`);
     const all_users = await ranks_db.get('SELECT COUNT(*) AS nb FROM user WHERE games_played > 4');
 
     http_res.send(`<html>

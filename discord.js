@@ -69,8 +69,11 @@ function init_discord_bot(_bancho_client) {
             let division = 'Unranked';
             let rank = '-';
             const profile = await ranks_db.get(SQL`SELECT * FROM user WHERE user_id = ${user.osu_id}`);
-            if (profile.elo) {
-              const better_users = await ranks_db.get('SELECT COUNT(*) AS nb FROM user WHERE elo > ? AND games_played > 4', profile.elo);
+            if (profile.elo && profile.games_played > 4) {
+              const better_users = await ranks_db.get(SQL`
+                SELECT COUNT(*) AS nb FROM user
+                WHERE elo > ${profile.elo} AND games_played > 4`,
+              );
               const all_users = await ranks_db.get('SELECT COUNT(*) AS nb FROM user WHERE games_played > 4');
               division = get_rank_text(1.0 - (better_users.nb / all_users.nb));
               rank = '#' + (better_users.nb + 1);

@@ -6,13 +6,11 @@ import {open} from 'sqlite';
 import sqlite3 from 'sqlite3';
 import SQL from 'sql-template-strings';
 
-import {get_max_score} from './map_selector.js';
-
 let db = null;
 
 
-// Squared variation in individual performances, when the contest_weight is 1
-const BETA = 200.0;
+// Squared variation in individual performances
+const BETA = 400.0;
 
 // Each contest participation adds an amount of drift such that, in the
 // absence of much time passing, the limiting skill uncertainty's square
@@ -24,7 +22,7 @@ const DRIFT_PER_SEC = 0.0;
 
 // Maximum number of opponents and recent events to use, as a compute-saving
 // approximation
-const TRANSFER_SPEED = 1.0;
+const TRANSFER_SPEED = 16.0;
 
 // Limits the maximum number of contests to be included in the rating
 // computation
@@ -286,14 +284,8 @@ async function update_mmr(lobby) {
     scores_flat.push(score.score);
   }
 
-  // `contest_weight` is a float that depends on how well the players scored.
-  // If they all failed the map, it doesn't weigh much.
-  const max_estimated_score = await get_max_score(lobby.beatmapId);
-  const contest_weight = Math.min(1.0, median(scores_flat) / max_estimated_score);
-  console.log('median:', median(scores_flat), 'max:', max_estimated_score, 'weight:', contest_weight);
-
-  // Compute sig_perf and discrete_drift from contest_weight
-  const excess_beta_sq = (BETA * BETA - SIG_LIMIT * SIG_LIMIT) / contest_weight;
+  // Compute sig_perf and discrete_drift
+  const excess_beta_sq = (BETA * BETA - SIG_LIMIT * SIG_LIMIT);
   const sig_perf = Math.sqrt(SIG_LIMIT * SIG_LIMIT + excess_beta_sq);
   const discrete_drift = Math.pow(SIG_LIMIT, 4) / excess_beta_sq;
 
@@ -387,7 +379,12 @@ async function update_mmr(lobby) {
   for (const standing of contest.standings) {
     if (standing.player.games_played < 5) continue;
 
-    const better_users = await db.get('SELECT COUNT(*) AS nb FROM user WHERE elo > ? AND games_played > 4', standing.player.approx_posterior.toFloat());
+    const better_users = await db.get(SQL`
+      SELECT COUNT(*) AS nb FROM user
+      WHERE
+        elo > ${standing.player.approx_posterior.toFloat()}
+        AND games_played > 4`,
+    );
     const all_users = await db.get('SELECT COUNT(*) AS nb FROM user WHERE games_played > 4');
     const new_rank_float = 1.0 - (better_users.nb / all_users.nb);
     if (get_rank_text(standing.player.rank_float) != get_rank_text(new_rank_float)) {
@@ -452,8 +449,14 @@ async function get_rank_text_from_id(osu_user_id) {
     return 'Unranked';
   }
 
-  const better_users = await db.get('SELECT COUNT(*) AS nb FROM user WHERE elo > ? AND games_played > 4', res.elo);
-  const all_users = await db.get('SELECT COUNT(*) AS nb FROM user WHERE games_played > 4');
+  const better_users = await db.get(SQL`
+    SELECT COUNT(*) AS nb FROM user
+    WHERE elo > ${res.elo} AND games_played > 4`,
+  );
+  const all_users = await db.get(SQL`
+    SELECT COUNT(*) AS nb FROM user
+    WHERE games_played > 4`,
+  );
   return get_rank_text(1.0 - (better_users.nb / all_users.nb));
 }
 
