@@ -45,10 +45,13 @@ class Contest {
     this.map_id = lobby.beatmapId;
     this.tms = lobby.mock_tms || Date.now();
     this.winCondition = lobby.winCondition;
+
     this.mods = 0;
-    for (const mod of lobby.mods) {
-      console.log('debug: lobby mod', mod);
-      this.mods |= mod.enumValue;
+    if (lobby.mods) {
+      for (const mod of lobby.mods) {
+        console.log('debug: lobby mod', mod);
+        this.mods |= mod.enumValue;
+      }
     }
 
     // `standings` is an array of objects of the following type:
