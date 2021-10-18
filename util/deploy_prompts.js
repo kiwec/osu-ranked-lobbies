@@ -1,7 +1,5 @@
-import {Client, Intents, MessageActionRow, MessageButton, MessageEmbed, MessageSelectMenu} from 'discord.js';
-
 import fs from 'fs';
-const Config = JSON.parse(fs.readFileSync('./config.json'));
+import {Client, Intents, MessageActionRow, MessageSelectMenu} from 'discord.js';
 
 
 async function main() {

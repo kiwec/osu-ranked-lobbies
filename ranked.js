@@ -242,7 +242,6 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
   lobby.difficulty_modifier = 1.1;
   lobby.last_ready_msg = 0;
   lobby.is_dt = false;
-  lobby.dodgers = [];
   await lobby.setPassword('');
 
   const ranking_db = await open({
@@ -315,12 +314,6 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
   lobby.on('playerLeft', async (evt) => {
     console.log(evt.user.ircUsername + ' LEFT');
 
-    console.log('debug:', evt.state);
-    if (lobby.playing && evt.state != BanchoLobbyPlayerStates['No Map']) {
-      console.log(evt.user.ircUsername + ' tried dodging and will get penalized.');
-      lobby.dodgers.push(evt.user);
-    }
-
     // Remove user's votekicks, and votekicks against the user
     delete lobby.votekicks[evt.user.ircUsername];
     for (const annoyed_players of lobby.votekicks) {
@@ -365,6 +358,15 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
 
   lobby.on('matchStarted', async () => {
     lobby.voteskips = [];
+    lobby.confirmed_players = [];
+    for (const slot of lobby.slots) {
+      if (!slot) continue;
+
+      console.log('debug:', slot.state);
+      if (slot.state != BanchoLobbyPlayerStates['No Map']) {
+        lobby.confirmed_players.push(slot.user);
+      }
+    }
 
     if (lobby.countdown != -1) {
       clearTimeout(lobby.countdown);
@@ -376,7 +378,6 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
 
   lobby.on('matchFinished', async (scores) => {
     const rank_updates = await update_mmr(lobby);
-    lobby.dodgers = [];
     await select_next_map(lobby, map_db);
 
     if (rank_updates.length > 0) {

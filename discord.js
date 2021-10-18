@@ -3,7 +3,7 @@ import fs from 'fs';
 import {open} from 'sqlite';
 import sqlite3 from 'sqlite3';
 import SQL from 'sql-template-strings';
-import {Client, Intents, MessageActionRow, MessageButton, MessageEmbed, MessageSelectMenu} from 'discord.js';
+import {Client, Intents, MessageActionRow, MessageButton, MessageEmbed} from 'discord.js';
 import {get_rank_text} from './elo_mmr.js';
 
 const Config = JSON.parse(fs.readFileSync('./config.json'));

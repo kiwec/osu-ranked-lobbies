@@ -84,15 +84,16 @@ class Contest {
       });
     }
 
-    // Dodgers get last place, 0 score, nada.
-    // Unfortunate if bancho bugs and you don't get in but that rarely happens.
-    for (const dodger of lobby.dodgers) {
-      this.standings.push({
-        player_id: dodger.id,
-        bancho_user: dodger,
-        score: 0,
-        mods: 0,
-      });
+    // Dodgers share last place, with 0 score.
+    for (const player of lobby.confirmed_players) {
+      if (this.standing.every((standing) => standing.player_id != player.id)) {
+        this.standings.push({
+          player_id: player.id,
+          bancho_user: player,
+          score: 0,
+          mods: 0,
+        });
+      }
     }
 
     this.standings.sort((a, b) => a.score - b.score);
