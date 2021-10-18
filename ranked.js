@@ -360,10 +360,7 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
     lobby.voteskips = [];
     lobby.confirmed_players = [];
     for (const slot of lobby.slots) {
-      if (!slot) continue;
-
-      console.log('debug:', slot.state);
-      if (slot.state != BanchoLobbyPlayerStates['No Map']) {
+      if (slot && slot.state != BanchoLobbyPlayerStates['No Map']) {
         lobby.confirmed_players.push(slot.user);
       }
     }

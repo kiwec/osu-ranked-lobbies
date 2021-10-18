@@ -25,7 +25,7 @@ async function get_scoring_preference(osu_id_list) {
     GROUP BY score_preference ORDER BY nb DESC LIMIT 1`,
   osu_id_list,
   );
-  if (!res) return null;
+  if (!res) return 0;
   return res.score_preference || 0;
 }
 
