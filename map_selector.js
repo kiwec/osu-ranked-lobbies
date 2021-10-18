@@ -75,22 +75,22 @@ async function load_user_info(bancho_user) {
       VALUES (${bancho_user.id}, ${bancho_user.ircUsername}, 1500, 350, 1500, 350, 0)`,
     );
     user = await ranks_db.get(SQL`SELECT * FROM user WHERE user_id = ${bancho_user.id}`);
-  } else {
-    bancho_user.id = user.user_id;
+  }
 
-    if (user.aim_pp) {
-      bancho_user.pp = {
-        aim: user.aim_pp,
-        acc: user.acc_pp,
-        speed: user.speed_pp,
-        overall: user.overall_pp,
-        ar: user.avg_ar,
-      };
+  bancho_user.games_played = user.games_played;
 
-      // Already updated their profile recently enough
-      if (user.last_update_tms + 3600 * 24 > Date.now()) {
-        return;
-      }
+  if (user.aim_pp) {
+    bancho_user.pp = {
+      aim: user.aim_pp,
+      acc: user.acc_pp,
+      speed: user.speed_pp,
+      overall: user.overall_pp,
+      ar: user.avg_ar,
+    };
+
+    // Already updated their profile recently enough
+    if (user.last_update_tms + 3600 * 24 > Date.now()) {
+      return;
     }
   }
 

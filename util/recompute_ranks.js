@@ -10,7 +10,7 @@ import sqlite3 from 'sqlite3';
 import SQL from 'sql-template-strings';
 
 import {init_db, get_rank_text_from_id, update_mmr} from '../elo_mmr.js';
-import {init_discord_bot, update_discord_role} from '../discord.js';
+import {init_discord_bot} from '../discord.js';
 
 
 async function recompute_ranks() {

@@ -83,6 +83,18 @@ class Contest {
         mods: player_mods,
       });
     }
+
+    // Dodgers get last place, 0 score, nada.
+    // Unfortunate if bancho bugs and you don't get in but that rarely happens.
+    for (const dodger of lobby.dodgers) {
+      this.standings.push({
+        player_id: dodger.id,
+        bancho_user: dodger,
+        score: 0,
+        mods: 0,
+      });
+    }
+
     this.standings.sort((a, b) => a.score - b.score);
     this.standings.reverse();
     let last_score = -1;
@@ -271,16 +283,6 @@ async function update_mmr(lobby) {
   const contest = new Contest(lobby);
   if (contest.standings.length < 2) return [];
   await contest.init();
-
-  function median(numbers) {
-    if (numbers.length == 0) return 0;
-
-    const middle = Math.floor(numbers.length / 2);
-    if (numbers.length % 2 === 0) {
-      return (numbers[middle - 1] + numbers[middle]) / 2;
-    }
-    return numbers[middle];
-  }
 
   const scores_flat = [];
   for (const score of lobby.scores) {

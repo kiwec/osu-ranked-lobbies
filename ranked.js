@@ -1,7 +1,8 @@
-import fs from 'fs';
 import {open} from 'sqlite';
 import sqlite3 from 'sqlite3';
 import SQL from 'sql-template-strings';
+import BanchoLobbyPlayerStates from 'bancho.js/Multiplayer/Enums/BanchoLobbyPlayerStates';
+
 import {init_db as init_ranking_db, update_mmr, get_rank_text, get_rank_text_from_id} from './elo_mmr.js';
 import {load_user_info} from './map_selector.js';
 import {
@@ -11,11 +12,9 @@ import {
 } from './discord.js';
 
 
-// fuck you, es6 modules, for making this inconvenient
-const CURRENT_VERSION = JSON.parse(fs.readFileSync('./package.json')).version;
-
 let deadlines = [];
 let deadline_id = 0;
+let creating_lobby = false;
 
 
 function median(numbers) {
@@ -65,9 +64,18 @@ async function select_next_map(lobby, map_db) {
   const is_dt = lobby.median_ar >= 10.0;
   do {
     if (is_dt) {
+      meta = await map_db.get(
+          `SELECT MIN(pp_stars) AS min_stars, MAX(pp_stars) AS max_stars FROM (
+            SELECT pp.stars AS pp_stars, (ABS(? - dt_aim_pp) + ABS(? - dt_speed_pp) + ABS(? - dt_acc_pp) + 10*ABS(? - pp.ar)) AS match_accuracy FROM map
+            INNER JOIN pp ON map.id = pp.map_id
+            WHERE mods = 65600 AND length > 60 AND length < 420 AND ranked IN (4, 5, 7) AND match_accuracy IS NOT NULL
+            ORDER BY match_accuracy LIMIT 1000
+          )`,
+          lobby.median_aim, lobby.median_speed, lobby.median_acc, lobby.median_ar,
+      );
       new_map = await map_db.get(
           `SELECT * FROM (
-            SELECT *, (ABS(? - dt_aim_pp) + ABS(? - dt_speed_pp) + ABS(? - dt_acc_pp) + 10*ABS(? - pp.ar)) AS match_accuracy FROM map
+            SELECT *, pp.stars AS pp_stars, (ABS(? - dt_aim_pp) + ABS(? - dt_speed_pp) + ABS(? - dt_acc_pp) + 10*ABS(? - pp.ar)) AS match_accuracy FROM map
             INNER JOIN pp ON map.id = pp.map_id
             WHERE mods = 65600 AND length > 60 AND length < 420 AND ranked IN (4, 5, 7) AND match_accuracy IS NOT NULL
             ORDER BY match_accuracy LIMIT 1000
@@ -75,9 +83,18 @@ async function select_next_map(lobby, map_db) {
           lobby.median_aim, lobby.median_speed, lobby.median_acc, lobby.median_ar,
       );
     } else {
+      meta = await map_db.get(
+          `SELECT MIN(pp_stars) AS min_stars, MAX(pp_stars) AS max_stars FROM (
+            SELECT pp.stars AS pp_stars, (ABS(? - aim_pp) + ABS(? - speed_pp) + ABS(? - acc_pp) + 10*ABS(? - pp.ar)) AS match_accuracy FROM map
+            INNER JOIN pp ON map.id = pp.map_id
+            WHERE mods = (1<<16) AND length > 60 AND length < 420 AND ranked IN (4, 5, 7) AND match_accuracy IS NOT NULL
+            ORDER BY match_accuracy LIMIT 1000
+          )`,
+          lobby.median_aim, lobby.median_speed, lobby.median_acc, lobby.median_ar,
+      );
       new_map = await map_db.get(
           `SELECT * FROM (
-            SELECT *, (ABS(? - aim_pp) + ABS(? - speed_pp) + ABS(? - acc_pp) + 10*ABS(? - pp.ar)) AS match_accuracy FROM map
+            SELECT *, pp.stars AS pp_stars, (ABS(? - aim_pp) + ABS(? - speed_pp) + ABS(? - acc_pp) + 10*ABS(? - pp.ar)) AS match_accuracy FROM map
             INNER JOIN pp ON map.id = pp.map_id
             WHERE mods = (1<<16) AND length > 60 AND length < 420 AND ranked IN (4, 5, 7) AND match_accuracy IS NOT NULL
             ORDER BY match_accuracy LIMIT 1000
@@ -98,7 +115,7 @@ async function select_next_map(lobby, map_db) {
   lobby.recent_maps.push(new_map.id);
 
   try {
-    const flavor = `${MAP_TYPES[new_map.ranked]} ${new_map.stars.toFixed(2)}*, ${Math.round(new_map.pp)}pp`;
+    const flavor = `${MAP_TYPES[new_map.ranked]} ${new_map.pp_stars.toFixed(2)}*, ${Math.round(new_map.pp)}pp`;
     const map_name = `[https://osu.ppy.sh/beatmapsets/${new_map.set_id}#osu/${new_map.id} ${new_map.name}]`;
     const download_link = `[https://api.chimu.moe/v1/download/${new_map.set_id}?n=1&r=${lobby.randomString()} Direct download]`;
     await lobby.channel.sendMessage(`!mp map ${new_map.id} 0 | ${map_name} (${flavor}) ${download_link}`);
@@ -115,12 +132,12 @@ async function select_next_map(lobby, map_db) {
 
     let new_title;
     if (is_dt) {
-      new_title = `${new_map.stars.toFixed(1)}* DT | Ranked | Auto map select`;
+      new_title = `${meta.min_stars.toFixed(1)}-${meta.max_stars.toFixed(1)}* DT | o!RL | Auto map select`;
     } else {
-      new_title = `${new_map.stars.toFixed(1)}* | Ranked | Auto map select`;
+      new_title = `${meta.min_stars.toFixed(1)}-${meta.max_stars.toFixed(1)}* | o!RL | Auto map select`;
     }
     if (lobby.title != new_title) {
-      await lobby.channel.sendMessage(`!mp title ${new_title}`);
+      await lobby.channel.sendMessage(`!mp name ${new_title}`);
     }
   } catch (e) {
     console.error(`[Ranked #${lobby.id}] Failed to switch to map ${new_map.id} ${new_map.name}:`, e);
@@ -128,6 +145,8 @@ async function select_next_map(lobby, map_db) {
 }
 
 async function open_new_lobby_if_needed(client, lobby_db, map_db) {
+  if (creating_lobby) return;
+
   let empty_slots = 0;
   for (const jl of client.joined_lobbies) {
     let nb_players = 0;
@@ -138,10 +157,12 @@ async function open_new_lobby_if_needed(client, lobby_db, map_db) {
   }
 
   if (empty_slots == 0) {
-    const channel = await client.createLobby(`0-11* | Ranked | Auto map select`);
+    creating_lobby = true;
+    const channel = await client.createLobby(`0-11* | o!RL | Auto map select`);
     await join_lobby(channel.lobby, lobby_db, map_db, client);
     await lobby_db.run('INSERT INTO ranked_lobby (lobby_id) VALUES (?)', channel.lobby.id);
     await channel.sendMessage('!mp mods freemod');
+    creating_lobby = false;
     console.log(`[Ranked #${channel.lobby.id}] Created.`);
   }
 }
@@ -189,9 +210,10 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
   lobby.countdown = -1;
   lobby.median_overall = 0;
   lobby.nb_players = 0;
-  lobby.difficulty_modifier = 1.0;
+  lobby.difficulty_modifier = 1.1;
   lobby.last_ready_msg = 0;
   lobby.is_dt = false;
+  lobby.dodgers = [];
   await lobby.setPassword('');
 
   const ranking_db = await open({
@@ -244,22 +266,8 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
     if (!user) {
       await lobby_db.run(
           'INSERT INTO user (user_id, username, last_version) VALUES (?, ?, ?)',
-          player.id, player.ircUsername, CURRENT_VERSION,
+          player.id, player.ircUsername, 'current commit',
       );
-
-      // For some reason, a lot of players join the lobby and then
-      // leave *immediately*. So, wait a bit before sending the welcome
-      // message - or else they'll be confused a minute later as to which
-      // lobby they received this from.
-      setTimeout(async () => {
-        for (const slot of lobby.slots) {
-          if (slot == null) continue;
-          if (slot.user.ircUsername == player.ircUsername) {
-            await slot.user.sendMessage(`Welcome to your first ranked lobby, ${player.ircUsername}! There is no host: use !start if players aren't readying up, and !skip if the map is bad. [https://kiwec.net/discord Join the Discord] for more info.`);
-            return;
-          }
-        }
-      }, 5000);
     }
 
     await open_new_lobby_if_needed(client, lobby_db, map_db);
@@ -269,11 +277,20 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
     await update_median_pp(lobby, map_db);
     if (joined_alone) {
       await select_next_map(lobby, map_db);
+      if (player.games_played == 0) {
+        await lobby.channel.sendMessage(`Welcome, ${player.ircUsername}! There is no host: use !start if the players aren't readying up, and !skip if the map is bad. [https://kiwec.net/discord Join the Discord] for more info.`);
+      }
     }
   });
 
   lobby.on('playerLeft', async (evt) => {
     console.log(evt.user.ircUsername + ' LEFT');
+
+    console.log('debug:', evt.state);
+    if (lobby.playing && evt.state != BanchoLobbyPlayerStates['No Map']) {
+      console.log(evt.user.ircUsername + ' tried dodging and will get penalized.');
+      lobby.dodgers.push(evt.user);
+    }
 
     // Remove user's votekicks, and votekicks against the user
     delete lobby.votekicks[evt.user.ircUsername];
@@ -330,6 +347,7 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
 
   lobby.on('matchFinished', async (scores) => {
     const rank_updates = await update_mmr(lobby);
+    lobby.dodgers = [];
     await select_next_map(lobby, map_db);
 
     if (rank_updates.length > 0) {
@@ -456,16 +474,23 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
       }
     }
 
-    if (msg.message == '!start' && lobby.countdown == -1) {
+    if (msg.message == '!start' && lobby.countdown == -1 && !lobby.playing) {
       if (get_nb_players(lobby) < 2) {
         await lobby.startMatch();
         return;
       }
 
       lobby.countdown = setTimeout(async () => {
+        if (lobby.playing) {
+          lobby.countdown = -1;
+          return;
+        }
+
         lobby.countdown = setTimeout(async () => {
           lobby.countdown = -1;
-          await lobby.startMatch();
+          if (!lobby.playing) {
+            await lobby.startMatch();
+          }
         }, 10000);
         await lobby.channel.sendMessage('Starting the match in 10 seconds... Ready up to start sooner.');
       }, 20000);
