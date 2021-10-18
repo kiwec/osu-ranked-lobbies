@@ -3,7 +3,7 @@ import fs from 'fs';
 import {open} from 'sqlite';
 import sqlite3 from 'sqlite3';
 import SQL from 'sql-template-strings';
-import {Client, Intents, MessageActionRow, MessageButton, MessageEmbed} from 'discord.js';
+import {Client, Intents, MessageActionRow, MessageButton, MessageEmbed, MessageSelectMenu} from 'discord.js';
 import {get_rank_text} from './elo_mmr.js';
 
 const Config = JSON.parse(fs.readFileSync('./config.json'));
@@ -18,10 +18,12 @@ async function get_scoring_preference(osu_id_list) {
   // 1: Accuracy
   // 2: Combo
   // 3: ScoreV2
-  const res = await db.get(SQL`
+  const placeholders = osu_id_list.map(() => '?').join(',');
+  const res = await db.get(`
     SELECT score_preference, COUNT(*) AS nb FROM user
-    WHERE osu_id IN ${osu_id_list} AND score_preference IS NOT NULL
+    WHERE osu_id IN (${placeholders}) AND score_preference IS NOT NULL
     GROUP BY score_preference ORDER BY nb DESC LIMIT 1`,
+  osu_id_list,
   );
   if (!res) return null;
   return res.score_preference || 0;
@@ -67,61 +69,27 @@ function init_discord_bot(_bancho_client) {
 
         if (interaction.isSelectMenu()) {
           if (interaction.customId == 'orl_set_scoring') {
-            const score_systems = ['ScoreV1', 'Accuracy', 'Combo', 'ScoreV2'];
-            const index = parseInt(interaction.values[0], 10);
-            await db.run(SQL`UPDATE user SET score_preference = ${index} WHERE discord_id = ${interaction.user.id}`);
-            await interaction.update({
-              content: `Your matches will now use ${score_systems[index]} as the scoring system if the majority votes for it.`,
-            });
-            return;
-          }
-        }
-
-        if (interaction.isCommand()) {
-          if (interaction.commandName == 'preference') {
             if (!user) {
               await interaction.reply({
-                content: `To set your scoring preference, you first need to click the button in ${welcome} to link your osu! account.`,
+                content: `Before setting your preferred scoring system, you first need to link your account by clicking on the "Link account" button ☝️`,
                 ephemeral: true,
               });
               return;
             }
 
+            const score_systems = ['ScoreV1', 'Accuracy', 'Combo', 'ScoreV2'];
+            const index = parseInt(interaction.values[0], 10);
+            await db.run(SQL`UPDATE user SET score_preference = ${index} WHERE discord_id = ${interaction.user.id}`);
             await interaction.reply({
+              content: `Ranked lobbies will now use ${score_systems[index]} as the scoring system if the majority votes for it.`,
               ephemeral: true,
-              content: 'What\'s your favorite scoring system?',
-              components: [
-                new MessageActionRow().addComponents(
-                    new MessageSelectMenu()
-                        .setCustomId('orl_set_scoring')
-                        .setPlaceholder('No preference')
-                        .addOptions([
-                          {
-                            label: 'ScoreV1',
-                            description: 'Default scoring system',
-                            value: '0',
-                          },
-                          {
-                            label: 'ScoreV2',
-                            description: 'Tournament scoring system',
-                            value: '3',
-                          },
-                          {
-                            label: 'Accuracy',
-                            description: 'Player with the highest accuracy wins',
-                            value: '1',
-                          },
-                          {
-                            label: 'Combo',
-                            description: 'Player with the highest combo count at the end of the beatmap (not max combo!) wins',
-                            value: '2',
-                          },
-                        ]),
-                ),
-              ],
             });
+            console.log(`[Discord] ${interaction.user} selected ${score_systems[index]} as their preferred scoring system.`);
+            return;
           }
+        }
 
+        if (interaction.isCommand()) {
           if (interaction.commandName == 'profile') {
             if (!ranks_db) {
               ranks_db = await open({
@@ -375,11 +343,9 @@ async function update_ranked_lobby_on_discord(lobby) {
       const discord_channel = client.channels.cache.get('892789885335924786');
       const discord_msg = await discord_channel.send(msg);
 
-      await db.run(
-          'INSERT INTO ranked_lobby (osu_lobby_id, discord_channel_id, discord_msg_id) VALUES (?, ?, ?)',
-          lobby.id,
-          discord_channel.id,
-          discord_msg.id,
+      await db.run(SQL`
+        INSERT INTO ranked_lobby (osu_lobby_id, discord_channel_id, discord_msg_id) 
+        VALUES (${lobby.id}, ${discord_channel.id}, ${discord_msg.d})`,
       );
     } catch (err) {
       console.error(`[Ranked #${lobby.id}] Failed to create Discord message: ${err}`);

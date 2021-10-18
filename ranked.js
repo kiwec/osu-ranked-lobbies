@@ -1,7 +1,7 @@
 import {open} from 'sqlite';
 import sqlite3 from 'sqlite3';
 import SQL from 'sql-template-strings';
-import BanchoLobbyPlayerStates from 'bancho.js/Multiplayer/Enums/BanchoLobbyPlayerStates';
+import BanchoLobbyPlayerStates from 'bancho.js/lib/Multiplayer/Enums/BanchoLobbyPlayerStates.js';
 
 import {init_db as init_ranking_db, update_mmr, get_rank_text, get_rank_text_from_id} from './elo_mmr.js';
 import {load_user_info} from './map_selector.js';
@@ -60,6 +60,7 @@ async function select_next_map(lobby, map_db) {
     lobby.recent_maps.shift();
   }
 
+  let meta = null;
   let new_map = null;
   let tries = 0;
   const is_dt = lobby.median_ar >= 10.0;
@@ -159,12 +160,11 @@ async function select_next_map(lobby, map_db) {
       await lobby.channel.sendMessage(`!mp set 0 ${score_system} 16 | Now using ${score_systems[score_system]} as ranking criteria. Use /preference on [https://kiwec.net/discord the Discord] to vote for something else!`);
     }
 
-    let new_title;
-    if (is_dt) {
-      new_title = `${meta.min_stars.toFixed(1)}-${meta.max_stars.toFixed(1)}* DT | o!RL | Auto map select`;
-    } else {
-      new_title = `${meta.min_stars.toFixed(1)}-${meta.max_stars.toFixed(1)}* | o!RL | Auto map select`;
-    }
+    let title_modifiers = '';
+    if (is_dt) title_modifiers += ' DT';
+    if (score_system == 3) title_modifiers += ' ScoreV2';
+    const new_title = `${meta.min_stars.toFixed(1)}-${meta.max_stars.toFixed(1)}*${title_modifiers} | o!RL | Auto map select`;
+
     if (lobby.title != new_title) {
       await lobby.channel.sendMessage(`!mp name ${new_title}`);
     }
@@ -189,7 +189,7 @@ async function open_new_lobby_if_needed(client, lobby_db, map_db) {
     creating_lobby = true;
     const channel = await client.createLobby(`0-11* | o!RL | Auto map select`);
     await join_lobby(channel.lobby, lobby_db, map_db, client);
-    await lobby_db.run('INSERT INTO ranked_lobby (lobby_id) VALUES (?)', channel.lobby.id);
+    await lobby_db.run(SQL`INSERT INTO ranked_lobby (lobby_id) VALUES (${channel.lobby.id})`);
     await channel.sendMessage('!mp mods freemod');
     creating_lobby = false;
     console.log(`[Ranked #${channel.lobby.id}] Created.`);
