@@ -9,6 +9,7 @@ import {
   update_ranked_lobby_on_discord,
   close_ranked_lobby_on_discord,
   update_discord_role,
+  get_scoring_preference,
 } from './discord.js';
 
 
@@ -64,42 +65,58 @@ async function select_next_map(lobby, map_db) {
   const is_dt = lobby.median_ar >= 10.0;
   do {
     if (is_dt) {
-      meta = await map_db.get(
-          `SELECT MIN(pp_stars) AS min_stars, MAX(pp_stars) AS max_stars FROM (
-            SELECT pp.stars AS pp_stars, (ABS(? - dt_aim_pp) + ABS(? - dt_speed_pp) + ABS(? - dt_acc_pp) + 10*ABS(? - pp.ar)) AS match_accuracy FROM map
-            INNER JOIN pp ON map.id = pp.map_id
-            WHERE mods = 65600 AND length > 60 AND length < 420 AND ranked IN (4, 5, 7) AND match_accuracy IS NOT NULL
-            ORDER BY match_accuracy LIMIT 1000
-          )`,
-          lobby.median_aim, lobby.median_speed, lobby.median_acc, lobby.median_ar,
+      meta = await map_db.get(SQL`
+        SELECT MIN(pp_stars) AS min_stars, MAX(pp_stars) AS max_stars FROM (
+          SELECT pp.stars AS pp_stars, (
+            ABS(${lobby.median_aim} - dt_aim_pp)
+            + ABS(${lobby.median_speed} - dt_speed_pp)
+            + ABS(${lobby.median_acc} - dt_acc_pp)
+            + 10*ABS(${lobby.median_ar} - pp.ar)
+          ) AS match_accuracy FROM map
+          INNER JOIN pp ON map.id = pp.map_id
+          WHERE mods = 65600 AND length > 60 AND length < 420 AND ranked IN (4, 5, 7) AND match_accuracy IS NOT NULL
+          ORDER BY match_accuracy LIMIT 1000
+        )`,
       );
-      new_map = await map_db.get(
-          `SELECT * FROM (
-            SELECT *, pp.stars AS pp_stars, (ABS(? - dt_aim_pp) + ABS(? - dt_speed_pp) + ABS(? - dt_acc_pp) + 10*ABS(? - pp.ar)) AS match_accuracy FROM map
-            INNER JOIN pp ON map.id = pp.map_id
-            WHERE mods = 65600 AND length > 60 AND length < 420 AND ranked IN (4, 5, 7) AND match_accuracy IS NOT NULL
-            ORDER BY match_accuracy LIMIT 1000
-          ) ORDER BY RANDOM() LIMIT 1`,
-          lobby.median_aim, lobby.median_speed, lobby.median_acc, lobby.median_ar,
+      new_map = await map_db.get(SQL`
+        SELECT * FROM (
+          SELECT *, pp.stars AS pp_stars, (
+            ABS(${lobby.median_aim} - dt_aim_pp)
+            + ABS(${lobby.median_speed} - dt_speed_pp)
+            + ABS(${lobby.median_acc} - dt_acc_pp)
+            + 10*ABS(${lobby.median_ar} - pp.ar)
+          ) AS match_accuracy FROM map
+          INNER JOIN pp ON map.id = pp.map_id
+          WHERE mods = 65600 AND length > 60 AND length < 420 AND ranked IN (4, 5, 7) AND match_accuracy IS NOT NULL
+          ORDER BY match_accuracy LIMIT 1000
+        ) ORDER BY RANDOM() LIMIT 1`,
       );
     } else {
-      meta = await map_db.get(
-          `SELECT MIN(pp_stars) AS min_stars, MAX(pp_stars) AS max_stars FROM (
-            SELECT pp.stars AS pp_stars, (ABS(? - aim_pp) + ABS(? - speed_pp) + ABS(? - acc_pp) + 10*ABS(? - pp.ar)) AS match_accuracy FROM map
-            INNER JOIN pp ON map.id = pp.map_id
-            WHERE mods = (1<<16) AND length > 60 AND length < 420 AND ranked IN (4, 5, 7) AND match_accuracy IS NOT NULL
-            ORDER BY match_accuracy LIMIT 1000
-          )`,
-          lobby.median_aim, lobby.median_speed, lobby.median_acc, lobby.median_ar,
+      meta = await map_db.get(SQL`
+        SELECT MIN(pp_stars) AS min_stars, MAX(pp_stars) AS max_stars FROM (
+          SELECT pp.stars AS pp_stars, (
+            ABS(${lobby.median_aim} - aim_pp)
+            + ABS(${lobby.median_speed} - speed_pp)
+            + ABS(${lobby.median_acc} - acc_pp)
+            + 10*ABS(${lobby.median_ar} - pp.ar)
+          ) AS match_accuracy FROM map
+          INNER JOIN pp ON map.id = pp.map_id
+          WHERE mods = (1<<16) AND length > 60 AND length < 420 AND ranked IN (4, 5, 7) AND match_accuracy IS NOT NULL
+          ORDER BY match_accuracy LIMIT 1000
+        )`,
       );
-      new_map = await map_db.get(
-          `SELECT * FROM (
-            SELECT *, pp.stars AS pp_stars, (ABS(? - aim_pp) + ABS(? - speed_pp) + ABS(? - acc_pp) + 10*ABS(? - pp.ar)) AS match_accuracy FROM map
-            INNER JOIN pp ON map.id = pp.map_id
-            WHERE mods = (1<<16) AND length > 60 AND length < 420 AND ranked IN (4, 5, 7) AND match_accuracy IS NOT NULL
-            ORDER BY match_accuracy LIMIT 1000
-          ) ORDER BY RANDOM() LIMIT 1`,
-          lobby.median_aim, lobby.median_speed, lobby.median_acc, lobby.median_ar,
+      new_map = await map_db.get(SQL`
+        SELECT * FROM (
+          SELECT *, pp.stars AS pp_stars, (
+            ABS(${lobby.median_aim} - aim_pp)
+            + ABS(${lobby.median_speed} - speed_pp)
+            + ABS(${lobby.median_acc} - acc_pp)
+            + 10*ABS(${lobby.median_ar} - pp.ar)
+          ) AS match_accuracy FROM map
+          INNER JOIN pp ON map.id = pp.map_id
+          WHERE mods = (1<<16) AND length > 60 AND length < 420 AND ranked IN (4, 5, 7) AND match_accuracy IS NOT NULL
+          ORDER BY match_accuracy LIMIT 1000
+        ) ORDER BY RANDOM() LIMIT 1`,
       );
     }
     tries++;
@@ -128,6 +145,18 @@ async function select_next_map(lobby, map_db) {
       }
 
       lobby.is_dt = is_dt;
+    }
+
+    const player_ids = [];
+    for (const slot of lobby.slots) {
+      if (slot) {
+        player_ids.push(slot.user.id);
+      }
+    }
+    const score_system = await get_scoring_preference(player_ids);
+    const score_systems = ['ScoreV1', 'Accuracy', 'Combo', 'ScoreV2'];
+    if (lobby.winCondition != score_system) {
+      await lobby.channel.sendMessage(`!mp set 0 ${score_system} 16 | Now using ${score_systems[score_system]} as ranking criteria. Use /preference on [https://kiwec.net/discord the Discord] to vote for something else!`);
     }
 
     let new_title;
@@ -264,9 +293,9 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
 
     const user = await lobby_db.get(SQL`SELECT * FROM user WHERE user_id = ${player.id}`);
     if (!user) {
-      await lobby_db.run(
-          'INSERT INTO user (user_id, username, last_version) VALUES (?, ?, ?)',
-          player.id, player.ircUsername, 'current commit',
+      await lobby_db.run(SQL`
+        INSERT INTO user (user_id, username, last_version)
+        VALUES (${player.id}, ${player.ircUsername}, 'current commit')`,
       );
     }
 

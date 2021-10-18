@@ -13,6 +13,21 @@ let db = null;
 let ranks_db = null;
 
 
+async function get_scoring_preference(osu_id_list) {
+  // 0: ScoreV1
+  // 1: Accuracy
+  // 2: Combo
+  // 3: ScoreV2
+  const res = await db.get(SQL`
+    SELECT score_preference, COUNT(*) AS nb FROM user
+    WHERE osu_id IN ${osu_id_list} AND score_preference IS NOT NULL
+    GROUP BY score_preference ORDER BY nb DESC LIMIT 1`,
+  );
+  if (!res) return null;
+  return res.score_preference || 0;
+}
+
+
 function init_discord_bot(_bancho_client) {
   bancho_client = _bancho_client;
 
@@ -38,7 +53,8 @@ function init_discord_bot(_bancho_client) {
       osu_id INTEGER,
       osu_access_token TEXT,
       osu_refresh_token TEXT,
-      discord_rank TEXT
+      discord_rank TEXT,
+      score_preference INTEGER
     )`);
 
     client = new Client({intents: [Intents.FLAGS.GUILDS]});
@@ -49,7 +65,63 @@ function init_discord_bot(_bancho_client) {
             SQL`SELECT * FROM user WHERE discord_id = ${interaction.user.id}`,
         );
 
+        if (interaction.isSelectMenu()) {
+          if (interaction.customId == 'orl_set_scoring') {
+            const score_systems = ['ScoreV1', 'Accuracy', 'Combo', 'ScoreV2'];
+            const index = parseInt(interaction.values[0], 10);
+            await db.run(SQL`UPDATE user SET score_preference = ${index} WHERE discord_id = ${interaction.user.id}`);
+            await interaction.update({
+              content: `Your matches will now use ${score_systems[index]} as the scoring system if the majority votes for it.`,
+            });
+            return;
+          }
+        }
+
         if (interaction.isCommand()) {
+          if (interaction.commandName == 'preference') {
+            if (!user) {
+              await interaction.reply({
+                content: `To set your scoring preference, you first need to click the button in ${welcome} to link your osu! account.`,
+                ephemeral: true,
+              });
+              return;
+            }
+
+            await interaction.reply({
+              ephemeral: true,
+              content: 'What\'s your favorite scoring system?',
+              components: [
+                new MessageActionRow().addComponents(
+                    new MessageSelectMenu()
+                        .setCustomId('orl_set_scoring')
+                        .setPlaceholder('No preference')
+                        .addOptions([
+                          {
+                            label: 'ScoreV1',
+                            description: 'Default scoring system',
+                            value: '0',
+                          },
+                          {
+                            label: 'ScoreV2',
+                            description: 'Tournament scoring system',
+                            value: '3',
+                          },
+                          {
+                            label: 'Accuracy',
+                            description: 'Player with the highest accuracy wins',
+                            value: '1',
+                          },
+                          {
+                            label: 'Combo',
+                            description: 'Player with the highest combo count at the end of the beatmap (not max combo!) wins',
+                            value: '2',
+                          },
+                        ]),
+                ),
+              ],
+            });
+          }
+
           if (interaction.commandName == 'profile') {
             if (!ranks_db) {
               ranks_db = await open({
@@ -403,4 +475,5 @@ export {
   update_ranked_lobby_on_discord,
   close_ranked_lobby_on_discord,
   update_discord_role,
+  get_scoring_preference,
 };

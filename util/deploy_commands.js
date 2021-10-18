@@ -7,6 +7,7 @@ const Config = JSON.parse(fs.readFileSync('../config.json'));
 
 const commands = [
   new SlashCommandBuilder().setName('profile').setDescription('Get your profile information.'),
+  new SlashCommandBuilder().setName('preference').setDescription('Set your preferred scoring criteria.'),
 ]
     .map((command) => command.toJSON());
 
