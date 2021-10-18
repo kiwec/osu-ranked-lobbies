@@ -157,7 +157,7 @@ async function select_next_map(lobby, map_db) {
     const score_system = await get_scoring_preference(player_ids);
     const score_systems = ['ScoreV1', 'Accuracy', 'Combo', 'ScoreV2'];
     if (lobby.winCondition != score_system) {
-      await lobby.channel.sendMessage(`!mp set 0 ${score_system} 16 | Now using ${score_systems[score_system]} as ranking criteria. Use /preference on [https://kiwec.net/discord the Discord] to vote for something else!`);
+      await lobby.channel.sendMessage(`!mp set 0 ${score_system} 16 | Now using ${score_systems[score_system]} as ranking criteria. [https://kiwec.net/discord Join the Discord] to vote for something else!`);
     }
 
     let title_modifiers = '';
