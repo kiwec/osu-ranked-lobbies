@@ -236,6 +236,7 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
   lobby.recent_maps = [];
   lobby.votekicks = [];
   lobby.voteskips = [];
+  lobby.confirmed_players = [];
   lobby.countdown = -1;
   lobby.median_overall = 0;
   lobby.nb_players = 0;

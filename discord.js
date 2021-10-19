@@ -333,7 +333,8 @@ async function update_ranked_lobby_on_discord(lobby) {
   if (ranked_lobby) {
     try {
       const discord_channel = client.channels.cache.get(ranked_lobby.discord_channel_id);
-      await discord_channel.messages.edit(ranked_lobby.discord_msg_id, msg);
+      const discord_msg = await discord_channel.messages.fetch(ranked_lobby.discord_msg_id);
+      await discord_msg.edit(msg);
     } catch (err) {
       console.error(`[Ranked #${lobby.id}] Failed to edit Discord message:`, err);
       await db.run(SQL`DELETE FROM ranked_lobby WHERE osu_lobby_id = ${lobby.id}`);
