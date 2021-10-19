@@ -333,7 +333,7 @@ async function update_ranked_lobby_on_discord(lobby) {
   if (ranked_lobby) {
     try {
       const discord_channel = client.channels.cache.get(ranked_lobby.discord_channel_id);
-      const discord_msg = await discord_channel.messages.fetch(ranked_lobby.discord_msg_id);
+      const discord_msg = await discord_channel.messages.fetch(ranked_lobby.discord_msg_id + '');
       await discord_msg.edit(msg);
     } catch (err) {
       console.error(`[Ranked #${lobby.id}] Failed to edit Discord message:`, err);
@@ -347,7 +347,7 @@ async function update_ranked_lobby_on_discord(lobby) {
 
       await db.run(SQL`
         INSERT INTO ranked_lobby (osu_lobby_id, discord_channel_id, discord_msg_id) 
-        VALUES (${lobby.id}, ${discord_channel.id}, ${discord_msg.d})`,
+        VALUES (${lobby.id}, ${discord_channel.id}, ${discord_msg.id})`,
       );
     } catch (err) {
       console.error(`[Ranked #${lobby.id}] Failed to create Discord message: ${err}`);
