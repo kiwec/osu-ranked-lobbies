@@ -332,8 +332,13 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
       return;
     }
 
-    // Check if we should skip
     const nb_players = get_nb_players(lobby);
+    if (nb_players == 0) {
+      await lobby.channel.sendMessage('!mp name 0-11* | o!RL | Auto map select');
+      return;
+    }
+
+    // Check if we should skip
     if (lobby.voteskips.length >= nb_players / 2) {
       await select_next_map(lobby, map_db);
       return;
