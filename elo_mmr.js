@@ -87,6 +87,7 @@ class Contest {
     // Dodgers share last place, with 0 score.
     for (const player of lobby.confirmed_players) {
       if (this.standings.every((standing) => standing.player_id != player.id)) {
+        console.log(player.ircUsername + ' tried dodging, but no.');
         this.standings.push({
           player_id: player.id,
           bancho_user: player,
@@ -393,7 +394,15 @@ async function update_mmr(lobby) {
     );
     const all_users = await db.get('SELECT COUNT(*) AS nb FROM user WHERE games_played > 4');
     const new_rank_float = 1.0 - (better_users.nb / all_users.nb);
-    if (get_rank_text(standing.player.rank_float) != get_rank_text(new_rank_float)) {
+
+    if (standing.player.games_played == 5) {
+      rank_changes.push({
+        user_id: standing.player.user_id,
+        username: standing.player.username,
+        rank_before: 0.0,
+        rank_after: new_rank_float,
+      });
+    } else if (get_rank_text(standing.player.rank_float) != get_rank_text(new_rank_float)) {
       rank_changes.push({
         user_id: standing.player.user_id,
         username: standing.player.username,
