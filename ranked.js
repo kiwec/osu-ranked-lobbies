@@ -16,6 +16,7 @@ import {
 let deadlines = [];
 let deadline_id = 0;
 let creating_lobby = false;
+const ranking_db = null;
 
 
 function median(numbers) {
@@ -244,11 +245,6 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
   lobby.last_ready_msg = 0;
   lobby.is_dt = false;
   await lobby.setPassword('');
-
-  const ranking_db = await open({
-    filename: 'ranks.db',
-    driver: sqlite3.cached.Database,
-  });
 
   // Fetch user info
   await lobby.updateSettings();
@@ -542,7 +538,12 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
 
 async function start_ranked(client, lobby_db, map_db) {
   client.joined_lobbies = [];
+
   await init_ranking_db();
+  const ranking_db = await open({
+    filename: 'ranks.db',
+    driver: sqlite3.cached.Database,
+  });
 
   const lobbies = await lobby_db.all('SELECT * from ranked_lobby');
   for (const lobby of lobbies) {
