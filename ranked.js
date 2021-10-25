@@ -16,7 +16,7 @@ import {
 let deadlines = [];
 let deadline_id = 0;
 let creating_lobby = false;
-const ranking_db = null;
+let ranking_db = null;
 
 
 function median(numbers) {
@@ -540,7 +540,7 @@ async function start_ranked(client, lobby_db, map_db) {
   client.joined_lobbies = [];
 
   await init_ranking_db();
-  const ranking_db = await open({
+  ranking_db = await open({
     filename: 'ranks.db',
     driver: sqlite3.cached.Database,
   });
