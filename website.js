@@ -176,6 +176,7 @@ async function listen() {
 
         user id: ${res.user_id}
         username: ${res.username}
+        games played: ${res.games_played}
         rank: ${get_rank_text(1.0 - (better_users.nb / all_users.nb))} (#${better_users.nb + 1}/${all_users.nb})
       </pre>
       <div>
