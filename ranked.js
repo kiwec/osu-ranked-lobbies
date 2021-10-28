@@ -262,278 +262,304 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
   await update_median_pp(lobby, map_db);
 
   lobby.channel.on('PART', async (member) => {
-    // Lobby closed (intentionally or not), clean up
-    if (member.user.isClient()) {
-      client.joined_lobbies.splice(client.joined_lobbies.indexOf(lobby), 1);
-      await lobby_db.run(SQL`DELETE FROM ranked_lobby WHERE lobby_id = ${lobby.id}`);
-      await close_ranked_lobby_on_discord(lobby);
-      console.log(`[Ranked #${lobby.id}] Closed.`);
+    try {
+      // Lobby closed (intentionally or not), clean up
+      if (member.user.isClient()) {
+        client.joined_lobbies.splice(client.joined_lobbies.indexOf(lobby), 1);
+        await lobby_db.run(SQL`DELETE FROM ranked_lobby WHERE lobby_id = ${lobby.id}`);
+        await close_ranked_lobby_on_discord(lobby);
+        console.log(`[Ranked #${lobby.id}] Closed.`);
 
-      await open_new_lobby_if_needed(client, lobby_db, map_db);
+        await open_new_lobby_if_needed(client, lobby_db, map_db);
+      }
+    } catch (e) {
+      Sentry.captureException(e);
     }
   });
 
   lobby.on('playerJoined', async (evt) => {
-    console.log(evt.player.user.username + ' JOINED');
-    const joined_alone = get_nb_players(lobby) == 1;
-
-    deadlines = deadlines.filter((deadline) => deadline.username != evt.player.user.username);
-
-    const player = await client.getUser(evt.player.user.username);
     try {
-      await player.fetchFromAPI();
-    } catch (err) {
-      console.error(`[Ranked #${lobby.id}] Failed to fetch user data for '${evt.player.user.username}'`);
-      await lobby.channel.sendMessage(`!mp ban ${evt.player.user.username}`);
-    }
+      console.log(evt.player.user.username + ' JOINED');
+      const joined_alone = get_nb_players(lobby) == 1;
 
-    const user = await lobby_db.get(SQL`SELECT * FROM user WHERE user_id = ${player.id}`);
-    if (!user) {
-      await lobby_db.run(SQL`
-        INSERT INTO user (user_id, username, last_version)
-        VALUES (${player.id}, ${player.ircUsername}, 'current commit')`,
-      );
-    }
+      deadlines = deadlines.filter((deadline) => deadline.username != evt.player.user.username);
 
-    await open_new_lobby_if_needed(client, lobby_db, map_db);
-
-    // Warning: load_user_info can be a slow call
-    await load_user_info(player);
-    await update_median_pp(lobby, map_db);
-    if (joined_alone) {
-      await select_next_map(lobby, map_db);
-      if (player.games_played == 0) {
-        await lobby.channel.sendMessage(`Welcome, ${player.ircUsername}! There is no host: use !start if the players aren't readying up, and !skip if the map is bad. [https://kiwec.net/discord Join the Discord] for more info.`);
+      const player = await client.getUser(evt.player.user.username);
+      try {
+        await player.fetchFromAPI();
+      } catch (err) {
+        console.error(`[Ranked #${lobby.id}] Failed to fetch user data for '${evt.player.user.username}'`);
+        await lobby.channel.sendMessage(`!mp ban ${evt.player.user.username}`);
       }
+
+      const user = await lobby_db.get(SQL`SELECT * FROM user WHERE user_id = ${player.id}`);
+      if (!user) {
+        await lobby_db.run(SQL`
+          INSERT INTO user (user_id, username, last_version)
+          VALUES (${player.id}, ${player.ircUsername}, 'current commit')`,
+        );
+      }
+
+      await open_new_lobby_if_needed(client, lobby_db, map_db);
+
+      // Warning: load_user_info can be a slow call
+      await load_user_info(player);
+      await update_median_pp(lobby, map_db);
+      if (joined_alone) {
+        await select_next_map(lobby, map_db);
+        if (player.games_played == 0) {
+          await lobby.channel.sendMessage(`Welcome, ${player.ircUsername}! There is no host: use !start if the players aren't readying up, and !skip if the map is bad. [https://kiwec.net/discord Join the Discord] for more info.`);
+        }
+      }
+    } catch (e) {
+      Sentry.captureException(e);
     }
   });
 
   lobby.on('playerLeft', async (evt) => {
-    console.log(evt.user.ircUsername + ' LEFT');
+    try {
+      console.log(evt.user.ircUsername + ' LEFT');
 
-    // Remove user's votekicks, and votekicks against the user
-    delete lobby.votekicks[evt.user.ircUsername];
-    for (const annoyed_players of lobby.votekicks) {
-      if (annoyed_players && annoyed_players.includes(evt.user.ircUsername)) {
-        annoyed_players.splice(annoyed_players.indexOf(evt.user.ircUsername), 1);
+      // Remove user's votekicks, and votekicks against the user
+      delete lobby.votekicks[evt.user.ircUsername];
+      for (const annoyed_players of lobby.votekicks) {
+        if (annoyed_players && annoyed_players.includes(evt.user.ircUsername)) {
+          annoyed_players.splice(annoyed_players.indexOf(evt.user.ircUsername), 1);
+        }
       }
-    }
 
-    // Remove user from voteskip list, if they voted to skip
-    if (lobby.voteskips.includes(evt.user.ircUsername)) {
-      lobby.voteskips.splice(lobby.voteskips.indexOf(evt.user.ircUsername), 1);
-    }
+      // Remove user from voteskip list, if they voted to skip
+      if (lobby.voteskips.includes(evt.user.ircUsername)) {
+        lobby.voteskips.splice(lobby.voteskips.indexOf(evt.user.ircUsername), 1);
+      }
 
-    if (await update_median_pp(lobby, map_db)) {
-      return;
-    }
+      if (await update_median_pp(lobby, map_db)) {
+        return;
+      }
 
-    const nb_players = get_nb_players(lobby);
-    if (nb_players == 0) {
-      await lobby.channel.sendMessage('!mp name 0-11* | o!RL | Auto map select (!about)');
-      return;
-    }
+      const nb_players = get_nb_players(lobby);
+      if (nb_players == 0) {
+        await lobby.channel.sendMessage('!mp name 0-11* | o!RL | Auto map select (!about)');
+        return;
+      }
 
-    // Check if we should skip
-    if (lobby.voteskips.length >= nb_players / 2) {
-      await select_next_map(lobby, map_db);
-      return;
+      // Check if we should skip
+      if (lobby.voteskips.length >= nb_players / 2) {
+        await select_next_map(lobby, map_db);
+        return;
+      }
+    } catch (e) {
+      Sentry.captureException(e);
     }
   });
 
   lobby.on('allPlayersReady', async () => {
-    if (get_nb_players(lobby) < 2) {
-      if (lobby.last_ready_msg && lobby.last_ready_msg + 10 > Date.now()) {
-        // We already sent that message recently. Don't send it again, since
-        // people can spam the Ready button and we don't want to spam that
-        // error message ourselves.
+    try {
+      if (get_nb_players(lobby) < 2) {
+        if (lobby.last_ready_msg && lobby.last_ready_msg + 10 > Date.now()) {
+          // We already sent that message recently. Don't send it again, since
+          // people can spam the Ready button and we don't want to spam that
+          // error message ourselves.
+          return;
+        }
+
+        await lobby.channel.sendMessage('With less than 2 players in the lobby, your rank will not change. Type !start to start anyway.');
+        lobby.last_ready_msg = Date.now();
         return;
       }
 
-      await lobby.channel.sendMessage('With less than 2 players in the lobby, your rank will not change. Type !start to start anyway.');
-      lobby.last_ready_msg = Date.now();
-      return;
+      await lobby.startMatch();
+    } catch (e) {
+      Sentry.captureException(e);
     }
-
-    await lobby.startMatch();
   });
 
   lobby.on('matchStarted', async () => {
-    lobby.voteskips = [];
-    lobby.confirmed_players = [];
-    for (const slot of lobby.slots) {
-      if (slot && slot.state != BanchoLobbyPlayerStates['No Map']) {
-        lobby.confirmed_players.push(slot.user);
+    try {
+      lobby.voteskips = [];
+      lobby.confirmed_players = [];
+      for (const slot of lobby.slots) {
+        if (slot && slot.state != BanchoLobbyPlayerStates['No Map']) {
+          lobby.confirmed_players.push(slot.user);
+        }
       }
-    }
 
-    if (lobby.countdown != -1) {
-      clearTimeout(lobby.countdown);
-    }
-    lobby.countdown = -1;
+      if (lobby.countdown != -1) {
+        clearTimeout(lobby.countdown);
+      }
+      lobby.countdown = -1;
 
-    await update_ranked_lobby_on_discord(lobby);
+      await update_ranked_lobby_on_discord(lobby);
+    } catch (e) {
+      Sentry.captureException(e);
+    }
   });
 
   lobby.on('matchFinished', async (scores) => {
-    const rank_updates = await update_mmr(lobby);
-    await select_next_map(lobby, map_db);
+    try {
+      const rank_updates = await update_mmr(lobby);
+      await select_next_map(lobby, map_db);
 
-    if (rank_updates.length > 0) {
-      const strings = [];
-      for (const update of rank_updates) {
-        await update_discord_role(update.user_id, get_rank_text(update.rank_after));
+      if (rank_updates.length > 0) {
+        const strings = [];
+        for (const update of rank_updates) {
+          await update_discord_role(update.user_id, get_rank_text(update.rank_after));
 
-        if (update.rank_before > update.rank_after) {
-          strings.push(update.username + ' [https://osu.kiwec.net/u/' + update.user_id + '/ ▼' + get_rank_text(update.rank_after) + ' ]');
-        } else {
-          strings.push(update.username + ' [https://osu.kiwec.net/u/' + update.user_id + '/ ▲' + get_rank_text(update.rank_after) + ' ]');
+          if (update.rank_before > update.rank_after) {
+            strings.push(update.username + ' [https://osu.kiwec.net/u/' + update.user_id + '/ ▼' + get_rank_text(update.rank_after) + ' ]');
+          } else {
+            strings.push(update.username + ' [https://osu.kiwec.net/u/' + update.user_id + '/ ▲' + get_rank_text(update.rank_after) + ' ]');
+          }
+        }
+
+        // Max 8 rank updates per message - or else it starts getting truncated
+        const MAX_UPDATES_PER_MSG = 6;
+        for (let i = 0, j = strings.length; i < j; i += MAX_UPDATES_PER_MSG) {
+          const updates = strings.slice(i, i + MAX_UPDATES_PER_MSG);
+
+          if (i == 0) {
+            await lobby.channel.sendMessage('Rank updates: ' + updates.join(' | '));
+          } else {
+            await lobby.channel.sendMessage(updates.join(' | '));
+          }
         }
       }
 
-      // Max 8 rank updates per message - or else it starts getting truncated
-      const MAX_UPDATES_PER_MSG = 6;
-      for (let i = 0, j = strings.length; i < j; i += MAX_UPDATES_PER_MSG) {
-        const updates = strings.slice(i, i + MAX_UPDATES_PER_MSG);
-
-        if (i == 0) {
-          await lobby.channel.sendMessage('Rank updates: ' + updates.join(' | '));
-        } else {
-          await lobby.channel.sendMessage(updates.join(' | '));
-        }
-      }
+      await update_ranked_lobby_on_discord(lobby);
+    } catch (e) {
+      Sentry.captureException(e);
     }
-
-    await update_ranked_lobby_on_discord(lobby);
   });
 
-  lobby.channel.on('message', async (msg) => {
-    console.log(`[Ranked #${lobby.id}] ${msg.user.ircUsername}: ${msg.message}`);
+  lobby.channel.on('message', (msg) => on_lobby_msg(lobby, msg).catch(Sentry.captureException));
 
-    // Temporary workaround for bancho.js bug with playerJoined/playerLeft events
-    // Mostly copy/pasted from bancho.js itself.
-    if (msg.user.ircUsername == 'BanchoBot') {
-      const join_regex = /^(.+) joined in slot (\d+)( for team (red|blue))?\.$/;
+  client.joined_lobbies.push(lobby);
+  console.log(`Joined ranked lobby #${lobby.id}`);
+}
 
-      if (join_regex.test(msg.message)) {
-        const m = join_regex.exec(msg.message);
-        const id = deadline_id++;
-        deadlines.push({
-          id: id,
-          username: m[1],
-        });
-        setTimeout(() => {
-          if (deadlines.some((deadline) => deadline.id == id)) {
-            console.error('bancho.js didn\'t register ' + m[1] + ' joining, killing process.');
-            process.exit();
-          }
-        }, 30000);
-      }
+async function on_lobby_msg(lobby, msg) {
+  console.log(`[Ranked #${lobby.id}] ${msg.user.ircUsername}: ${msg.message}`);
 
-      return;
-    }
+  // Temporary workaround for bancho.js bug with playerJoined/playerLeft events
+  // Mostly copy/pasted from bancho.js itself.
+  if (msg.user.ircUsername == 'BanchoBot') {
+    const join_regex = /^(.+) joined in slot (\d+)( for team (red|blue))?\.$/;
 
-    if (msg.message == '!about') {
-      await lobby.channel.sendMessage('In this lobby, you get a rank based on how well you play compared to other players. All commands and answers to your questions are [https://kiwec.net/discord in the Discord.]');
-      return;
-    }
-
-    if (msg.message.indexOf('!diff') == 0 && msg.user.isClient()) {
-      lobby.difficulty_modifier = parseFloat(msg.message.split(' ')[1]);
-      const switched = await update_median_pp(lobby, map_db);
-      if (!switched) {
-        await select_next_map(lobby, map_db);
-      }
-    }
-
-    if (msg.message == '!discord') {
-      await lobby.channel.sendMessage('[https://kiwec.net/discord Come hang out in voice chat!] (or just text, no pressure)');
-      return;
-    }
-
-    if (msg.message.indexOf('!kick') == 0) {
-      const args = msg.message.split(' ');
-      if (args.length < 2) {
-        await lobby.channel.sendMessage(msg.user.ircUsername + ': You need to specify which player to kick.');
-        return;
-      }
-      args.shift(); // remove '!kick'
-      const bad_player = args.join(' ');
-
-      // TODO: check if bad_player is in the room
-
-      if (!lobby.votekicks[bad_player]) {
-        lobby.votekicks[bad_player] = [];
-      }
-      if (!lobby.votekicks[bad_player].includes(msg.user.ircUsername)) {
-        lobby.votekicks[bad_player].push(msg.user.ircUsername);
-
-        const nb_voted_to_kick = lobby.votekicks[bad_player].length;
-        const nb_required_to_kick = Math.ceil(get_nb_players(lobby) / 2);
-        if (nb_required_to_kick == 1) nb_required_to_kick = 2; // don't allow a player to hog the lobby
-
-        if (nb_voted_to_kick >= nb_required_to_kick) {
-          // I wonder what happens if people kick the bot?
-          await lobby.kickPlayer(bad_player);
-        } else {
-          await lobby.channel.sendMessage(`${msg.user.ircUsername} voted to kick ${bad_player}. ${nb_voted_to_kick}/${nb_required_to_kick} votes needed.`);
+    if (join_regex.test(msg.message)) {
+      const m = join_regex.exec(msg.message);
+      const id = deadline_id++;
+      deadlines.push({
+        id: id,
+        username: m[1],
+      });
+      setTimeout(() => {
+        if (deadlines.some((deadline) => deadline.id == id)) {
+          console.error('bancho.js didn\'t register ' + m[1] + ' joining, killing process.');
+          process.exit();
         }
-      }
+      }, 30000);
     }
 
-    if (msg.message == '!rank') {
-      const rank_text = await get_rank_text_from_id(msg.user.id);
-      if (rank_text == 'Unranked') {
-        const res = await ranking_db.get(SQL`
-          SELECT games_played FROM user
-          WHERE user_id = ${msg.user.id}`,
-        );
-        await msg.user.sendMessage(`${msg.user.ircUsername}: You are unranked. Play ${5 - res.games_played} more games to get a rank!`);
+    return;
+  }
+
+  if (msg.message == '!about') {
+    await lobby.channel.sendMessage('In this lobby, you get a rank based on how well you play compared to other players. All commands and answers to your questions are [https://kiwec.net/discord in the Discord.]');
+    return;
+  }
+
+  if (msg.message.indexOf('!diff') == 0 && msg.user.isClient()) {
+    lobby.difficulty_modifier = parseFloat(msg.message.split(' ')[1]);
+    const switched = await update_median_pp(lobby, map_db);
+    if (!switched) {
+      await select_next_map(lobby, map_db);
+    }
+  }
+
+  if (msg.message == '!discord') {
+    await lobby.channel.sendMessage('[https://kiwec.net/discord Come hang out in voice chat!] (or just text, no pressure)');
+    return;
+  }
+
+  if (msg.message.indexOf('!kick') == 0) {
+    const args = msg.message.split(' ');
+    if (args.length < 2) {
+      await lobby.channel.sendMessage(msg.user.ircUsername + ': You need to specify which player to kick.');
+      return;
+    }
+    args.shift(); // remove '!kick'
+    const bad_player = args.join(' ');
+
+    // TODO: check if bad_player is in the room
+
+    if (!lobby.votekicks[bad_player]) {
+      lobby.votekicks[bad_player] = [];
+    }
+    if (!lobby.votekicks[bad_player].includes(msg.user.ircUsername)) {
+      lobby.votekicks[bad_player].push(msg.user.ircUsername);
+
+      const nb_voted_to_kick = lobby.votekicks[bad_player].length;
+      const nb_required_to_kick = Math.ceil(get_nb_players(lobby) / 2);
+      if (nb_required_to_kick == 1) nb_required_to_kick = 2; // don't allow a player to hog the lobby
+
+      if (nb_voted_to_kick >= nb_required_to_kick) {
+        // I wonder what happens if people kick the bot?
+        await lobby.kickPlayer(bad_player);
       } else {
-        await lobby.channel.sendMessage(`${msg.user.ircUsername}: You are [https://osu.kiwec.net/u/${msg.user.id}/ ${rank_text}].`);
+        await lobby.channel.sendMessage(`${msg.user.ircUsername} voted to kick ${bad_player}. ${nb_voted_to_kick}/${nb_required_to_kick} votes needed.`);
       }
     }
+  }
 
-    if (msg.message == '!skip' && !lobby.voteskips.includes(msg.user.ircUsername)) {
-      lobby.voteskips.push(msg.user.ircUsername);
-      if (lobby.voteskips.length >= get_nb_players(lobby) / 2) {
-        await select_next_map(lobby, map_db);
-      } else {
-        await lobby.channel.sendMessage(`${lobby.voteskips.length}/${Math.ceil(get_nb_players(lobby) / 2)} players voted to switch to another map.`);
-      }
+  if (msg.message == '!rank') {
+    const rank_text = await get_rank_text_from_id(msg.user.id);
+    if (rank_text == 'Unranked') {
+      const res = await ranking_db.get(SQL`
+        SELECT games_played FROM user
+        WHERE user_id = ${msg.user.id}`,
+      );
+      await msg.user.sendMessage(`${msg.user.ircUsername}: You are unranked. Play ${5 - res.games_played} more games to get a rank!`);
+    } else {
+      await lobby.channel.sendMessage(`${msg.user.ircUsername}: You are [https://osu.kiwec.net/u/${msg.user.id}/ ${rank_text}].`);
+    }
+  }
+
+  if (msg.message == '!skip' && !lobby.voteskips.includes(msg.user.ircUsername)) {
+    lobby.voteskips.push(msg.user.ircUsername);
+    if (lobby.voteskips.length >= get_nb_players(lobby) / 2) {
+      await select_next_map(lobby, map_db);
+    } else {
+      await lobby.channel.sendMessage(`${lobby.voteskips.length}/${Math.ceil(get_nb_players(lobby) / 2)} players voted to switch to another map.`);
+    }
+  }
+
+  if (msg.message == '!start' && lobby.countdown == -1 && !lobby.playing) {
+    if (get_nb_players(lobby) < 2) {
+      await lobby.startMatch();
+      return;
     }
 
-    if (msg.message == '!start' && lobby.countdown == -1 && !lobby.playing) {
-      if (get_nb_players(lobby) < 2) {
-        await lobby.startMatch();
+    lobby.countdown = setTimeout(async () => {
+      if (lobby.playing) {
+        lobby.countdown = -1;
         return;
       }
 
       lobby.countdown = setTimeout(async () => {
-        if (lobby.playing) {
-          lobby.countdown = -1;
-          return;
+        lobby.countdown = -1;
+        if (!lobby.playing) {
+          await lobby.startMatch();
         }
+      }, 10000);
+      await lobby.channel.sendMessage('Starting the match in 10 seconds... Ready up to start sooner.');
+    }, 20000);
+    await lobby.channel.sendMessage('Starting the match in 30 seconds... Ready up to start sooner.');
+  }
 
-        lobby.countdown = setTimeout(async () => {
-          lobby.countdown = -1;
-          if (!lobby.playing) {
-            await lobby.startMatch();
-          }
-        }, 10000);
-        await lobby.channel.sendMessage('Starting the match in 10 seconds... Ready up to start sooner.');
-      }, 20000);
-      await lobby.channel.sendMessage('Starting the match in 30 seconds... Ready up to start sooner.');
-    }
-
-    if (msg.message == '!wait' && lobby.countdown != -1) {
-      clearTimeout(lobby.countdown);
-      await lobby.channel.sendMessage('Match auto-start is cancelled. Type !start to restart it.');
-    }
-  });
-
-  client.joined_lobbies.push(lobby);
-  console.log(`Joined ranked lobby #${lobby.id}`);
+  if (msg.message == '!wait' && lobby.countdown != -1) {
+    clearTimeout(lobby.countdown);
+    await lobby.channel.sendMessage('Match auto-start is cancelled. Type !start to restart it.');
+  }
 }
 
 async function start_ranked(client, lobby_db, map_db) {
@@ -561,52 +587,56 @@ async function start_ranked(client, lobby_db, map_db) {
   await open_new_lobby_if_needed(client, lobby_db, map_db);
 
   client.on('PM', async (msg) => {
-    if (msg.message == '!ranked') {
-      // 1. Get the list of non-empty, non-full lobbies
-      const available_lobbies = [];
-      for (const lobby of client.joined_lobbies) {
-        const nb_players = get_nb_players(lobby);
-        if (nb_players > 0 && nb_players < 16) {
-          available_lobbies.push(lobby);
+    try {
+      if (msg.message == '!ranked') {
+        // 1. Get the list of non-empty, non-full lobbies
+        const available_lobbies = [];
+        for (const lobby of client.joined_lobbies) {
+          const nb_players = get_nb_players(lobby);
+          if (nb_players > 0 && nb_players < 16) {
+            available_lobbies.push(lobby);
+          }
         }
-      }
 
-      // How far is the player from the lobby pp level?
-      const distance = (player, lobby) => {
-        if (!player.pp) return 0;
-        return Math.abs(player.pp.aim - lobby.median_aim) + Math.abs(player.pp.acc - lobby.median_acc) + Math.abs(player.pp.speed - lobby.median_speed) + 10.0 * Math.abs(player.pp.ar - lobby.median_ar);
-      };
+        // How far is the player from the lobby pp level?
+        const distance = (player, lobby) => {
+          if (!player.pp) return 0;
+          return Math.abs(player.pp.aim - lobby.median_aim) + Math.abs(player.pp.acc - lobby.median_acc) + Math.abs(player.pp.speed - lobby.median_speed) + 10.0 * Math.abs(player.pp.ar - lobby.median_ar);
+        };
 
-      // 2. Sort by closest pp level
-      available_lobbies.sort((a, b) => distance(msg.user, b) - distance(msg.user, a));
-      if (available_lobbies.length > 0) {
-        await available_lobbies[0].invitePlayer(msg.user.ircUsername);
-        return;
-      }
-
-      // 3. Fine, send them an empty lobby
-      await open_new_lobby_if_needed(client, lobby_db, map_db);
-      for (const lobby of client.joined_lobbies) {
-        const nb_players = get_nb_players(lobby);
-        if (nb_players < 16) {
-          await lobby.invitePlayer(msg.user.ircUsername);
+        // 2. Sort by closest pp level
+        available_lobbies.sort((a, b) => distance(msg.user, b) - distance(msg.user, a));
+        if (available_lobbies.length > 0) {
+          await available_lobbies[0].invitePlayer(msg.user.ircUsername);
           return;
         }
-      }
-    }
 
-    if (msg.message == '!rank') {
-      const rank_text = await get_rank_text_from_id(msg.user.id);
-      if (rank_text == 'Unranked') {
-        const res = await ranking_db.get(SQL`
-          SELECT games_played FROM user
-          WHERE user_id = ${msg.user.id}`,
-        );
-        await msg.user.sendMessage(`You are unranked. Play ${5 - res.games_played} more games to get a rank!`);
-      } else {
-        await msg.user.sendMessage(`You are [https://osu.kiwec.net/u/${msg.user.id}/ ${rank_text}].`);
+        // 3. Fine, send them an empty lobby
+        await open_new_lobby_if_needed(client, lobby_db, map_db);
+        for (const lobby of client.joined_lobbies) {
+          const nb_players = get_nb_players(lobby);
+          if (nb_players < 16) {
+            await lobby.invitePlayer(msg.user.ircUsername);
+            return;
+          }
+        }
       }
-      return;
+
+      if (msg.message == '!rank') {
+        const rank_text = await get_rank_text_from_id(msg.user.id);
+        if (rank_text == 'Unranked') {
+          const res = await ranking_db.get(SQL`
+            SELECT games_played FROM user
+            WHERE user_id = ${msg.user.id}`,
+          );
+          await msg.user.sendMessage(`You are unranked. Play ${5 - res.games_played} more games to get a rank!`);
+        } else {
+          await msg.user.sendMessage(`You are [https://osu.kiwec.net/u/${msg.user.id}/ ${rank_text}].`);
+        }
+        return;
+      }
+    } catch (e) {
+      Sentry.captureException(e);
     }
   });
 }

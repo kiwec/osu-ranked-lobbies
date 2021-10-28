@@ -206,68 +206,84 @@ async function join_lobby(channel, lobby_info, lobby_db) {
   lobby.info = lobby_info;
   lobby.recent_maps = [];
 
-  lobby.on('allPlayersReady', async () => {
+  lobby.on('allPlayersReady', () => {
     console.log(`[Custom ${lobby.id}] Starting match.`);
-    await lobby.startMatch();
+    lobby.startMatch().catch(Sentry.captureException);
   });
 
-  lobby.on('matchFinished', async (scores) => {
+  lobby.on('matchFinished', (scores) => {
     console.log(`[Custom ${lobby.id}] Finished match.`);
-    await switch_map(lobby);
+    switch_map(lobby).catch(Sentry.captureException);
   });
 
   // After the host finishes playing, their client resets the map to the one they played.
   // Because we change the map *before* they rejoin the lobby, we need to re-select our map.
   // We could also remove host altogether, but not sure if that's a better solution...
   lobby.on('beatmapId', async (beatmap_id) => {
-    if (lobby.recent_maps.length >= 2 && lobby.recent_maps[lobby.recent_maps.length-2] == beatmap_id) {
-      await lobby.setMap(lobby.recent_maps[lobby.recent_maps.length-1]);
+    try {
+      if (lobby.recent_maps.length >= 2 && lobby.recent_maps[lobby.recent_maps.length-2] == beatmap_id) {
+        await lobby.setMap(lobby.recent_maps[lobby.recent_maps.length-1]);
+      }
+    } catch (e) {
+      Sentry.captureException(e);
     }
   });
 
   lobby.on('playerJoined', async (obj) => {
-    if (obj.player.user.ircUsername == lobby.info.creator) {
-      await lobby.setHost('#'+obj.player.user.id);
+    try {
+      if (obj.player.user.ircUsername == lobby.info.creator) {
+        await lobby.setHost('#'+obj.player.user.id);
+      }
+    } catch (e) {
+      Sentry.captureException(e);
     }
   });
 
   lobby.on('playerLeft', async (obj) => {
-    let nb_players = 0;
-    for (const player of lobby.slots) {
-      if (player != null) nb_players++;
-    }
+    try {
+      let nb_players = 0;
+      for (const player of lobby.slots) {
+        if (player != null) nb_players++;
+      }
 
-    if (nb_players == 0) {
-      await lobby_db.run(SQL`DELETE FROM lobby WHERE lobby_id = ${lobby.id}`);
-      await lobby.closeLobby();
-      console.log('Closed lobby ' + lobby.id);
+      if (nb_players == 0) {
+        await lobby_db.run(SQL`DELETE FROM lobby WHERE lobby_id = ${lobby.id}`);
+        await lobby.closeLobby();
+        console.log('Closed lobby ' + lobby.id);
+      }
+    } catch (e) {
+      Sentry.captureException(e);
     }
   });
 
   lobby.channel.on('message', async (msg) => {
-    console.log(`[Custom ${lobby.id}] ${msg.user.ircUsername}: ${msg.message}`);
-    const host = lobby.getHost();
-    let host_id = null;
-    if (host != null) host_id = host.user.id;
+    try {
+      console.log(`[Custom ${lobby.id}] ${msg.user.ircUsername}: ${msg.message}`);
+      const host = lobby.getHost();
+      let host_id = null;
+      if (host != null) host_id = host.user.id;
 
-    if (msg.user.id == host_id && msg.message == '!skip') {
-      await switch_map(lobby);
-    }
-
-    if (msg.user.id == host_id && msg.message.indexOf('!setfilter') == 0) {
-      try {
-        await update_lobby_filters(lobby.info, msg.message);
-        await lobby_db.run(SQL`
-          UPDATE lobby
-          SET filters = ${lobby.info.filters}
-          WHERE lobby_id = ${lobby.id}`,
-        );
-        await lobby.channel.sendMessage(`Updated filters, there are now ${lobby.info.nb_maps} maps in rotation. Switching map...`);
+      if (msg.user.id == host_id && msg.message == '!skip') {
         await switch_map(lobby);
-      } catch (e) {
-        console.error(`[Custom ${lobby.id}] ${e}`);
-        await lobby.channel.sendMessage(e.toString());
       }
+
+      if (msg.user.id == host_id && msg.message.indexOf('!setfilter') == 0) {
+        try {
+          await update_lobby_filters(lobby.info, msg.message);
+          await lobby_db.run(SQL`
+            UPDATE lobby
+            SET filters = ${lobby.info.filters}
+            WHERE lobby_id = ${lobby.id}`,
+          );
+          await lobby.channel.sendMessage(`Updated filters, there are now ${lobby.info.nb_maps} maps in rotation. Switching map...`);
+          await switch_map(lobby);
+        } catch (e) {
+          console.error(`[Custom ${lobby.id}] ${e}`);
+          await lobby.channel.sendMessage(e.toString());
+        }
+      }
+    } catch (e) {
+      Sentry.captureException(e);
     }
   });
 }
@@ -311,9 +327,9 @@ async function start(client, lobby_db, _map_db) {
         await channel.lobby.addRef(lobby_info.creator);
         await channel.sendMessage('!mp mods freemod ' + lobby_info.mods.join(' '));
         await switch_map(channel.lobby);
-        await lobby_db.run(
-            'insert into lobby (lobby_id, creator, filters) values (?, ?, ?)',
-            channel.lobby.id, msg.user.ircUsername, lobby_info.filters,
+        await lobby_db.run(SQL`
+          INSERT INTO lobby (lobby_id, creator, filters)
+          VALUES (${channel.lobby.id}, ${msg.user.ircUsername}, ${lobby_info.filters})`,
         );
       } catch (e) {
         console.error(`-> ${msg.user.ircUsername}: ${e}`);

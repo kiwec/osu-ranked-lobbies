@@ -7,6 +7,8 @@
   "type": "module",
   "dependencies": {
     "@discordjs/rest": "^0.1.0-canary.0",
+    "@sentry/node": "^6.13.3",
+    "@sentry/tracing": "^6.13.3",
     "bancho.js": "^0.10.0-rc.5",
     "discord-api-types": "^0.23.1",
     "discord.js": "^13.1.0",

@@ -2,8 +2,10 @@ import express from 'express';
 import fetch from 'node-fetch';
 import fs from 'fs';
 import morgan from 'morgan';
+import Sentry from '@sentry/node';
 import {open} from 'sqlite';
 import sqlite3 from 'sqlite3';
+
 import {get_rank_text, get_rank_text_from_id} from './elo_mmr.js';
 import {update_discord_role} from './discord.js';
 import SQL from 'sql-template-strings';
@@ -22,12 +24,11 @@ async function listen() {
     driver: sqlite3.cached.Database,
   });
 
-
   const app = express();
+  app.use(Sentry.Handlers.requestHandler());
   app.use(morgan('combined'));
   app.enable('trust proxy');
   app.set('trust proxy', () => true);
-
 
   app.get('/', (req, res) => {
     res.redirect('https://kiwec.net/discord');
@@ -185,6 +186,7 @@ async function listen() {
     </html>`);
   });
 
+  app.use(Sentry.Handlers.errorHandler());
 
   app.listen(3001, () => {
     console.log(`Listening on :${3001}`);
