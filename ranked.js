@@ -527,6 +527,7 @@ async function on_lobby_msg(lobby, msg) {
   if (msg.message == '!skip' && !lobby.voteskips.includes(msg.user.ircUsername)) {
     lobby.voteskips.push(msg.user.ircUsername);
     if (lobby.voteskips.length >= get_nb_players(lobby) / 2) {
+      await update_median_pp(lobby, map_db);
       await select_next_map(lobby, map_db);
     } else {
       await lobby.channel.sendMessage(`${lobby.voteskips.length}/${Math.ceil(get_nb_players(lobby) / 2)} players voted to switch to another map.`);
