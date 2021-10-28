@@ -188,7 +188,7 @@ async function open_new_lobby_if_needed(client, lobby_db, map_db) {
 
   if (empty_slots == 0) {
     creating_lobby = true;
-    const channel = await client.createLobby(`0-11* | o!RL | Auto map select`);
+    const channel = await client.createLobby(`0-11* | o!RL | Auto map select (!about)`);
     await join_lobby(channel.lobby, lobby_db, map_db, client);
     await lobby_db.run(SQL`INSERT INTO ranked_lobby (lobby_id) VALUES (${channel.lobby.id})`);
     await channel.sendMessage('!mp mods freemod');
@@ -330,7 +330,7 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
 
     const nb_players = get_nb_players(lobby);
     if (nb_players == 0) {
-      await lobby.channel.sendMessage('!mp name 0-11* | o!RL | Auto map select');
+      await lobby.channel.sendMessage('!mp name 0-11* | o!RL | Auto map select (!about)');
       return;
     }
 
