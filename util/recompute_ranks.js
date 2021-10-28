@@ -5,17 +5,26 @@
 // - Delete ranks.db
 // - Run this script
 
+import fs from 'fs';
 import {open} from 'sqlite';
 import sqlite3 from 'sqlite3';
 import SQL from 'sql-template-strings';
+import {Client, Intents} from 'discord.js';
 
 import {init_db, get_rank_text_from_id, update_mmr} from '../elo_mmr.js';
-import {init_discord_bot} from '../discord.js';
 
+const discord_client = new Client({intents: [Intents.FLAGS.GUILDS]});
+
+discord_client.once('ready', () => {
+  console.log('Logged in to discord.');
+  recompute_ranks();
+});
+
+const {discord_token} = JSON.parse(fs.readFileSync('./config.json'));
+discord_client.login(discord_token);
 
 async function recompute_ranks() {
   await init_db();
-  await init_discord_bot();
 
   const old_db = await open({
     filename: 'old_ranks.db',
@@ -86,7 +95,7 @@ async function recompute_ranks() {
     'The One': '892966704991330364',
   };
 
-  const guild = await client.guilds.fetch('891781932067749948');
+  const guild = await discord_client.guilds.fetch('891781932067749948');
   const users = await discord_db.all('SELECT osu_id, discord_id FROM user');
   for (const user of users) {
     try {
@@ -116,5 +125,3 @@ async function recompute_ranks() {
     }
   }
 }
-
-recompute_ranks().catch((err) => console.error(err));

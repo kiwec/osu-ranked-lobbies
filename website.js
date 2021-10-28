@@ -7,7 +7,7 @@ import {open} from 'sqlite';
 import sqlite3 from 'sqlite3';
 
 import {get_rank_text, get_rank_text_from_id} from './elo_mmr.js';
-import {update_discord_role} from './discord.js';
+import {update_discord_role} from './discord_updates.js';
 import SQL from 'sql-template-strings';
 
 const Config = JSON.parse(fs.readFileSync('./config.json'));

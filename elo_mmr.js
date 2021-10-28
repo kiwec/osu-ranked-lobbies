@@ -42,6 +42,7 @@ const players = [];
 class Contest {
   constructor(lobby) {
     this.lobby_id = lobby.id;
+    this.lobby_creator = lobby.creator;
     this.map_id = lobby.beatmapId;
     this.tms = lobby.mock_tms || Date.now();
     this.winCondition = lobby.winCondition;
@@ -124,8 +125,8 @@ class Contest {
   // Fetches players from database if they're not already loaded - expensive operation.
   async init() {
     const res = await db.run(SQL`
-      INSERT INTO contest (lobby_id, map_id, scoring_system, mods, tms)
-      VALUES (${this.lobby_id}, ${this.map_id}, ${this.winCondition}, ${this.mods}, ${this.tms})`,
+      INSERT INTO contest (lobby_id, map_id, scoring_system, mods, tms, lobby_creator)
+      VALUES (${this.lobby_id}, ${this.map_id}, ${this.winCondition}, ${this.mods}, ${this.tms}, ${this.lobby_creator})`,
     );
     this.id = res.lastID;
 
@@ -504,7 +505,8 @@ async function init_db() {
     map_id INTEGER,
     scoring_system INTEGER,
     mods INTEGER,
-    tms INTEGER
+    tms INTEGER,
+    lobby_creator TEXT
   )`);
 
   await db.exec(`CREATE TABLE IF NOT EXISTS score (

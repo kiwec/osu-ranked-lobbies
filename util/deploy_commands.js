@@ -6,7 +6,16 @@ import fs from 'fs';
 const Config = JSON.parse(fs.readFileSync('../config.json'));
 
 const commands = [
-  new SlashCommandBuilder().setName('profile').setDescription('Get your profile information.'),
+  new SlashCommandBuilder()
+      .setName('profile')
+      .setDescription('Get your profile information.'),
+  new SlashCommandBuilder()
+      .setName('make-ranked')
+      .setDescription('Create a new ranked lobby.')
+      .addIntegerOption((option) => option
+          .setName('lobby-id')
+          .setDescription('The lobby ID given by BanchoBot')
+          .setRequired(true)),
 ]
     .map((command) => command.toJSON());
 

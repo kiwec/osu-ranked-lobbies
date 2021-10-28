@@ -11,13 +11,15 @@ import {
   close_ranked_lobby_on_discord,
   update_discord_role,
   get_scoring_preference,
-} from './discord.js';
+} from './discord_updates.js';
 
 
 let deadlines = [];
 let deadline_id = 0;
 let creating_lobby = false;
 let ranking_db = null;
+let lobby_db = null;
+let map_db = null;
 
 
 function median(numbers) {
@@ -40,7 +42,7 @@ function get_nb_players(lobby) {
   return nb_players;
 }
 
-async function select_next_map(lobby, map_db) {
+async function select_next_map(lobby) {
   const MAP_TYPES = {
     1: 'graveyarded',
     2: 'wip',
@@ -176,11 +178,12 @@ async function select_next_map(lobby, map_db) {
   }
 }
 
-async function open_new_lobby_if_needed(client, lobby_db, map_db) {
+async function open_new_lobby_if_needed(client) {
   if (creating_lobby) return;
+  if (client.owned_lobbies.length > 3) return;
 
   let empty_slots = 0;
-  for (const jl of client.joined_lobbies) {
+  for (const jl of client.owned_lobbies) {
     let nb_players = 0;
     for (const s of jl.slots) {
       if (s) nb_players++;
@@ -191,9 +194,8 @@ async function open_new_lobby_if_needed(client, lobby_db, map_db) {
   if (empty_slots == 0) {
     creating_lobby = true;
     const channel = await client.createLobby(`0-11* | o!RL | Auto map select (!about)`);
-    await join_lobby(channel.lobby, lobby_db, map_db, client);
-    await lobby_db.run(SQL`INSERT INTO ranked_lobby (lobby_id) VALUES (${channel.lobby.id})`);
-    await channel.sendMessage('!mp mods freemod');
+    await join_lobby(channel.lobby, client, 'kiwec');
+    await lobby_db.run(SQL`INSERT INTO ranked_lobby (lobby_id, creator) VALUES (${channel.lobby.id}, 'kiwec')`);
     creating_lobby = false;
     console.log(`[Ranked #${channel.lobby.id}] Created.`);
   }
@@ -201,7 +203,7 @@ async function open_new_lobby_if_needed(client, lobby_db, map_db) {
 
 
 // Updates the lobby's median_pp value. Returns true if map changed.
-async function update_median_pp(lobby, map_db) {
+async function update_median_pp(lobby) {
   const aims = [];
   const accs = [];
   const speeds = [];
@@ -235,7 +237,7 @@ async function update_median_pp(lobby, map_db) {
   return false;
 }
 
-async function join_lobby(lobby, lobby_db, map_db, client) {
+async function join_lobby(lobby, client, creator) {
   lobby.recent_maps = [];
   lobby.votekicks = [];
   lobby.voteskips = [];
@@ -245,7 +247,7 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
   lobby.nb_players = 0;
   lobby.difficulty_modifier = 1.1;
   lobby.last_ready_msg = 0;
-  lobby.is_dt = false;
+  lobby.is_dt = -1;
   await lobby.setPassword('');
 
   // Fetch user info
@@ -261,18 +263,23 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
       await lobby.channel.sendMessage(`!mp ban ${player.user.ircUsername}`);
     }
   }
-  await update_median_pp(lobby, map_db);
+  await update_median_pp(lobby);
 
   lobby.channel.on('PART', async (member) => {
     try {
       // Lobby closed (intentionally or not), clean up
       if (member.user.isClient()) {
+        if (creator == 'kiwec') {
+          client.owned_lobbies.splice(client.owned_lobbies.indexOf(lobby), 1);
+        }
         client.joined_lobbies.splice(client.joined_lobbies.indexOf(lobby), 1);
         await lobby_db.run(SQL`DELETE FROM ranked_lobby WHERE lobby_id = ${lobby.id}`);
         await close_ranked_lobby_on_discord(lobby);
         console.log(`[Ranked #${lobby.id}] Closed.`);
 
-        await open_new_lobby_if_needed(client, lobby_db, map_db);
+        if (client.owned_lobbies.length == 0) {
+          await open_new_lobby_if_needed(client);
+        }
       }
     } catch (e) {
       Sentry.captureException(e);
@@ -302,13 +309,13 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
         );
       }
 
-      await open_new_lobby_if_needed(client, lobby_db, map_db);
+      await open_new_lobby_if_needed(client);
 
       // Warning: load_user_info can be a slow call
       await load_user_info(player);
-      await update_median_pp(lobby, map_db);
+      await update_median_pp(lobby);
       if (joined_alone) {
-        await select_next_map(lobby, map_db);
+        await select_next_map(lobby);
         if (player.games_played == 0) {
           await lobby.channel.sendMessage(`Welcome, ${player.ircUsername}! There is no host: use !start if the players aren't readying up, and !skip if the map is bad. [https://kiwec.net/discord Join the Discord] for more info.`);
         }
@@ -335,7 +342,7 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
         lobby.voteskips.splice(lobby.voteskips.indexOf(evt.user.ircUsername), 1);
       }
 
-      if (await update_median_pp(lobby, map_db)) {
+      if (await update_median_pp(lobby)) {
         return;
       }
 
@@ -347,7 +354,7 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
 
       // Check if we should skip
       if (lobby.voteskips.length >= nb_players / 2) {
-        await select_next_map(lobby, map_db);
+        await select_next_map(lobby);
         return;
       }
     } catch (e) {
@@ -400,7 +407,7 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
   lobby.on('matchFinished', async (scores) => {
     try {
       const rank_updates = await update_mmr(lobby);
-      await select_next_map(lobby, map_db);
+      await select_next_map(lobby);
 
       if (rank_updates.length > 0) {
         const strings = [];
@@ -433,13 +440,16 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
     }
   });
 
-  lobby.channel.on('message', (msg) => on_lobby_msg(lobby, msg, map_db).catch(Sentry.captureException));
+  lobby.channel.on('message', (msg) => on_lobby_msg(lobby, msg).catch(Sentry.captureException));
 
   client.joined_lobbies.push(lobby);
+  if (creator == 'kiwec') {
+    client.owned_lobbies.push(lobby);
+  }
   console.log(`Joined ranked lobby #${lobby.id}`);
 }
 
-async function on_lobby_msg(lobby, msg, map_db) {
+async function on_lobby_msg(lobby, msg) {
   console.log(`[Ranked #${lobby.id}] ${msg.user.ircUsername}: ${msg.message}`);
 
   // Temporary workaround for bancho.js bug with playerJoined/playerLeft events
@@ -472,9 +482,9 @@ async function on_lobby_msg(lobby, msg, map_db) {
 
   if (msg.message.indexOf('!diff') == 0 && msg.user.isClient()) {
     lobby.difficulty_modifier = parseFloat(msg.message.split(' ')[1]);
-    const switched = await update_median_pp(lobby, map_db);
+    const switched = await update_median_pp(lobby);
     if (!switched) {
-      await select_next_map(lobby, map_db);
+      await select_next_map(lobby);
     }
   }
 
@@ -529,8 +539,8 @@ async function on_lobby_msg(lobby, msg, map_db) {
   if (msg.message == '!skip' && !lobby.voteskips.includes(msg.user.ircUsername)) {
     lobby.voteskips.push(msg.user.ircUsername);
     if (lobby.voteskips.length >= get_nb_players(lobby) / 2) {
-      await update_median_pp(lobby, map_db);
-      await select_next_map(lobby, map_db);
+      await update_median_pp(lobby);
+      await select_next_map(lobby);
     } else {
       await lobby.channel.sendMessage(`${lobby.voteskips.length}/${Math.ceil(get_nb_players(lobby) / 2)} players voted to switch to another map.`);
     }
@@ -565,8 +575,12 @@ async function on_lobby_msg(lobby, msg, map_db) {
   }
 }
 
-async function start_ranked(client, lobby_db, map_db) {
+async function start_ranked(client, _lobby_db, _map_db) {
+  lobby_db = _lobby_db;
+  map_db = _map_db;
+
   client.joined_lobbies = [];
+  client.owned_lobbies = [];
 
   await init_ranking_db();
   ranking_db = await open({
@@ -579,7 +593,7 @@ async function start_ranked(client, lobby_db, map_db) {
     try {
       const channel = await client.getChannel('#mp_' + lobby.lobby_id);
       await channel.join();
-      await join_lobby(channel.lobby, lobby_db, map_db, client);
+      await join_lobby(channel.lobby, client, lobby.creator);
     } catch (e) {
       console.error('Failed to rejoin lobby ' + lobby.lobby_id + ':', e);
       await lobby_db.run(SQL`DELETE FROM ranked_lobby WHERE lobby_id = ${lobby.lobby_id}`);
@@ -587,7 +601,7 @@ async function start_ranked(client, lobby_db, map_db) {
     }
   }
 
-  await open_new_lobby_if_needed(client, lobby_db, map_db);
+  await open_new_lobby_if_needed(client);
 
   client.on('PM', async (msg) => {
     try {
@@ -614,15 +628,8 @@ async function start_ranked(client, lobby_db, map_db) {
           return;
         }
 
-        // 3. Fine, send them an empty lobby
-        await open_new_lobby_if_needed(client, lobby_db, map_db);
-        for (const lobby of client.joined_lobbies) {
-          const nb_players = get_nb_players(lobby);
-          if (nb_players < 16) {
-            await lobby.invitePlayer(msg.user.ircUsername);
-            return;
-          }
-        }
+        // 3. Unlucky
+        await msg.user.sendMessage(`Looks like all o!RL lobbies are full. [https://kiwec.net/discord Join the Discord] to create a new one.`);
       }
 
       if (msg.message == '!rank') {
@@ -646,4 +653,5 @@ async function start_ranked(client, lobby_db, map_db) {
 
 export {
   start_ranked,
+  join_lobby,
 };

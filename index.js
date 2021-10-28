@@ -4,7 +4,8 @@ import Sentry from '@sentry/node';
 import {open} from 'sqlite';
 import sqlite3 from 'sqlite3';
 
-import {init_discord_bot} from './discord.js';
+import {init as init_discord_interactions} from './discord_interactions.js';
+import {init as init_discord_updates} from './discord_updates.js';
 import {listen as website_listen} from './website.js';
 import {start as start_casual} from './casual.js';
 import {start_ranked} from './ranked.js';
@@ -32,7 +33,7 @@ async function init_lobby_db() {
 
   await lobby_db.exec(`CREATE TABLE IF NOT EXISTS ranked_lobby (
     lobby_id INTEGER,
-    filters TEXT
+    creator TEXT
   )`);
 
   // NOTE: In `lobbies.db`, this table is only used for version checking.
@@ -54,8 +55,11 @@ async function main() {
   client.on('error', (err) => Sentry.captureException(err));
 
   try {
-    await init_discord_bot(client);
+    const discord_client = await init_discord_interactions(client);
+    await init_discord_updates(discord_client);
+
     website_listen();
+
     await client.connect();
     console.log('Connected to bancho.');
 
