@@ -29,6 +29,7 @@ async function listen() {
   app.use(morgan('combined'));
   app.enable('trust proxy');
   app.set('trust proxy', () => true);
+  app.use(express.static('public'));
 
   app.get('/', (req, res) => {
     res.redirect('https://kiwec.net/discord');
