@@ -177,6 +177,10 @@ async function listen() {
         username: ${res.username}
         rank: ${get_rank_text(1.0 - (better_users.nb / all_users.nb))} (#${better_users.nb + 1}/${all_users.nb})
       </pre>
+      <div>
+        <!-- shameless but i'm still too lazy to design the website so... -->
+        <a href="https://kiwec.net/discord">Join the o!RL discord if you haven't already #ad</a>
+      </div>
     </body>
     </html>`);
   });
