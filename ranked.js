@@ -432,13 +432,13 @@ async function join_lobby(lobby, lobby_db, map_db, client) {
     }
   });
 
-  lobby.channel.on('message', (msg) => on_lobby_msg(lobby, msg).catch(Sentry.captureException));
+  lobby.channel.on('message', (msg) => on_lobby_msg(lobby, msg, map_db).catch(Sentry.captureException));
 
   client.joined_lobbies.push(lobby);
   console.log(`Joined ranked lobby #${lobby.id}`);
 }
 
-async function on_lobby_msg(lobby, msg) {
+async function on_lobby_msg(lobby, msg, map_db) {
   console.log(`[Ranked #${lobby.id}] ${msg.user.ircUsername}: ${msg.message}`);
 
   // Temporary workaround for bancho.js bug with playerJoined/playerLeft events
