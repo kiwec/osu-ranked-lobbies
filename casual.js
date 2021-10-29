@@ -1,3 +1,4 @@
+import Sentry from '@sentry/node';
 import SQL from 'sql-template-strings';
 
 let map_db = null;
