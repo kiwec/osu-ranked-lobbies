@@ -167,8 +167,9 @@ async function select_next_map(lobby, map_db) {
     if (score_system == 3) title_modifiers += ' ScoreV2';
     const new_title = `${meta.min_stars.toFixed(1)}-${meta.max_stars.toFixed(1)}*${title_modifiers} | o!RL | Auto map select`;
 
-    if (lobby.title != new_title) {
+    if (lobby.name != new_title) {
       await lobby.channel.sendMessage(`!mp name ${new_title}`);
+      lobby.name = new_title; // not sure bancho emits a roomName event on !mp name?
     }
   } catch (e) {
     console.error(`[Ranked #${lobby.id}] Failed to switch to map ${new_map.id} ${new_map.name}:`, e);
