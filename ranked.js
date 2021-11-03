@@ -165,7 +165,7 @@ async function select_next_map(lobby, map_db) {
     let title_modifiers = '';
     if (is_dt) title_modifiers += ' DT';
     if (score_system == 3) title_modifiers += ' ScoreV2';
-    const new_title = `${meta.min_stars.toFixed(1)}-${meta.max_stars.toFixed(1)}*${title_modifiers} | o!RL | Auto map select`;
+    const new_title = `${meta.min_stars.toFixed(1)}-${meta.max_stars.toFixed(1)}*${title_modifiers} | o!RL | Auto map select (!about)`;
 
     if (lobby.name != new_title) {
       await lobby.channel.sendMessage(`!mp name ${new_title}`);
@@ -520,7 +520,7 @@ async function on_lobby_msg(lobby, msg, map_db) {
         SELECT games_played FROM user
         WHERE user_id = ${msg.user.id}`,
       );
-      await msg.user.sendMessage(`${msg.user.ircUsername}: You are unranked. Play ${5 - res.games_played} more games to get a rank!`);
+      await lobby.channel.sendMessage(`${msg.user.ircUsername}: You are unranked. Play ${5 - res.games_played} more games to get a rank!`);
     } else {
       await lobby.channel.sendMessage(`${msg.user.ircUsername}: You are [https://osu.kiwec.net/u/${msg.user.id}/ ${rank_text}].`);
     }
