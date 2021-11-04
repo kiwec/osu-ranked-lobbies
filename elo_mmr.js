@@ -146,6 +146,7 @@ class Player {
     this.user_id = bancho_user.id;
     this.username = bancho_user.ircUsername;
     this.games_played = 0;
+    this.rank_text = 'Unranked';
     this.approx_posterior = new Rating(1500.0, 350.0);
     this.normal_factor = new Rating(1500.0, 350.0);
     this.logistic_factors = [];
@@ -176,6 +177,7 @@ class Player {
       );
     }
 
+    this.rank_text = user.rank_text;
     this.games_played = user.games_played;
     this.approx_posterior = new Rating(user.approx_mu, user.approx_sig);
     this.normal_factor = new Rating(user.normal_mu, user.normal_sig);
@@ -380,6 +382,8 @@ async function update_mmr(lobby) {
       SET games_played = (SELECT COUNT(*) FROM score WHERE user_id = ${player.user_id})
       WHERE user_id = ${player.user_id}`,
     );
+
+    player.games_played++;
   }
 
   // Return the users whose rank's display text changed
@@ -395,23 +399,24 @@ async function update_mmr(lobby) {
     );
     const all_users = await db.get('SELECT COUNT(*) AS nb FROM user WHERE games_played > 4');
     const new_rank_float = 1.0 - (better_users.nb / all_users.nb);
+    const new_rank_text = get_rank_text(new_rank_float);
 
-    if (standing.player.games_played == 5) {
-      rank_changes.push({
-        user_id: standing.player.user_id,
-        username: standing.player.username,
-        rank_before: 0.0,
-        rank_after: new_rank_float,
-      });
-    } else if (get_rank_text(standing.player.rank_float) != get_rank_text(new_rank_float)) {
+    if (new_rank_text != standing.player.rank_text) {
       rank_changes.push({
         user_id: standing.player.user_id,
         username: standing.player.username,
         rank_before: standing.player.rank_float,
         rank_after: new_rank_float,
+        rank_text: new_rank_text,
       });
+
+      standing.player.rank_float = new_rank_float;
+      standing.player.rank_text = new_rank_text;
+      await db.run(SQL`
+        UPDATE user SET rank_text = ${new_rank_text}
+        WHERE user_id = ${standing.player.user_id}`,
+      );
     }
-    standing.player.rank_float = new_rank_float;
   }
   return rank_changes;
 }
@@ -497,7 +502,8 @@ async function init_db() {
     avg_ar REAL,
     last_top_score_tms INTEGER,
     last_update_tms INTEGER,
-    games_played INTEGER NOT NULL
+    games_played INTEGER NOT NULL,
+    rank_text TEXT
   )`);
 
   await db.exec(`CREATE TABLE IF NOT EXISTS contest (

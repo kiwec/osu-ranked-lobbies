@@ -4,7 +4,7 @@ import sqlite3 from 'sqlite3';
 import SQL from 'sql-template-strings';
 import BanchoLobbyPlayerStates from 'bancho.js/lib/Multiplayer/Enums/BanchoLobbyPlayerStates.js';
 
-import {init_db as init_ranking_db, update_mmr, get_rank_text, get_rank_text_from_id} from './elo_mmr.js';
+import {init_db as init_ranking_db, update_mmr, get_rank_text_from_id} from './elo_mmr.js';
 import {load_user_info} from './map_selector.js';
 import {
   update_ranked_lobby_on_discord,
@@ -412,12 +412,12 @@ async function join_lobby(lobby, client, creator) {
       if (rank_updates.length > 0) {
         const strings = [];
         for (const update of rank_updates) {
-          await update_discord_role(update.user_id, get_rank_text(update.rank_after));
+          await update_discord_role(update.user_id, update.rank_text);
 
           if (update.rank_before > update.rank_after) {
-            strings.push(update.username + ' [https://osu.kiwec.net/u/' + update.user_id + '/ ▼' + get_rank_text(update.rank_after) + ' ]');
+            strings.push(`${update.username} [https://osu.kiwec.net/u/ ${update.user_id}/ ▼ ${update.rank_text} ]`);
           } else {
-            strings.push(update.username + ' [https://osu.kiwec.net/u/' + update.user_id + '/ ▲' + get_rank_text(update.rank_after) + ' ]');
+            strings.push(`${update.username} [https://osu.kiwec.net/u/ ${update.user_id}/ ▲ ${update.rank_text} ]`);
           }
         }
 

@@ -6,7 +6,6 @@ import sqlite3 from 'sqlite3';
 import SQL from 'sql-template-strings';
 import {Client, Intents, MessageActionRow, MessageButton, MessageEmbed} from 'discord.js';
 
-import {get_rank_text} from './elo_mmr.js';
 import {join_lobby as join_ranked_lobby} from './ranked.js';
 
 const Config = JSON.parse(fs.readFileSync('./config.json'));
@@ -189,7 +188,6 @@ async function on_profile_command(user, interaction) {
     return;
   }
 
-  let division = 'Unranked';
   let rank = '-';
   const profile = await ranks_db.get(SQL`SELECT * FROM user WHERE user_id = ${user.osu_id}`);
   if (profile.elo && profile.games_played > 4) {
@@ -197,8 +195,6 @@ async function on_profile_command(user, interaction) {
       SELECT COUNT(*) AS nb FROM user
       WHERE elo > ${profile.elo} AND games_played > 4`,
     );
-    const all_users = await ranks_db.get('SELECT COUNT(*) AS nb FROM user WHERE games_played > 4');
-    division = get_rank_text(1.0 - (better_users.nb / all_users.nb));
     rank = '#' + (better_users.nb + 1);
   }
 
@@ -214,7 +210,7 @@ async function on_profile_command(user, interaction) {
           },
           {
             name: 'Division',
-            value: division,
+            value: profile.rank_text,
           },
           {
             name: 'Aim',
