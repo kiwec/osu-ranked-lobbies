@@ -345,6 +345,8 @@ async function join_lobby(lobby, client, creator) {
         lobby.voteskips.splice(lobby.voteskips.indexOf(evt.user.ircUsername), 1);
       }
 
+      await update_median_pp(lobby);
+
       get_nb_players(lobby); // update lobby.nb_players
       if (lobby.nb_players == 0) {
         await lobby.channel.sendMessage('!mp name 0-11* | o!RL | Auto map select (!about)');
