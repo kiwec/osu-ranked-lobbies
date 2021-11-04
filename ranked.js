@@ -265,6 +265,7 @@ async function join_lobby(lobby, client, creator) {
     }
   }
   await update_median_pp(lobby);
+  await update_ranked_lobby_on_discord(lobby);
 
   lobby.channel.on('PART', async (member) => {
     try {
