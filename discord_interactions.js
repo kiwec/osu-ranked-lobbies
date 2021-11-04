@@ -127,16 +127,16 @@ async function on_make_ranked_command(user, interaction) {
       throw new Error('you need to be the lobby host.');
     }
 
-    await channel.sendMessage(user.ircUsername + ': please send "!mp addref kiwec" to continue.');
+    await channel.sendMessage(host_user.ircUsername + ': please send "!mp addref kiwec" to continue.');
     channel.lobby.on('refereeAdded', async (username) => {
       if (username != 'kiwec') return;
 
       await channel.sendMessage('Thanks, I\'ll initialize the lobby now.');
       await channel.lobby.clearHost();
 
-      await join_ranked_lobby(channel.lobby, bancho_client, user.ircUsername);
-      await lobby_db.run(SQL`INSERT INTO ranked_lobby (lobby_id, creator) VALUES (${channel.lobby.id}, ${user.ircUsername})`);
-      console.log(`[Ranked #${channel.lobby.id}] Created by ${user.ircUsername}.`);
+      await join_ranked_lobby(channel.lobby, bancho_client, host_user.ircUsername);
+      await lobby_db.run(SQL`INSERT INTO ranked_lobby (lobby_id, creator) VALUES (${channel.lobby.id}, ${host_user.ircUsername})`);
+      console.log(`[Ranked #${channel.lobby.id}] Created by ${host_user.ircUsername}.`);
     });
 
     channel.lobby.on('refereeRemoved', async (username) => {

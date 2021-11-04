@@ -62,13 +62,13 @@ async function update_ranked_lobby_on_discord(lobby) {
         value: lobby.playing ? 'Playing' : 'Waiting',
         inline: true,
       },
+      {
+        name: 'Creator',
+        value: lobby.creator,
+        inline: true,
+      },
     ];
     if (lobby.nb_players > 0 && lobby.median_overall > 0) {
-      fields.push({
-        name: 'Difficulty',
-        value: Math.round(lobby.median_overall) + 'pp',
-        inline: true,
-      });
       fields.push({
         name: 'Aim',
         value: Math.round(lobby.median_aim) + 'pp',

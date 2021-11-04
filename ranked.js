@@ -176,6 +176,8 @@ async function select_next_map(lobby) {
   } catch (e) {
     console.error(`[Ranked #${lobby.id}] Failed to switch to map ${new_map.id} ${new_map.name}:`, e);
   }
+
+  await update_ranked_lobby_on_discord(lobby);
 }
 
 async function open_new_lobby_if_needed(client) {
@@ -232,8 +234,6 @@ async function update_median_pp(lobby) {
   lobby.median_overall = median(overalls) * lobby.difficulty_modifier;
   lobby.median_ar = median(ars);
 
-  await update_ranked_lobby_on_discord(lobby);
-
   return false;
 }
 
@@ -248,6 +248,7 @@ async function join_lobby(lobby, client, creator) {
   lobby.difficulty_modifier = 1.1;
   lobby.last_ready_msg = 0;
   lobby.is_dt = -1;
+  lobby.creator = creator;
   await lobby.setPassword('');
 
   // Fetch user info
@@ -269,7 +270,7 @@ async function join_lobby(lobby, client, creator) {
     try {
       // Lobby closed (intentionally or not), clean up
       if (member.user.isClient()) {
-        if (creator == 'kiwec') {
+        if (lobby.creator == 'kiwec') {
           client.owned_lobbies.splice(client.owned_lobbies.indexOf(lobby), 1);
         }
         client.joined_lobbies.splice(client.joined_lobbies.indexOf(lobby), 1);
@@ -320,6 +321,7 @@ async function join_lobby(lobby, client, creator) {
           await lobby.channel.sendMessage(`Welcome, ${player.ircUsername}! There is no host: use !start if the players aren't readying up, and !skip if the map is bad. [https://kiwec.net/discord Join the Discord] for more info.`);
         }
       }
+      await update_ranked_lobby_on_discord(lobby);
     } catch (e) {
       Sentry.captureException(e);
     }
@@ -342,18 +344,16 @@ async function join_lobby(lobby, client, creator) {
         lobby.voteskips.splice(lobby.voteskips.indexOf(evt.user.ircUsername), 1);
       }
 
-      if (await update_median_pp(lobby)) {
-        return;
-      }
-
-      const nb_players = get_nb_players(lobby);
-      if (nb_players == 0) {
+      get_nb_players(lobby); // update lobby.nb_players
+      if (lobby.nb_players == 0) {
         await lobby.channel.sendMessage('!mp name 0-11* | o!RL | Auto map select (!about)');
+        lobby.name = '0-11* | o!RL | Auto map select (!about)';
+        await update_ranked_lobby_on_discord(lobby);
         return;
       }
 
       // Check if we should skip
-      if (lobby.voteskips.length >= nb_players / 2) {
+      if (lobby.voteskips.length >= lobby.nb_players / 2) {
         await select_next_map(lobby);
         return;
       }
@@ -433,8 +433,6 @@ async function join_lobby(lobby, client, creator) {
           }
         }
       }
-
-      await update_ranked_lobby_on_discord(lobby);
     } catch (e) {
       Sentry.captureException(e);
     }
@@ -443,7 +441,7 @@ async function join_lobby(lobby, client, creator) {
   lobby.channel.on('message', (msg) => on_lobby_msg(lobby, msg).catch(Sentry.captureException));
 
   client.joined_lobbies.push(lobby);
-  if (creator == 'kiwec') {
+  if (lobby.creator == 'kiwec') {
     client.owned_lobbies.push(lobby);
   }
   console.log(`Joined ranked lobby #${lobby.id}`);
