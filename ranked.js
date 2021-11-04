@@ -416,9 +416,9 @@ async function join_lobby(lobby, client, creator) {
           await update_discord_role(update.user_id, update.rank_text);
 
           if (update.rank_before > update.rank_after) {
-            strings.push(`${update.username} [https://osu.kiwec.net/u/ ${update.user_id}/ ▼ ${update.rank_text} ]`);
+            strings.push(`${update.username} [https://osu.kiwec.net/u/${update.user_id}/ ▼ ${update.rank_text} ]`);
           } else {
-            strings.push(`${update.username} [https://osu.kiwec.net/u/ ${update.user_id}/ ▲ ${update.rank_text} ]`);
+            strings.push(`${update.username} [https://osu.kiwec.net/u/${update.user_id}/ ▲ ${update.rank_text} ]`);
           }
         }
 
