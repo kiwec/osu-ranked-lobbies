@@ -7,8 +7,8 @@ async function main() {
 
   client.once('ready', async () => {
     console.log('ready');
-    // const discord_channel = client.channels.cache.get('892789885335924786');
-    const discord_channel = client.channels.cache.get('893207661225594880'); // test channel
+    const discord_channel = client.channels.cache.get('892789885335924786');
+    // const discord_channel = client.channels.cache.get('893207661225594880'); // test channel
 
     await discord_channel.send({
       embeds: [
@@ -17,11 +17,11 @@ async function main() {
           fields: [
             {
               name: '1.',
-              value: 'In osu!, send **!mp make lobby** in any chat window.',
+              value: 'Create a new lobby **without a password** (or else the bot can\'t join).',
             },
             {
               name: '2.',
-              value: `**BanchoBot** should have sent you a message with an URL. Copy the numbers after **https://osu.ppy.sh/mp/**.`,
+              value: `**BanchoBot** should have sent a match history link. Copy the numbers after **https://osu.ppy.sh/mp/**.`,
             },
             {
               name: '3.',

@@ -13,6 +13,7 @@ let client = null;
 let bancho_client = null;
 let db = null;
 let ranks_db = null;
+let lobby_db = null;
 
 
 function init(_bancho_client) {
@@ -22,6 +23,11 @@ function init(_bancho_client) {
     try {
       db = await open({
         filename: 'discord.db',
+        driver: sqlite3.cached.Database,
+      });
+
+      lobby_db = await open({
+        filename: 'lobbies.db',
         driver: sqlite3.cached.Database,
       });
 
