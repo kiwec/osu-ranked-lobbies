@@ -116,6 +116,7 @@ async function on_make_ranked_command(user, interaction) {
   try {
     const channel = await bancho_client.getChannel('#mp_' + interaction.options.getInteger('lobby-id'));
     await channel.join();
+    await channel.lobby.updateSettings();
 
     let host_user = null;
     for (const player of channel.lobby.slots) {
