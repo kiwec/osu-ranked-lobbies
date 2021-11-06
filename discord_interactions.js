@@ -116,7 +116,21 @@ async function on_make_ranked_command(user, interaction) {
   try {
     const channel = await bancho_client.getChannel('#mp_' + interaction.options.getInteger('lobby-id'));
     await channel.join();
-    await channel.lobby.clearHost();
+
+    let host_user = null;
+    for (const player of channel.lobby.slots) {
+      if (player == null) continue;
+      if (player.isHost) {
+        await player.user.fetchFromAPI();
+        if (player.user.id == user.osu_id) {
+          host_user = player.user;
+          break;
+        }
+      }
+    }
+    if (host_user == null) {
+      throw new Error('you need to be the lobby host.');
+    }
 
     channel.lobby.on('refereeRemoved', async (username) => {
       if (username != 'kiwec') return;
@@ -126,6 +140,7 @@ async function on_make_ranked_command(user, interaction) {
       channel.lobby.removeAllListeners();
     });
 
+    await channel.lobby.clearHost();
     await join_ranked_lobby(channel.lobby, bancho_client, host_user.ircUsername);
     await lobby_db.run(SQL`INSERT INTO ranked_lobby (lobby_id, creator) VALUES (${channel.lobby.id}, ${host_user.ircUsername})`);
     console.log(`[Ranked #${channel.lobby.id}] Created by ${host_user.ircUsername}.`);
