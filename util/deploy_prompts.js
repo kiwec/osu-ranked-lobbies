@@ -14,20 +14,7 @@ async function main() {
       embeds: [
         new MessageEmbed({
           title: 'Instructions for creating a new ranked lobby',
-          fields: [
-            {
-              name: '1.',
-              value: 'Create a new lobby **without a password** (or else the bot can\'t join).',
-            },
-            {
-              name: '2.',
-              value: `**BanchoBot** should have sent a match history link. Copy the numbers after **https://osu.ppy.sh/mp/**.`,
-            },
-            {
-              name: '3.',
-              value: 'In Discord, send **/make-ranked [the numbers you copied]** and the bot should join your lobby.',
-            },
-          ],
+          description: '**1.** Create a new lobby.\n**2.** BanchoBot should have sent a match history link. Copy the numbers after https://osu.ppy.sh/mp/.\n**3.** In the lobby chat, send **!mp addref kiwec**.\n**4.** In Discord, send **/make-ranked [the numbers you copied]** and the bot should join your lobby.',
         }),
       ],
     });

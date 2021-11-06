@@ -116,34 +116,7 @@ async function on_make_ranked_command(user, interaction) {
   try {
     const channel = await bancho_client.getChannel('#mp_' + interaction.options.getInteger('lobby-id'));
     await channel.join();
-    await channel.lobby.updateSettings();
-
-    let host_user = null;
-    for (const player of channel.lobby.slots) {
-      if (player == null) continue;
-      if (player.isHost) {
-        await player.user.fetchFromAPI();
-        if (player.user.id == user.osu_id) {
-          host_user = player.user;
-          break;
-        }
-      }
-    }
-    if (host_user == null) {
-      throw new Error('you need to be the lobby host.');
-    }
-
-    await channel.sendMessage(host_user.ircUsername + ': please send "!mp addref kiwec" to continue.');
-    channel.lobby.on('refereeAdded', async (username) => {
-      if (username != 'kiwec') return;
-
-      await channel.sendMessage('Thanks, I\'ll initialize the lobby now.');
-      await channel.lobby.clearHost();
-
-      await join_ranked_lobby(channel.lobby, bancho_client, host_user.ircUsername);
-      await lobby_db.run(SQL`INSERT INTO ranked_lobby (lobby_id, creator) VALUES (${channel.lobby.id}, ${host_user.ircUsername})`);
-      console.log(`[Ranked #${channel.lobby.id}] Created by ${host_user.ircUsername}.`);
-    });
+    await channel.lobby.clearHost();
 
     channel.lobby.on('refereeRemoved', async (username) => {
       if (username != 'kiwec') return;
@@ -153,7 +126,11 @@ async function on_make_ranked_command(user, interaction) {
       channel.lobby.removeAllListeners();
     });
 
-    await interaction.editReply({content: 'Almost there! Please follow the final instructions in the lobby.'});
+    await join_ranked_lobby(channel.lobby, bancho_client, host_user.ircUsername);
+    await lobby_db.run(SQL`INSERT INTO ranked_lobby (lobby_id, creator) VALUES (${channel.lobby.id}, ${host_user.ircUsername})`);
+    console.log(`[Ranked #${channel.lobby.id}] Created by ${host_user.ircUsername}.`);
+
+    await interaction.editReply({content: 'Lobby initialized ✅ Enjoy!'});
   } catch (err) {
     await interaction.editReply({content: 'Failed to join lobby: ' + err});
   }
