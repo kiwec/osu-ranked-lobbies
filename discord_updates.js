@@ -18,25 +18,25 @@ async function init(discord_client) {
 }
 
 
-function get_pp_color(pp) {
-  if (typeof pp === 'undefined' || !pp) {
+function get_pp_color(lobby) {
+  if (!lobby || !lobby.median_overall) {
     return null;
   }
 
-  // TODO: set better colors & brackets based on actual ranks
-  if (pp < 50) {
+  const sr = (lobby.min_stars + lobby.max_stars) / 2.0;
+  if (sr < 2.0) {
     // Easy
     return '#76b000';
-  } else if (pp < 100) {
+  } else if (sr < 2.7) {
     // Normal
     return '#58d6ff';
-  } else if (pp < 150) {
+  } else if (sr < 4) {
     // Hard
     return '#ffd60a';
-  } else if (pp < 250) {
+  } else if (sr < 5.3) {
     // Insane
     return '#ff58ac';
-  } else if (pp < 400) {
+  } else if (sr < 6.5) {
     // Expert
     return '#8158fe';
   } else {
@@ -91,7 +91,7 @@ async function update_ranked_lobby_on_discord(lobby) {
         new MessageEmbed({
           title: lobby.name,
           fields: fields,
-          color: get_pp_color(lobby.median_overall),
+          color: get_pp_color(lobby),
         }),
       ],
       components: [
