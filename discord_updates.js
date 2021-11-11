@@ -51,46 +51,27 @@ async function update_ranked_lobby_on_discord(lobby) {
   let msg = null;
 
   try {
-    const fields = [
-      {
-        name: 'Players',
-        value: lobby.nb_players + '/' + lobby.size,
-        inline: true,
-      },
-      {
-        name: 'Status',
-        value: lobby.playing ? 'Playing' : 'Waiting',
-        inline: true,
-      },
-      {
-        name: 'Creator',
-        value: lobby.creator,
-        inline: true,
-      },
-    ];
-    if (lobby.nb_players > 0 && lobby.median_overall > 0) {
-      fields.push({
-        name: 'Aim',
-        value: Math.round(lobby.median_aim) + 'pp',
-        inline: true,
-      });
-      fields.push({
-        name: 'Speed',
-        value: Math.round(lobby.median_speed) + 'pp',
-        inline: true,
-      });
-      fields.push({
-        name: 'Accuracy',
-        value: Math.round(lobby.median_acc) + 'pp',
-        inline: true,
-      });
-    }
-
     msg = {
       embeds: [
         new MessageEmbed({
           title: lobby.name,
-          fields: fields,
+          fields: [
+            {
+              name: 'Players',
+              value: lobby.nb_players + '/' + lobby.size,
+              inline: true,
+            },
+            {
+              name: 'Status',
+              value: lobby.playing ? 'Playing' : 'Waiting',
+              inline: true,
+            },
+            {
+              name: 'Creator',
+              value: lobby.creator,
+              inline: true,
+            },
+          ],
           color: get_pp_color(lobby),
         }),
       ],
