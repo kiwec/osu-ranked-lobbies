@@ -572,6 +572,7 @@ async function on_lobby_msg(lobby, msg) {
 
   if (msg.message == '!wait' && lobby.countdown != -1) {
     clearTimeout(lobby.countdown);
+    lobby.countdown = -1;
     await lobby.channel.sendMessage('Match auto-start is cancelled. Type !start to restart it.');
   }
 }
