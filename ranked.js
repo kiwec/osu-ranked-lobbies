@@ -170,13 +170,15 @@ async function select_next_map(lobby) {
     let title_modifiers = '';
     if (is_dt) title_modifiers += ' DT';
     if (score_system == 3) title_modifiers += ' ScoreV2';
-    lobby.min_stars = meta.min_stars.toFixed(1);
-    lobby.max_stars = meta.max_stars.toFixed(1);
-    const new_title = `${lobby.min_stars}-${lobby.max_stars}*${title_modifiers} | o!RL | Auto map select (!about)`;
+    lobby.min_stars = meta.min_stars;
+    lobby.max_stars = meta.max_stars;
+    const new_title = `${meta.min_stars.toFixed(1)}-${meta.max_stars.toFixed(1)}*${title_modifiers} | o!RL | Auto map select (!about)`;
 
     if (lobby.name != new_title) {
       await lobby.channel.sendMessage(`!mp name ${new_title}`);
-      lobby.name = new_title; // not sure bancho emits a roomName event on !mp name?
+
+      // roomName event is not emitted immediately, so let's set this now
+      lobby.name = new_title;
     }
   } catch (e) {
     console.error(`[Ranked #${lobby.id}] Failed to switch to map ${new_map.id} ${new_map.name}:`, e);
