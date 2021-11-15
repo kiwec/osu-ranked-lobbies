@@ -138,12 +138,17 @@ async function on_make_ranked_command(user, interaction) {
     });
 
     await channel.lobby.clearHost();
-    await join_lobby(channel.lobby, bancho_client, host_user.ircUsername, user.discord_id);
+    await join_lobby(channel.lobby, bancho_client, host_user.ircUsername, user.discord_id, true);
     console.log(`[Ranked #${channel.lobby.id}] Created by ${host_user.ircUsername}.`);
 
     await interaction.editReply({content: 'Lobby initialized ✅ Enjoy!'});
   } catch (err) {
-    await interaction.editReply({content: 'Failed to join lobby: ' + err});
+    if (err.message == 'No such channel') {
+      await interaction.editReply({content: 'Failed to join lobby. Are you sure you ran **!mp addref kiwec**, and that the lobby id is correct?'});
+    } else {
+      await interaction.editReply({content: 'Failed to join lobby: ' + err});
+      Sentry.captureException(err);
+    }
   }
 }
 

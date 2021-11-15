@@ -202,7 +202,7 @@ async function open_new_lobby_if_needed(client) {
   if (empty_slots == 0) {
     creating_lobby = true;
     const channel = await client.createLobby(`0-11* | o!RL | Auto map select (!about)`);
-    await join_lobby(channel.lobby, client, 'kiwec', '889603773574578198');
+    await join_lobby(channel.lobby, client, 'kiwec', '889603773574578198', false);
     creating_lobby = false;
     console.log(`[Ranked #${channel.lobby.id}] Created.`);
   }
@@ -242,7 +242,7 @@ async function update_median_pp(lobby) {
   return false;
 }
 
-async function join_lobby(lobby, client, creator, creator_discord_id) {
+async function join_lobby(lobby, client, creator, creator_discord_id, created_just_now) {
   lobby.recent_maps = [];
   lobby.votekicks = [];
   lobby.voteskips = [];
@@ -446,6 +446,11 @@ async function join_lobby(lobby, client, creator, creator_discord_id) {
   if (lobby.creator == 'kiwec') {
     client.owned_lobbies.push(lobby);
   }
+
+  if (created_just_now) {
+    await select_next_map(lobby);
+  }
+
   console.log(`Joined ranked lobby #${lobby.id}`);
 }
 
@@ -598,7 +603,7 @@ async function start_ranked(client, _map_db) {
     try {
       const channel = await client.getChannel('#mp_' + lobby.lobby_id);
       await channel.join();
-      await join_lobby(channel.lobby, client, lobby.creator, lobby.creator_discord_id);
+      await join_lobby(channel.lobby, client, lobby.creator, lobby.creator_discord_id, false);
     } catch (e) {
       console.error('Failed to rejoin lobby ' + lobby.lobby_id + ':', e);
       await close_ranked_lobby_on_discord({id: lobby.lobby_id});
