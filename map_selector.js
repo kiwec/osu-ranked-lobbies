@@ -53,7 +53,7 @@ async function osu_fetch(url, options) {
 }
 
 // We assume bancho_user.id is already set.
-async function load_user_info(bancho_user) {
+async function load_user_info(bancho_user, lobby) {
   if (!maps_db) {
     maps_db = await open({
       filename: 'maps.db',
@@ -94,11 +94,23 @@ async function load_user_info(bancho_user) {
     }
   }
 
-  // Fetch top user scores from osu api
+  // Fetch top user scores from osu!api
   const res = await osu_fetch(
       `https://osu.ppy.sh/api/v2/users/${bancho_user.id}/scores/best?key=id&mode=osu&limit=100&include_fails=0`,
       {method: 'get'},
   );
+  if (res.statusCode >= 500) {
+    bancho_user.pp = {
+      aim: 0,
+      acc: 0,
+      speed: 0,
+      overall: 0,
+      ar: 0,
+    };
+    await lobby.channel.sendMessage(`Sorry, ${bancho_user.ircUsername}, I couldn't load your profile. The osu! servers are having issues, please try joining again later.`);
+    return;
+  }
+
   const recent_scores = await res.json();
   let has_new_score = false;
   for (const score of recent_scores) {

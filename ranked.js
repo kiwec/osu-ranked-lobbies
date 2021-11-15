@@ -266,7 +266,7 @@ async function join_lobby(lobby, client, creator, creator_discord_id, created_ju
 
     try {
       await player.user.fetchFromAPI();
-      await load_user_info(player.user);
+      await load_user_info(player.user, lobby);
     } catch (err) {
       console.error(`[Ranked #${lobby.id}] Failed to fetch user data for '${player.user.ircUsername}'`);
       await lobby.channel.sendMessage(`!mp ban ${player.user.ircUsername}`);
@@ -297,7 +297,6 @@ async function join_lobby(lobby, client, creator, creator_discord_id, created_ju
 
   lobby.on('playerJoined', async (evt) => {
     try {
-      console.log(evt.player.user.username + ' JOINED');
       const joined_alone = get_nb_players(lobby) == 1;
 
       deadlines = deadlines.filter((deadline) => deadline.username != evt.player.user.username);
@@ -313,7 +312,7 @@ async function join_lobby(lobby, client, creator, creator_discord_id, created_ju
       await open_new_lobby_if_needed(client);
 
       // Warning: load_user_info can be a slow call
-      await load_user_info(player);
+      await load_user_info(player, lobby);
       await update_median_pp(lobby);
       if (joined_alone) {
         await select_next_map(lobby);
@@ -329,8 +328,6 @@ async function join_lobby(lobby, client, creator, creator_discord_id, created_ju
 
   lobby.on('playerLeft', async (evt) => {
     try {
-      console.log(evt.user.ircUsername + ' LEFT');
-
       // Remove user's votekicks, and votekicks against the user
       delete lobby.votekicks[evt.user.ircUsername];
       for (const annoyed_players of lobby.votekicks) {
