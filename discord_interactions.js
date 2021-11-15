@@ -175,14 +175,27 @@ async function on_set_preferred_scoring_system(user, interaction) {
     return;
   }
 
-  const score_systems = ['ScoreV1', 'Accuracy', 'Combo', 'ScoreV2'];
-  const index = parseInt(interaction.values[0], 10);
-  await db.run(SQL`UPDATE user SET score_preference = ${index} WHERE discord_id = ${interaction.user.id}`);
-  await interaction.reply({
-    content: `Ranked lobbies will now use ${score_systems[index]} as the scoring system if the majority votes for it.`,
-    ephemeral: true,
-  });
-  console.log(`[Discord] ${interaction.user} selected ${score_systems[index]} as their preferred scoring system.`);
+  if (interaction.values[0] == '0') {
+    await db.run(SQL`UPDATE user SET score_preference = 0 WHERE discord_id = ${interaction.user.id}`);
+    await interaction.reply({
+      content: `Ranked lobbies will now use ScoreV1 as the scoring system if the majority votes for it.`,
+      ephemeral: true,
+    });
+  } else if (interaction.values[0] == '3') {
+    await db.run(SQL`UPDATE user SET score_preference = 3 WHERE discord_id = ${interaction.user.id}`);
+    await interaction.reply({
+      content: `Ranked lobbies will now use ScoreV2 as the scoring system if the majority votes for it.`,
+      ephemeral: true,
+    });
+  } else {
+    await db.run(SQL`UPDATE user SET score_preference = NULL WHERE discord_id = ${interaction.user.id}`);
+    await interaction.reply({
+      content: `Ranked lobbies will use the scoring system voted by the majority.`,
+      ephemeral: true,
+    });
+  }
+
+  console.log(`[Discord] ${interaction.user} selected '${interaction.values[0]}' as their preferred scoring system.`);
 }
 
 async function on_profile_command(user, interaction) {
