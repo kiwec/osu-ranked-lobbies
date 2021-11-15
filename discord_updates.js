@@ -171,6 +171,9 @@ async function update_discord_role(osu_user_id, rank_text) {
       const guild = await client.guilds.fetch('891781932067749948');
       const member = await guild.members.fetch(user.discord_id);
 
+      // Add 'Linked account' role
+      await member.roles.add('909777665223966750');
+
       if (rank_text == 'The One') {
         const role = await guild.roles.fetch(DISCORD_ROLES[rank_text]);
         role.members.each(async (member) => {

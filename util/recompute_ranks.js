@@ -51,7 +51,7 @@ async function recompute_ranks() {
       scores: [],
       mock_tms: contest.tms,
       mods: [],
-      winCondition: 0, // ScoreV1
+      winCondition: 0, // ScoreV1 // TODO: get from database the actual winCondition
     };
 
     // 2. Populate fake lobby with fake score objects
@@ -95,6 +95,9 @@ async function recompute_ranks() {
     'The One': '892966704991330364',
   };
 
+  // TODO: check rank text difference from db
+  // optionally, directly use update_discord_role() ?
+
   const guild = await discord_client.guilds.fetch('891781932067749948');
   const users = await discord_db.all('SELECT osu_id, discord_id FROM user');
   for (const user of users) {
@@ -113,6 +116,9 @@ async function recompute_ranks() {
       }
 
       try {
+        // Add 'Linked account' role
+        await member.roles.add('909777665223966750');
+
         await member.roles.add(DISCORD_ROLES[rank_text]);
         console.log('+ Added ' + rank_text);
       } catch (err) {
