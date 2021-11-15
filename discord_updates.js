@@ -136,7 +136,6 @@ async function close_ranked_lobby_on_discord(lobby) {
     await discord_channel.messages.delete(ranked_lobby.discord_msg_id);
   } catch (err) {
     console.error(`[Ranked #${lobby.id}] Failed to remove Discord message: ${err}`);
-    Sentry.captureException(err);
   }
 }
 
@@ -169,7 +168,13 @@ async function update_discord_role(osu_user_id, rank_text) {
 
     try {
       const guild = await client.guilds.fetch('891781932067749948');
-      const member = await guild.members.fetch(user.discord_id);
+      let member;
+      try {
+        member = await guild.members.fetch(user.discord_id);
+      } catch (err) {
+        console.error('[Discord] <@' + user.discord_id + '> left the discord server?');
+        return;
+      }
 
       // Add 'Linked account' role
       await member.roles.add('909777665223966750');

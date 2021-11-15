@@ -641,10 +641,16 @@ async function start_ranked(client, _map_db) {
       if (msg.message == '!rank') {
         const rank_text = await get_rank_text_from_id(msg.user.id);
         if (rank_text == 'Unranked') {
-          const res = await ranking_db.get(SQL`
+          let res = await ranking_db.get(SQL`
             SELECT games_played FROM user
             WHERE user_id = ${msg.user.id}`,
           );
+          // Wow, player never even played a game and is requesting their rank in PMs? Wtf?
+          if (!res) {
+            res = {
+              games_played: 0,
+            };
+          }
           await msg.user.sendMessage(`You are unranked. Play ${5 - res.games_played} more games to get a rank!`);
         } else {
           await msg.user.sendMessage(`You are [https://osu.kiwec.net/u/${msg.user.id}/ ${rank_text}].`);
