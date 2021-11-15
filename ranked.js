@@ -667,6 +667,8 @@ async function on_lobby_msg(lobby, msg) {
   if (msg.message == '!skip' && !lobby.voteskips.includes(msg.user.ircUsername)) {
     lobby.voteskips.push(msg.user.ircUsername);
     if (lobby.voteskips.length >= get_nb_players(lobby) / 2) {
+      clearTimeout(lobby.countdown);
+      lobby.countdown = -1;
       await update_median_pp(lobby);
       await select_next_map(lobby);
     } else {
