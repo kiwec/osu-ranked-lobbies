@@ -100,6 +100,7 @@ async function on_interaction(interaction) {
 
 async function on_make_ranked_command(user, interaction) {
   if (!user) {
+    const welcome = await client.channels.cache.get('892880734526795826');
     await interaction.reply({
       content: `To create a ranked lobby, you first need to click the button in ${welcome} to link your osu! account.`,
       ephemeral: true,
@@ -180,6 +181,7 @@ async function on_profile_command(user, interaction) {
   }
 
   if (!user) {
+    const welcome = await client.channels.cache.get('892880734526795826');
     await interaction.reply({
       content: `To check your profile, you first need to click the button in ${welcome} to link your osu! account.`,
       ephemeral: true,
