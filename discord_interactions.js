@@ -6,14 +6,13 @@ import sqlite3 from 'sqlite3';
 import SQL from 'sql-template-strings';
 import {Client, Intents, MessageActionRow, MessageButton, MessageEmbed} from 'discord.js';
 
-import {join_lobby as join_ranked_lobby} from './ranked.js';
+import {join_lobby} from './ranked.js';
 
 const Config = JSON.parse(fs.readFileSync('./config.json'));
 let client = null;
 let bancho_client = null;
 let db = null;
 let ranks_db = null;
-let lobby_db = null;
 
 
 function init(_bancho_client) {
@@ -26,15 +25,12 @@ function init(_bancho_client) {
         driver: sqlite3.cached.Database,
       });
 
-      lobby_db = await open({
-        filename: 'lobbies.db',
-        driver: sqlite3.cached.Database,
-      });
-
       await db.exec(`CREATE TABLE IF NOT EXISTS ranked_lobby (
         osu_lobby_id INTEGER,
         discord_channel_id TEXT,
-        discord_msg_id TEXT
+        discord_msg_id TEXT,
+        creator TEXT,
+        creator_discord_id TEXT
       )`);
 
       await db.exec(`CREATE TABLE IF NOT EXISTS auth_tokens (
@@ -142,8 +138,7 @@ async function on_make_ranked_command(user, interaction) {
     });
 
     await channel.lobby.clearHost();
-    await join_ranked_lobby(channel.lobby, bancho_client, host_user.ircUsername);
-    await lobby_db.run(SQL`INSERT INTO ranked_lobby (lobby_id, creator) VALUES (${channel.lobby.id}, ${host_user.ircUsername})`);
+    await join_lobby(channel.lobby, bancho_client, host_user.ircUsername, user.discord_id);
     console.log(`[Ranked #${channel.lobby.id}] Created by ${host_user.ircUsername}.`);
 
     await interaction.editReply({content: 'Lobby initialized ✅ Enjoy!'});

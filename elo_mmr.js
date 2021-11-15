@@ -50,7 +50,6 @@ class Contest {
     this.mods = 0;
     if (lobby.mods) {
       for (const mod of lobby.mods) {
-        console.log('debug: lobby mod', mod);
         this.mods |= mod.enumValue;
       }
     }
@@ -73,7 +72,6 @@ class Contest {
     for (const score of lobby.scores) {
       let player_mods = 0;
       for (const mod of score.player.mods) {
-        console.log('debug: player mod', mod);
         player_mods |= mod.enumValue;
       }
 

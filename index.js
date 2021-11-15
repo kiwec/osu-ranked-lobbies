@@ -7,7 +7,6 @@ import sqlite3 from 'sqlite3';
 import {init as init_discord_interactions} from './discord_interactions.js';
 import {init as init_discord_updates} from './discord_updates.js';
 import {listen as website_listen} from './website.js';
-import {start as start_casual} from './casual.js';
 import {start_ranked} from './ranked.js';
 
 
@@ -17,35 +16,6 @@ const Config = JSON.parse(fs.readFileSync('./config.json'));
 Sentry.init({
   dsn: Config.sentry_dsn,
 });
-
-
-async function init_lobby_db() {
-  const lobby_db = await open({
-    filename: 'lobbies.db',
-    driver: sqlite3.cached.Database,
-  });
-
-  await lobby_db.exec(`CREATE TABLE IF NOT EXISTS lobby (
-    lobby_id INTEGER,
-    creator TEXT,
-    filters TEXT
-  )`);
-
-  await lobby_db.exec(`CREATE TABLE IF NOT EXISTS ranked_lobby (
-    lobby_id INTEGER,
-    creator TEXT
-  )`);
-
-  // NOTE: In `lobbies.db`, this table is only used for version checking.
-  // For ranks, we use the `user` table from the `ranks.db` database.
-  await lobby_db.exec(`CREATE TABLE IF NOT EXISTS user (
-    user_id INTEGER PRIMARY KEY,
-    username TEXT,
-    last_version TEXT
-  )`);
-
-  return lobby_db;
-}
 
 
 async function main() {
@@ -63,14 +33,12 @@ async function main() {
     await client.connect();
     console.log('Connected to bancho.');
 
-    const lobby_db = await init_lobby_db();
     const map_db = await open({
       filename: 'maps.db',
       driver: sqlite3.cached.Database,
     });
 
-    await start_casual(client, lobby_db, map_db);
-    await start_ranked(client, lobby_db, map_db);
+    await start_ranked(client, map_db);
 
     client.on('PM', async (msg) => {
       console.log(`[PM] ${msg.user.ircUsername}: ${msg.message}`);
@@ -85,7 +53,12 @@ async function main() {
         return;
       }
 
-      const lobby_only_commands = ['!skip', '!start', '!setfilter', '!kick', '!wait'];
+      if (msg.message.indexOf('!makelobby') == 0 || msg.message.indexOf('!createlobby') == 0) {
+        await msg.user.sendMessage('Sorry, that command was removed. Instead, you can create a ranked lobby with a custom star range.');
+        return;
+      }
+
+      const lobby_only_commands = ['!skip', '!start', '!kick', '!wait'];
       for (const cmd of lobby_only_commands) {
         if (msg.message.indexOf(cmd) == 0) {
           await msg.user.sendMessage('Sorry, you should send that command in #multiplayer.');

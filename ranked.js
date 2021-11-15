@@ -18,7 +18,6 @@ let deadlines = [];
 let deadline_id = 0;
 let creating_lobby = false;
 let ranking_db = null;
-let lobby_db = null;
 let map_db = null;
 
 
@@ -203,8 +202,7 @@ async function open_new_lobby_if_needed(client) {
   if (empty_slots == 0) {
     creating_lobby = true;
     const channel = await client.createLobby(`0-11* | o!RL | Auto map select (!about)`);
-    await join_lobby(channel.lobby, client, 'kiwec');
-    await lobby_db.run(SQL`INSERT INTO ranked_lobby (lobby_id, creator) VALUES (${channel.lobby.id}, 'kiwec')`);
+    await join_lobby(channel.lobby, client, 'kiwec', '889603773574578198');
     creating_lobby = false;
     console.log(`[Ranked #${channel.lobby.id}] Created.`);
   }
@@ -244,7 +242,7 @@ async function update_median_pp(lobby) {
   return false;
 }
 
-async function join_lobby(lobby, client, creator) {
+async function join_lobby(lobby, client, creator, creator_discord_id) {
   lobby.recent_maps = [];
   lobby.votekicks = [];
   lobby.voteskips = [];
@@ -256,6 +254,7 @@ async function join_lobby(lobby, client, creator) {
   lobby.last_ready_msg = 0;
   lobby.is_dt = -1;
   lobby.creator = creator;
+  lobby.creator_discord_id = creator_discord_id;
   lobby.min_stars = 0.0;
   lobby.max_stars = 11.0;
   await lobby.setPassword('');
@@ -284,7 +283,6 @@ async function join_lobby(lobby, client, creator) {
           client.owned_lobbies.splice(client.owned_lobbies.indexOf(lobby), 1);
         }
         client.joined_lobbies.splice(client.joined_lobbies.indexOf(lobby), 1);
-        await lobby_db.run(SQL`DELETE FROM ranked_lobby WHERE lobby_id = ${lobby.id}`);
         await close_ranked_lobby_on_discord(lobby);
         console.log(`[Ranked #${lobby.id}] Closed.`);
 
@@ -310,14 +308,6 @@ async function join_lobby(lobby, client, creator) {
       } catch (err) {
         console.error(`[Ranked #${lobby.id}] Failed to fetch user data for '${evt.player.user.username}'`);
         await lobby.channel.sendMessage(`!mp ban ${evt.player.user.username}`);
-      }
-
-      const user = await lobby_db.get(SQL`SELECT * FROM user WHERE user_id = ${player.id}`);
-      if (!user) {
-        await lobby_db.run(SQL`
-          INSERT INTO user (user_id, username, last_version)
-          VALUES (${player.id}, ${player.ircUsername}, 'current commit')`,
-        );
       }
 
       await open_new_lobby_if_needed(client);
@@ -586,8 +576,7 @@ async function on_lobby_msg(lobby, msg) {
   }
 }
 
-async function start_ranked(client, _lobby_db, _map_db) {
-  lobby_db = _lobby_db;
+async function start_ranked(client, _map_db) {
   map_db = _map_db;
 
   client.joined_lobbies = [];
@@ -599,15 +588,19 @@ async function start_ranked(client, _lobby_db, _map_db) {
     driver: sqlite3.cached.Database,
   });
 
-  const lobbies = await lobby_db.all('SELECT * from ranked_lobby');
+  const discord_db = await open({
+    filename: 'discord.db',
+    driver: sqlite3.cached.Database,
+  });
+
+  const lobbies = await discord_db.all('SELECT * from ranked_lobby');
   for (const lobby of lobbies) {
     try {
       const channel = await client.getChannel('#mp_' + lobby.lobby_id);
       await channel.join();
-      await join_lobby(channel.lobby, client, lobby.creator);
+      await join_lobby(channel.lobby, client, lobby.creator, lobby.creator_discord_id);
     } catch (e) {
       console.error('Failed to rejoin lobby ' + lobby.lobby_id + ':', e);
-      await lobby_db.run(SQL`DELETE FROM ranked_lobby WHERE lobby_id = ${lobby.lobby_id}`);
       await close_ranked_lobby_on_discord({id: lobby.lobby_id});
     }
   }

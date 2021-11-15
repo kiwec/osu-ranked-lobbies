@@ -68,7 +68,7 @@ async function update_ranked_lobby_on_discord(lobby) {
             },
             {
               name: 'Creator',
-              value: lobby.creator,
+              value: `<@${lobby.creator_discord_id}>`,
               inline: true,
             },
           ],
@@ -112,8 +112,8 @@ async function update_ranked_lobby_on_discord(lobby) {
       const discord_msg = await discord_channel.send(msg);
 
       await db.run(SQL`
-        INSERT INTO ranked_lobby (osu_lobby_id, discord_channel_id, discord_msg_id) 
-        VALUES (${lobby.id}, ${discord_channel.id}, ${discord_msg.id})`,
+        INSERT INTO ranked_lobby (osu_lobby_id, discord_channel_id, discord_msg_id, creator, creator_discord_id)
+        VALUES (${lobby.id}, ${discord_channel.id}, ${discord_msg.id}, ${lobby.creator}, ${lobby.creator_discord_id})`,
       );
     } catch (err) {
       console.error(`[Ranked #${lobby.id}] Failed to create Discord message: ${err}`);
@@ -131,9 +131,9 @@ async function close_ranked_lobby_on_discord(lobby) {
   if (!ranked_lobby) return;
 
   try {
+    await db.run(SQL`DELETE FROM ranked_lobby WHERE osu_lobby_id = ${lobby.id}`);
     const discord_channel = client.channels.cache.get(ranked_lobby.discord_channel_id);
     await discord_channel.messages.delete(ranked_lobby.discord_msg_id);
-    await db.run(SQL`DELETE FROM ranked_lobby WHERE osu_lobby_id = ${lobby.id}`);
   } catch (err) {
     console.error(`[Ranked #${lobby.id}] Failed to remove Discord message: ${err}`);
     Sentry.captureException(err);
@@ -166,7 +166,6 @@ async function update_discord_role(osu_user_id, rank_text) {
 
   if (user.discord_rank != rank_text) {
     console.log('[Discord] Updating role for user ' + osu_user_id + ': ' + user.discord_rank + ' -> ' + rank_text);
-    console.log('debug:', rank_text, DISCORD_ROLES[rank_text]);
 
     try {
       const guild = await client.guilds.fetch('891781932067749948');
@@ -175,7 +174,6 @@ async function update_discord_role(osu_user_id, rank_text) {
       if (rank_text == 'The One') {
         const role = await guild.roles.fetch(DISCORD_ROLES[rank_text]);
         role.members.each(async (member) => {
-          console.log('debug: removing The One from', member);
           try {
             await member.roles.remove(DISCORD_ROLES['The One']);
             await member.roles.add(DISCORD_ROLES['Legendary']);
