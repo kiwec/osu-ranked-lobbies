@@ -21,6 +21,19 @@ let ranking_db = null;
 let map_db = null;
 
 
+function set_sentry_context(lobby, current_task) {
+  Sentry.setContext('lobby', {
+    id: lobby.id,
+    median_pp: lobby.median_overall,
+    nb_players: lobby.nb_players,
+    creator: lobby.creator,
+    creator_discord_id: lobby.creator_discord_id,
+    min_stars: lobby.min_stars,
+    max_stars: lobby.max_stars,
+    task: current_task,
+  });
+}
+
 function median(numbers) {
   if (numbers.length == 0) return 0;
 
@@ -276,6 +289,8 @@ async function join_lobby(lobby, client, creator, creator_discord_id, created_ju
   await update_ranked_lobby_on_discord(lobby);
 
   lobby.channel.on('PART', async (member) => {
+    set_sentry_context(lobby, 'channel_part');
+
     try {
       // Lobby closed (intentionally or not), clean up
       if (member.user.isClient()) {
@@ -296,6 +311,9 @@ async function join_lobby(lobby, client, creator, creator_discord_id, created_ju
   });
 
   lobby.on('playerJoined', async (evt) => {
+    set_sentry_context(lobby, 'playerJoined');
+    Sentry.setUser({username: evt.player.user.username});
+
     try {
       const joined_alone = get_nb_players(lobby) == 1;
 
@@ -327,6 +345,9 @@ async function join_lobby(lobby, client, creator, creator_discord_id, created_ju
   });
 
   lobby.on('playerLeft', async (evt) => {
+    set_sentry_context(lobby, 'playerLeft');
+    Sentry.setUser({username: evt.user.ircUsername});
+
     try {
       // Remove user's votekicks, and votekicks against the user
       delete lobby.votekicks[evt.user.ircUsername];
@@ -362,6 +383,8 @@ async function join_lobby(lobby, client, creator, creator_discord_id, created_ju
   });
 
   lobby.on('allPlayersReady', async () => {
+    set_sentry_context(lobby, 'allPlayersReady');
+
     try {
       if (get_nb_players(lobby) < 2) {
         if (lobby.last_ready_msg && lobby.last_ready_msg + 10 > Date.now()) {
@@ -383,6 +406,8 @@ async function join_lobby(lobby, client, creator, creator_discord_id, created_ju
   });
 
   lobby.on('matchStarted', async () => {
+    set_sentry_context(lobby, 'matchStarted');
+
     try {
       lobby.voteskips = [];
       lobby.confirmed_players = [];
@@ -404,6 +429,8 @@ async function join_lobby(lobby, client, creator, creator_discord_id, created_ju
   });
 
   lobby.on('matchFinished', async (scores) => {
+    set_sentry_context(lobby, 'matchFinished');
+
     try {
       const rank_updates = await update_mmr(lobby);
       await select_next_map(lobby);
@@ -452,6 +479,10 @@ async function join_lobby(lobby, client, creator, creator_discord_id, created_ju
 }
 
 async function on_lobby_msg(lobby, msg) {
+  set_sentry_context(lobby, 'on_lobby_msg');
+  Sentry.setUser({
+    username: msg.user.ircUsername,
+  });
   console.log(`[Ranked #${lobby.id}] ${msg.user.ircUsername}: ${msg.message}`);
 
   // Temporary workaround for bancho.js bug with playerJoined/playerLeft events
@@ -610,6 +641,10 @@ async function start_ranked(client, _map_db) {
   await open_new_lobby_if_needed(client);
 
   client.on('PM', async (msg) => {
+    Sentry.setUser({
+      username: msg.user.ircUsername,
+    });
+
     try {
       if (msg.message == '!ranked') {
         // 1. Get the list of non-empty, non-full lobbies
@@ -658,6 +693,7 @@ async function start_ranked(client, _map_db) {
         return;
       }
     } catch (e) {
+      console.log('Failed to process PM: ' + e);
       Sentry.captureException(e);
     }
   });

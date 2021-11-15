@@ -67,6 +67,19 @@ async function on_interaction(interaction) {
   const user = await db.get(
       SQL`SELECT * FROM user WHERE discord_id = ${interaction.user.id}`,
   );
+  if (user) {
+    Sentry.setUser({
+      osu_id: user.osu_id,
+      discord_id: user.discord_id,
+      discord_rank: user.discord_rank,
+      username: interaction.user.username,
+    });
+  } else {
+    Sentry.setUser({
+      discord_id: interaction.user.id,
+      username: interaction.user.username,
+    });
+  }
 
   if (interaction.isSelectMenu()) {
     if (interaction.customId == 'orl_set_scoring') {
