@@ -111,9 +111,16 @@ async function update_ranked_lobby_on_discord(lobby) {
       const discord_channel = client.channels.cache.get('892789885335924786');
       const discord_msg = await discord_channel.send(msg);
 
+      let min_stars = null;
+      let max_stars = null;
+      if (lobby.fixed_star_range) {
+        min_stars = lobby.min_stars;
+        max_stars = lobby.max_stars;
+      }
+
       await db.run(SQL`
-        INSERT INTO ranked_lobby (osu_lobby_id, discord_channel_id, discord_msg_id, creator, creator_discord_id)
-        VALUES (${lobby.id}, ${discord_channel.id}, ${discord_msg.id}, ${lobby.creator}, ${lobby.creator_discord_id})`,
+        INSERT INTO ranked_lobby (osu_lobby_id, discord_channel_id, discord_msg_id, creator, creator_discord_id, min_stars, max_stars)
+        VALUES (${lobby.id}, ${discord_channel.id}, ${discord_msg.id}, ${lobby.creator}, ${lobby.creator_discord_id}, ${min_stars}, ${max_stars})`,
       );
     } catch (err) {
       console.error(`[Ranked #${lobby.id}] Failed to create Discord message: ${err}`);

@@ -498,6 +498,7 @@ async function init_db() {
     speed_pp REAL,
     overall_pp REAL,
     avg_ar REAL,
+    avg_sr REAL,
     last_top_score_tms INTEGER,
     last_update_tms INTEGER,
     games_played INTEGER NOT NULL,

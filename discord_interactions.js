@@ -30,7 +30,9 @@ function init(_bancho_client) {
         discord_channel_id TEXT,
         discord_msg_id TEXT,
         creator TEXT,
-        creator_discord_id TEXT
+        creator_discord_id TEXT,
+        min_stars REAL,
+        max_stars REAL
       )`);
 
       await db.exec(`CREATE TABLE IF NOT EXISTS auth_tokens (
@@ -89,7 +91,7 @@ async function on_interaction(interaction) {
   }
 
   if (interaction.isCommand()) {
-    if (interaction.commandName == 'make-ranked') {
+    if (interaction.commandName == 'make-lobby') {
       await on_make_ranked_command(user, interaction);
       return;
     }
@@ -119,6 +121,17 @@ async function on_make_ranked_command(user, interaction) {
       ephemeral: true,
     });
     return;
+  }
+
+  const min_stars = interaction.options.getNumber('min-stars');
+  const max_stars = interaction.options.getNumber('min-stars');
+  if (min_stars != null || max_stars != null) {
+    if (min_stars == null) {
+      min_stars = max_stars - 1.0;
+    }
+    if (max_stars == null) {
+      max_stars = min_stars + 1.0;
+    }
   }
 
   await interaction.deferReply({ephemeral: true});
@@ -152,7 +165,7 @@ async function on_make_ranked_command(user, interaction) {
     });
 
     await channel.lobby.clearHost();
-    await join_lobby(channel.lobby, bancho_client, host_user.ircUsername, user.discord_id, true);
+    await join_lobby(channel.lobby, bancho_client, host_user.ircUsername, user.discord_id, true, min_stars, max_stars);
     console.log(`[Ranked #${channel.lobby.id}] Created by ${host_user.ircUsername}.`);
 
     await interaction.editReply({content: 'Lobby initialized ✅ Enjoy!'});

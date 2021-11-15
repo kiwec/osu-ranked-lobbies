@@ -86,6 +86,7 @@ async function load_user_info(bancho_user, lobby) {
       speed: user.speed_pp,
       overall: user.overall_pp,
       ar: user.avg_ar,
+      sr: user.avg_sr,
     };
 
     // Already updated their profile recently enough
@@ -101,11 +102,12 @@ async function load_user_info(bancho_user, lobby) {
   );
   if (res.statusCode >= 500) {
     bancho_user.pp = {
-      aim: 0,
-      acc: 0,
-      speed: 0,
-      overall: 0,
-      ar: 0,
+      aim: 10.0,
+      acc: 1.0,
+      speed: 1.0,
+      overall: 1.0,
+      ar: 8.0,
+      sr: 2.0,
     };
     await lobby.channel.sendMessage(`Sorry, ${bancho_user.ircUsername}, I couldn't load your profile. The osu! servers are having issues, please try joining again later.`);
     return;
@@ -224,6 +226,39 @@ async function load_user_info(bancho_user, lobby) {
   }
   bancho_user.pp = pp;
 
+  // Get average SR for those pp values
+  if (pp.ar > 10.3) {
+    const meta = await map_db.get(SQL`
+      SELECT AVG(pp_stars) AS avg_sr FROM (
+        SELECT pp.stars AS pp_stars, (
+          ABS(${pp.aim} - dt_aim_pp)
+          + ABS(${pp.speed} - dt_speed_pp)
+          + ABS(${pp.acc} - dt_acc_pp)
+          + 10*ABS(${pp.ar} - pp.ar)
+        ) AS match_accuracy FROM map
+        INNER JOIN pp ON map.id = pp.map_id
+        WHERE mods = 65600 AND length > 60 AND length < 420 AND ranked IN (4, 5, 7) AND match_accuracy IS NOT NULL
+        ORDER BY match_accuracy LIMIT 1000
+      )`,
+    );
+    pp.sr = meta.avg_sr;
+  } else {
+    const meta = await map_db.get(SQL`
+      SELECT AVG(pp_stars) AS avg_sr FROM (
+        SELECT pp.stars AS pp_stars, (
+          ABS(${pp.aim} - aim_pp)
+          + ABS(${pp.speed} - speed_pp)
+          + ABS(${pp.acc} - acc_pp)
+          + 10*ABS(${pp.ar} - pp.ar)
+        ) AS match_accuracy FROM map
+        INNER JOIN pp ON map.id = pp.map_id
+        WHERE mods = (1<<16) AND length > 60 AND length < 420 AND ranked IN (4, 5, 7) AND match_accuracy IS NOT NULL
+        ORDER BY match_accuracy LIMIT 1000
+      )`,
+    );
+    pp.sr = meta.avg_sr;
+  }
+
   await ranks_db.run(SQL`
     UPDATE user
     SET
@@ -232,6 +267,7 @@ async function load_user_info(bancho_user, lobby) {
       speed_pp = ${pp.speed},
       overall_pp = ${pp.overall},
       avg_ar = ${pp.ar},
+      avg_sr = ${pp.sr},
       last_top_score_tms = ${last_top_score_tms},
       last_update_tms = ${Date.now()}
     WHERE user_id = ${bancho_user.id}`,

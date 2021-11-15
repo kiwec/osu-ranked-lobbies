@@ -10,12 +10,16 @@ const commands = [
       .setName('profile')
       .setDescription('Get your profile information.'),
   new SlashCommandBuilder()
-      .setName('make-ranked')
+      .setName('make-lobby')
       .setDescription('Create a new ranked lobby.')
       .addIntegerOption((option) => option
           .setName('lobby-id')
           .setDescription('The lobby ID given by BanchoBot')
-          .setRequired(true)),
+          .setRequired(true))
+      .addNumberOption((option) => option
+          .setName('min-stars'))
+      .addNumberOption((option) => option
+          .setName('max-stars')),
 ]
     .map((command) => command.toJSON());
 

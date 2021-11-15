@@ -34,6 +34,59 @@ function set_sentry_context(lobby, current_task) {
   });
 }
 
+async function set_new_title(lobby) {
+  // Min stars: we prefer not displaying the decimals whenever possible
+  let fancy_min_stars;
+  if (lobby.min_stars - Math.floor(lobby.min_stars) == 0) {
+    fancy_min_stars = lobby.min_stars.toFixed(0);
+  } else {
+    fancy_min_stars = lobby.min_stars.toFixed(2);
+  }
+
+  // Max stars: we prefer displaying .99 whenever possible
+  let fancy_max_stars;
+  if (lobby.max_stars - Math.floor(lobby.max_stars) == 0) {
+    fancy_max_stars = (lobby.max_stars - 0.01).toFixed(2);
+  } else {
+    fancy_max_stars = lobby.max_stars.toFixed(2);
+  }
+
+  const new_title = `${fancy_min_stars}-${fancy_max_stars}*${title_modifiers} | o!RL | Auto map select (!about)`;
+  if (lobby.name != new_title) {
+    await lobby.channel.sendMessage(`!mp name ${lobby.name}`);
+    lobby.name = new_title;
+    await update_ranked_lobby_on_discord(lobby);
+  }
+}
+
+async function get_matching_lobby_for_user(user) {
+  // 1. Get the list of lobbies that the player can join
+  const available_lobbies = [];
+  for (const lobby of client.joined_lobbies) {
+    if (user.pp.sr < lobby.min_stars || user.pp.sr > lobby.max_stars) continue;
+
+    const nb_players = get_nb_players(lobby);
+    if (nb_players > 0 && nb_players < 16) {
+      available_lobbies.push(lobby);
+    }
+  }
+
+  // How far is the player from the lobby pp level?
+  const distance = (player, lobby) => {
+    if (!player.pp) return 0;
+    return Math.abs(player.pp.aim - lobby.median_aim) + Math.abs(player.pp.acc - lobby.median_acc) + Math.abs(player.pp.speed - lobby.median_speed) + 10.0 * Math.abs(player.pp.ar - lobby.median_ar);
+  };
+
+  // 2. Sort by closest pp level
+  available_lobbies.sort((a, b) => distance(user, b) - distance(user, a));
+  if (available_lobbies.length > 0) {
+    return available_lobbies[0];
+  }
+
+  // 3. Unlucky.
+  return null;
+}
+
 function median(numbers) {
   if (numbers.length == 0) return 0;
 
@@ -76,11 +129,14 @@ async function select_next_map(lobby) {
     lobby.recent_maps.shift();
   }
 
-  let meta = null;
   let new_map = null;
   let tries = 0;
-  const is_dt = lobby.median_ar >= 10.0;
-  do {
+  const is_dt = lobby.median_ar > 10.3;
+
+  // If we have a variable star range, get it from the current lobby pp
+  if (!lobby.fixed_star_range) {
+    let meta = null;
+
     if (is_dt) {
       meta = await map_db.get(SQL`
         SELECT MIN(pp_stars) AS min_stars, MAX(pp_stars) AS max_stars FROM (
@@ -94,19 +150,6 @@ async function select_next_map(lobby) {
           WHERE mods = 65600 AND length > 60 AND length < 420 AND ranked IN (4, 5, 7) AND match_accuracy IS NOT NULL
           ORDER BY match_accuracy LIMIT 1000
         )`,
-      );
-      new_map = await map_db.get(SQL`
-        SELECT * FROM (
-          SELECT *, pp.stars AS pp_stars, (
-            ABS(${lobby.median_aim} - dt_aim_pp)
-            + ABS(${lobby.median_speed} - dt_speed_pp)
-            + ABS(${lobby.median_acc} - dt_acc_pp)
-            + 10*ABS(${lobby.median_ar} - pp.ar)
-          ) AS match_accuracy FROM map
-          INNER JOIN pp ON map.id = pp.map_id
-          WHERE mods = 65600 AND length > 60 AND length < 420 AND ranked IN (4, 5, 7) AND match_accuracy IS NOT NULL
-          ORDER BY match_accuracy LIMIT 1000
-        ) ORDER BY RANDOM() LIMIT 1`,
       );
     } else {
       meta = await map_db.get(SQL`
@@ -122,6 +165,32 @@ async function select_next_map(lobby) {
           ORDER BY match_accuracy LIMIT 1000
         )`,
       );
+    }
+
+    lobby.min_stars = meta.min_stars;
+    lobby.max_stars = meta.max_stars;
+  }
+
+  do {
+    if (is_dt) {
+      new_map = await map_db.get(SQL`
+        SELECT * FROM (
+          SELECT *, pp.stars AS pp_stars, (
+            ABS(${lobby.median_aim} - dt_aim_pp)
+            + ABS(${lobby.median_speed} - dt_speed_pp)
+            + ABS(${lobby.median_acc} - dt_acc_pp)
+            + 10*ABS(${lobby.median_ar} - pp.ar)
+          ) AS match_accuracy FROM map
+          INNER JOIN pp ON map.id = pp.map_id
+          WHERE mods = 65600
+            AND pp.stars >= ${lobby.min_stars} AND pp.stars <= ${lobby.max_stars}
+            AND length > 60 AND length < 420
+            AND ranked IN (4, 5, 7)
+            AND match_accuracy IS NOT NULL
+          ORDER BY match_accuracy LIMIT 1000
+        ) ORDER BY RANDOM() LIMIT 1`,
+      );
+    } else {
       new_map = await map_db.get(SQL`
         SELECT * FROM (
           SELECT *, pp.stars AS pp_stars, (
@@ -131,7 +200,11 @@ async function select_next_map(lobby) {
             + 10*ABS(${lobby.median_ar} - pp.ar)
           ) AS match_accuracy FROM map
           INNER JOIN pp ON map.id = pp.map_id
-          WHERE mods = (1<<16) AND length > 60 AND length < 420 AND ranked IN (4, 5, 7) AND match_accuracy IS NOT NULL
+          WHERE mods = (1<<16)
+            AND pp.stars >= ${lobby.min_stars} AND pp.stars <= ${lobby.max_stars}
+            AND length > 60 AND length < 420
+            AND ranked IN (4, 5, 7)
+            AND match_accuracy IS NOT NULL
           ORDER BY match_accuracy LIMIT 1000
         ) ORDER BY RANDOM() LIMIT 1`,
       );
@@ -179,19 +252,10 @@ async function select_next_map(lobby) {
       await lobby.channel.sendMessage(`!mp set 0 ${score_system} 16 | Now using ${score_systems[score_system]} as ranking criteria. [https://kiwec.net/discord Join the Discord] to vote for something else!`);
     }
 
-    let title_modifiers = '';
-    if (is_dt) title_modifiers += ' DT';
-    if (score_system == 3) title_modifiers += ' ScoreV2';
-    lobby.min_stars = meta.min_stars;
-    lobby.max_stars = meta.max_stars;
-    const new_title = `${meta.min_stars.toFixed(1)}-${meta.max_stars.toFixed(1)}*${title_modifiers} | o!RL | Auto map select (!about)`;
-
-    if (lobby.name != new_title) {
-      await lobby.channel.sendMessage(`!mp name ${new_title}`);
-
-      // roomName event is not emitted immediately, so let's set this now
-      lobby.name = new_title;
-    }
+    lobby.title_modifiers = '';
+    if (is_dt) lobby.title_modifiers += ' DT';
+    if (score_system == 3) lobby.title_modifiers += ' ScoreV2';
+    await set_new_title(lobby);
   } catch (e) {
     console.error(`[Ranked #${lobby.id}] Failed to switch to map ${new_map.id} ${new_map.name}:`, e);
   }
@@ -215,7 +279,7 @@ async function open_new_lobby_if_needed(client) {
   if (empty_slots == 0) {
     creating_lobby = true;
     const channel = await client.createLobby(`0-11* | o!RL | Auto map select (!about)`);
-    await join_lobby(channel.lobby, client, 'kiwec', '889603773574578198', false);
+    await join_lobby(channel.lobby, client, 'kiwec', '889603773574578198', false, null, null);
     creating_lobby = false;
     console.log(`[Ranked #${channel.lobby.id}] Created.`);
   }
@@ -255,7 +319,7 @@ async function update_median_pp(lobby) {
   return false;
 }
 
-async function join_lobby(lobby, client, creator, creator_discord_id, created_just_now) {
+async function join_lobby(lobby, client, creator, creator_discord_id, created_just_now, min_stars, max_stars) {
   lobby.recent_maps = [];
   lobby.votekicks = [];
   lobby.voteskips = [];
@@ -268,8 +332,10 @@ async function join_lobby(lobby, client, creator, creator_discord_id, created_ju
   lobby.is_dt = -1;
   lobby.creator = creator;
   lobby.creator_discord_id = creator_discord_id;
-  lobby.min_stars = 0.0;
-  lobby.max_stars = 11.0;
+  lobby.min_stars = min_stars || 0.0;
+  lobby.max_stars = max_stars || 11.99;
+  lobby.fixed_star_range = (min_stars != null || max_stars != null);
+  lobby.title_modifiers = '';
   await lobby.setPassword('');
 
   // Fetch user info
@@ -331,6 +397,33 @@ async function join_lobby(lobby, client, creator, creator_discord_id, created_ju
 
       // Warning: load_user_info can be a slow call
       await load_user_info(player, lobby);
+
+      // Uh oh! Player isn't allowed to join this lobby with their skill level.
+      // Sadly, I don't see a better way to explain their kick than via PMs.
+      // Hopefully, people will be less confused by PMs than by random kicks.
+      if (player.pp.sr < lobby.min_stars || player.pp.sr > lobby.max_stars) {
+        await lobby.kickPlayer(player.ircUsername);
+
+        let apology = 'Sorry, but your level is';
+        if (player.pp.sr < lobby.min_stars) {
+          apology += ` not high enough for this lobby (estimated ${player.pp.sr.toFixed(2)}*, lobby ${lobby.min_stars.toFixed(2)}*).`;
+        } else {
+          apology += ` too high for this lobby (estimated ${player.pp.sr.toFixed(2)}*, lobby ${lobby.max_stars.toFixed(2)}*).`;
+        }
+
+        const suggested_lobby = await get_matching_lobby_for_user(player);
+        if (suggested_lobby != null) {
+          apology += ' You can join this one instead:';
+          const lobby_invite_id = suggested_lobby.channel.topic.split('#')[1];
+          apology += ` [http://osump://${lobby_invite_id}/ ${suggested_lobby.name}]`;
+        } else {
+          apology += ' You can create your own ranked lobby from [https://kiwec.net/discord the Discord server.]';
+        }
+
+        await player.sendMessage(apology);
+        return;
+      }
+
       await update_median_pp(lobby);
       if (joined_alone) {
         await select_next_map(lobby);
@@ -366,9 +459,11 @@ async function join_lobby(lobby, client, creator, creator_discord_id, created_ju
 
       get_nb_players(lobby); // update lobby.nb_players
       if (lobby.nb_players == 0) {
-        await lobby.channel.sendMessage('!mp name 0-11* | o!RL | Auto map select (!about)');
-        lobby.name = '0-11* | o!RL | Auto map select (!about)';
-        await update_ranked_lobby_on_discord(lobby);
+        if (!lobby.fixed_star_range) {
+          lobby.min_stars = 0.0;
+          lobby.max_stars = 11.99;
+          await set_new_title(lobby);
+        }
         return;
       }
 
@@ -631,7 +726,7 @@ async function start_ranked(client, _map_db) {
     try {
       const channel = await client.getChannel('#mp_' + lobby.lobby_id);
       await channel.join();
-      await join_lobby(channel.lobby, client, lobby.creator, lobby.creator_discord_id, false);
+      await join_lobby(channel.lobby, client, lobby.creator, lobby.creator_discord_id, false, lobby.min_stars, lobby.max_stars);
     } catch (e) {
       console.error('Failed to rejoin lobby ' + lobby.lobby_id + ':', e);
       await close_ranked_lobby_on_discord({id: lobby.lobby_id});
@@ -647,30 +742,12 @@ async function start_ranked(client, _map_db) {
 
     try {
       if (msg.message == '!ranked') {
-        // 1. Get the list of non-empty, non-full lobbies
-        const available_lobbies = [];
-        for (const lobby of client.joined_lobbies) {
-          const nb_players = get_nb_players(lobby);
-          if (nb_players > 0 && nb_players < 16) {
-            available_lobbies.push(lobby);
-          }
+        const suggested_lobby = await get_matching_lobby_for_user(msg.user);
+        if (suggested_lobby != null) {
+          await suggested_lobby.invitePlayer(msg.user.ircUsername);
+        } else {
+          await msg.user.sendMessage(`Looks like there are no open lobbies that match your skill level. [https://kiwec.net/discord Join the Discord] to create a new one.`);
         }
-
-        // How far is the player from the lobby pp level?
-        const distance = (player, lobby) => {
-          if (!player.pp) return 0;
-          return Math.abs(player.pp.aim - lobby.median_aim) + Math.abs(player.pp.acc - lobby.median_acc) + Math.abs(player.pp.speed - lobby.median_speed) + 10.0 * Math.abs(player.pp.ar - lobby.median_ar);
-        };
-
-        // 2. Sort by closest pp level
-        available_lobbies.sort((a, b) => distance(msg.user, b) - distance(msg.user, a));
-        if (available_lobbies.length > 0) {
-          await available_lobbies[0].invitePlayer(msg.user.ircUsername);
-          return;
-        }
-
-        // 3. Unlucky
-        await msg.user.sendMessage(`Looks like all o!RL lobbies are full. [https://kiwec.net/discord Join the Discord] to create a new one.`);
       }
 
       if (msg.message == '!rank') {
