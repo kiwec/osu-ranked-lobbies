@@ -124,7 +124,7 @@ async function on_make_ranked_command(user, interaction) {
   }
 
   const min_stars = interaction.options.getNumber('min-stars');
-  const max_stars = interaction.options.getNumber('min-stars');
+  const max_stars = interaction.options.getNumber('max-stars');
   if (min_stars != null || max_stars != null) {
     if (min_stars == null) {
       min_stars = max_stars - 1.0;

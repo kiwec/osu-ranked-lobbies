@@ -6,6 +6,7 @@
   "license": "AGPL-3.0-only",
   "type": "module",
   "dependencies": {
+    "@discordjs/builders": "^0.6.0",
     "@discordjs/rest": "^0.1.0-canary.0",
     "@sentry/node": "^v6.14.0",
     "@sentry/tracing": "^v6.14.0",

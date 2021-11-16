@@ -19,6 +19,7 @@ let deadline_id = 0;
 let creating_lobby = false;
 let ranking_db = null;
 let map_db = null;
+const DIFFICULTY_MODIFIER = 1.1;
 
 
 function set_sentry_context(lobby, current_task) {
@@ -51,19 +52,20 @@ async function set_new_title(lobby) {
     fancy_max_stars = lobby.max_stars.toFixed(2);
   }
 
-  const new_title = `${fancy_min_stars}-${fancy_max_stars}*${title_modifiers} | o!RL | Auto map select (!about)`;
+  const new_title = `${fancy_min_stars}-${fancy_max_stars}*${lobby.title_modifiers} | o!RL | Auto map select (!about)`;
   if (lobby.name != new_title) {
-    await lobby.channel.sendMessage(`!mp name ${lobby.name}`);
+    await lobby.channel.sendMessage(`!mp name ${new_title}`);
     lobby.name = new_title;
     await update_ranked_lobby_on_discord(lobby);
   }
 }
 
-async function get_matching_lobby_for_user(user) {
+async function get_matching_lobby_for_user(client, user) {
   // 1. Get the list of lobbies that the player can join
   const available_lobbies = [];
   for (const lobby of client.joined_lobbies) {
-    if (user.pp.sr < lobby.min_stars || user.pp.sr > lobby.max_stars) continue;
+    if (user.pp.sr * DIFFICULTY_MODIFIER < lobby.min_stars) continue;
+    if (user.pp.sr * DIFFICULTY_MODIFIER > lobby.max_stars) continue;
 
     const nb_players = get_nb_players(lobby);
     if (nb_players > 0 && nb_players < 16) {
@@ -215,7 +217,7 @@ async function select_next_map(lobby) {
   } while ((lobby.recent_maps.includes(new_map.id)) && tries < 10);
   if (!new_map) {
     console.error(`[Ranked #${lobby.id}] Could not find new map. Aborting.`);
-    console.log(`aim: ${lobby.median_aim} speed: ${lobby.median_speed} acc: ${lobby.median_acc} ar: ${lobby.median_ar}`);
+    console.log(`aim: ${lobby.median_aim} speed: ${lobby.median_speed} acc: ${lobby.median_acc} ar: ${lobby.median_ar}, min_stars: ${lobby.min_stars}, max_stars: ${lobby.max_stars}`);
     return;
   }
 
@@ -310,10 +312,10 @@ async function update_median_pp(lobby) {
   overalls.sort((a, b) => a - b);
   ars.sort((a, b) => a - b);
 
-  lobby.median_aim = median(aims) * lobby.difficulty_modifier;
-  lobby.median_acc = median(accs) * lobby.difficulty_modifier;
-  lobby.median_speed = median(speeds) * lobby.difficulty_modifier;
-  lobby.median_overall = median(overalls) * lobby.difficulty_modifier;
+  lobby.median_aim = median(aims) * DIFFICULTY_MODIFIER;
+  lobby.median_acc = median(accs) * DIFFICULTY_MODIFIER;
+  lobby.median_speed = median(speeds) * DIFFICULTY_MODIFIER;
+  lobby.median_overall = median(overalls) * DIFFICULTY_MODIFIER;
   lobby.median_ar = median(ars);
 
   return false;
@@ -327,7 +329,6 @@ async function join_lobby(lobby, client, creator, creator_discord_id, created_ju
   lobby.countdown = -1;
   lobby.median_overall = 0;
   lobby.nb_players = 0;
-  lobby.difficulty_modifier = 1.1;
   lobby.last_ready_msg = 0;
   lobby.is_dt = -1;
   lobby.creator = creator;
@@ -347,7 +348,8 @@ async function join_lobby(lobby, client, creator, creator_discord_id, created_ju
       await player.user.fetchFromAPI();
       await load_user_info(player.user, lobby);
     } catch (err) {
-      console.error(`[Ranked #${lobby.id}] Failed to fetch user data for '${player.user.ircUsername}'`);
+      console.error(`[Ranked #${lobby.id}] Failed to fetch user data for '${player.user.ircUsername}: ${err}'`);
+      Sentry.captureException(err);
       await lobby.channel.sendMessage(`!mp ban ${player.user.ircUsername}`);
     }
   }
@@ -389,7 +391,8 @@ async function join_lobby(lobby, client, creator, creator_discord_id, created_ju
       try {
         await player.fetchFromAPI();
       } catch (err) {
-        console.error(`[Ranked #${lobby.id}] Failed to fetch user data for '${evt.player.user.username}'`);
+        console.error(`[Ranked #${lobby.id}] Failed to fetch user data for '${evt.player.user.username}: ${err}'`);
+        Sentry.captureException(err);
         await lobby.channel.sendMessage(`!mp ban ${evt.player.user.username}`);
       }
 
@@ -401,17 +404,18 @@ async function join_lobby(lobby, client, creator, creator_discord_id, created_ju
       // Uh oh! Player isn't allowed to join this lobby with their skill level.
       // Sadly, I don't see a better way to explain their kick than via PMs.
       // Hopefully, people will be less confused by PMs than by random kicks.
-      if (player.pp.sr < lobby.min_stars || player.pp.sr > lobby.max_stars) {
+      const adjusted_sr = player.pp.sr * DIFFICULTY_MODIFIER;
+      if (adjusted_sr < lobby.min_stars || adjusted_sr > lobby.max_stars) {
         await lobby.kickPlayer(player.ircUsername);
 
         let apology = 'Sorry, but your level is';
-        if (player.pp.sr < lobby.min_stars) {
-          apology += ` not high enough for this lobby (estimated ${player.pp.sr.toFixed(2)}*, lobby ${lobby.min_stars.toFixed(2)}*).`;
+        if (adjusted_sr < lobby.min_stars) {
+          apology += ` not high enough for this lobby (estimated ${adjusted_sr.toFixed(2)}*, lobby ${lobby.min_stars.toFixed(2)}*).`;
         } else {
-          apology += ` too high for this lobby (estimated ${player.pp.sr.toFixed(2)}*, lobby ${lobby.max_stars.toFixed(2)}*).`;
+          apology += ` too high for this lobby (estimated ${adjusted_sr.toFixed(2)}*, lobby ${lobby.max_stars.toFixed(2)}*).`;
         }
 
-        const suggested_lobby = await get_matching_lobby_for_user(player);
+        const suggested_lobby = await get_matching_lobby_for_user(client, player);
         if (suggested_lobby != null) {
           apology += ' You can join this one instead:';
           const lobby_invite_id = suggested_lobby.channel.topic.split('#')[1];
@@ -569,8 +573,6 @@ async function join_lobby(lobby, client, creator, creator_discord_id, created_ju
   if (created_just_now) {
     await select_next_map(lobby);
   }
-
-  console.log(`Joined ranked lobby #${lobby.id}`);
 }
 
 async function on_lobby_msg(lobby, msg) {
@@ -606,14 +608,6 @@ async function on_lobby_msg(lobby, msg) {
   if (msg.message == '!about') {
     await lobby.channel.sendMessage('In this lobby, you get a rank based on how well you play compared to other players. All commands and answers to your questions are [https://kiwec.net/discord in the Discord.]');
     return;
-  }
-
-  if (msg.message.indexOf('!diff') == 0 && msg.user.isClient()) {
-    lobby.difficulty_modifier = parseFloat(msg.message.split(' ')[1]);
-    const switched = await update_median_pp(lobby);
-    if (!switched) {
-      await select_next_map(lobby);
-    }
   }
 
   if (msg.message == '!discord') {
@@ -726,12 +720,12 @@ async function start_ranked(client, _map_db) {
   const lobbies = await discord_db.all('SELECT * from ranked_lobby');
   for (const lobby of lobbies) {
     try {
-      const channel = await client.getChannel('#mp_' + lobby.lobby_id);
+      const channel = await client.getChannel('#mp_' + lobby.osu_lobby_id);
       await channel.join();
       await join_lobby(channel.lobby, client, lobby.creator, lobby.creator_discord_id, false, lobby.min_stars, lobby.max_stars);
     } catch (e) {
-      console.error('Failed to rejoin lobby ' + lobby.lobby_id + ':', e);
-      await close_ranked_lobby_on_discord({id: lobby.lobby_id});
+      console.error('Failed to rejoin lobby ' + lobby.osu_lobby_id + ':', e);
+      await close_ranked_lobby_on_discord({id: lobby.osu_lobby_id});
     }
   }
 
@@ -744,7 +738,7 @@ async function start_ranked(client, _map_db) {
 
     try {
       if (msg.message == '!ranked') {
-        const suggested_lobby = await get_matching_lobby_for_user(msg.user);
+        const suggested_lobby = await get_matching_lobby_for_user(client, msg.user);
         if (suggested_lobby != null) {
           await suggested_lobby.invitePlayer(msg.user.ircUsername);
         } else {

@@ -228,7 +228,7 @@ async function load_user_info(bancho_user, lobby) {
 
   // Get average SR for those pp values
   if (pp.ar > 10.3) {
-    const meta = await map_db.get(SQL`
+    const meta = await maps_db.get(SQL`
       SELECT AVG(pp_stars) AS avg_sr FROM (
         SELECT pp.stars AS pp_stars, (
           ABS(${pp.aim} - dt_aim_pp)
@@ -243,7 +243,7 @@ async function load_user_info(bancho_user, lobby) {
     );
     pp.sr = meta.avg_sr;
   } else {
-    const meta = await map_db.get(SQL`
+    const meta = await maps_db.get(SQL`
       SELECT AVG(pp_stars) AS avg_sr FROM (
         SELECT pp.stars AS pp_stars, (
           ABS(${pp.aim} - aim_pp)

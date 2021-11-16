@@ -9,6 +9,13 @@ const commands = [
   new SlashCommandBuilder()
       .setName('profile')
       .setDescription('Get your profile information.'),
+  // new SlashCommandBuilder()
+  //     .setName('make-ranked')
+  //     .setDescription('Create a new ranked lobby.')
+  //     .addIntegerOption((option) => option
+  //         .setName('lobby-id')
+  //         .setDescription('The lobby ID given by BanchoBot')
+  //         .setRequired(true)),
   new SlashCommandBuilder()
       .setName('make-lobby')
       .setDescription('Create a new ranked lobby.')
@@ -17,9 +24,11 @@ const commands = [
           .setDescription('The lobby ID given by BanchoBot')
           .setRequired(true))
       .addNumberOption((option) => option
-          .setName('min-stars'))
+          .setName('min-stars')
+          .setDescription('Minimum star level'))
       .addNumberOption((option) => option
-          .setName('max-stars')),
+          .setName('max-stars')
+          .setDescription('Maximum star level')),
 ]
     .map((command) => command.toJSON());
 
