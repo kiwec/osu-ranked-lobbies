@@ -334,7 +334,7 @@ async function join_lobby(lobby, client, creator, creator_discord_id, created_ju
   lobby.creator = creator;
   lobby.creator_discord_id = creator_discord_id;
   lobby.min_stars = min_stars || 0.0;
-  lobby.max_stars = max_stars || 11.99;
+  lobby.max_stars = max_stars || 11.0;
   lobby.fixed_star_range = (min_stars != null || max_stars != null);
   lobby.title_modifiers = '';
   await lobby.setPassword('');
@@ -466,7 +466,7 @@ async function join_lobby(lobby, client, creator, creator_discord_id, created_ju
       if (lobby.nb_players == 0) {
         if (!lobby.fixed_star_range) {
           lobby.min_stars = 0.0;
-          lobby.max_stars = 11.99;
+          lobby.max_stars = 11.0;
           await set_new_title(lobby);
         }
         return;
