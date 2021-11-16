@@ -1,5 +1,5 @@
 import fs from 'fs';
-import {Client, Intents, MessageActionRow, MessageSelectMenu} from 'discord.js';
+import {Client, Intents, MessageActionRow, MessageEmbed, MessageSelectMenu} from 'discord.js';
 
 
 async function main() {
@@ -7,36 +7,7 @@ async function main() {
 
   client.once('ready', async () => {
     console.log('ready');
-    const discord_channel = client.channels.cache.get('892880734526795826');
     // const discord_channel = client.channels.cache.get('893207661225594880'); // test channel
-
-    await discord_channel.send({
-      content: 'Once your account is linked, you can vote for your preferred scoring system:',
-      components: [
-        new MessageActionRow().addComponents(
-            new MessageSelectMenu()
-                .setCustomId('orl_set_scoring')
-                .setPlaceholder('No preference')
-                .addOptions([
-                  {
-                    label: 'No preference',
-                    description: 'Let others decide',
-                    value: 'whatever',
-                  },
-                  {
-                    label: 'ScoreV1',
-                    description: 'Default scoring system',
-                    value: '0',
-                  },
-                  {
-                    label: 'ScoreV2',
-                    description: 'Tournament scoring system',
-                    value: '3',
-                  },
-                ]),
-        ),
-      ],
-    });
 
     const lobbies_channel = client.channels.cache.get('892789885335924786');
     await lobbies_channel.send({

@@ -8,5 +8,5 @@ UPDATE ranked_lobby SET creator_discord_id = '889603773574578198';
 
 -- ranks.db
 ALTER TABLE user ADD COLUMN avg_sr REAL;
-ALTER TABLE user SET last_top_score_tms = 0;
-ALTER TABLE user SET last_update_tms = 0;
+UPDATE user SET last_top_score_tms = 0;
+UPDATE user SET last_update_tms = 0;

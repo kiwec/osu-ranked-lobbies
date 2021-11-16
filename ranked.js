@@ -405,7 +405,8 @@ async function join_lobby(lobby, client, creator, creator_discord_id, created_ju
       // Sadly, I don't see a better way to explain their kick than via PMs.
       // Hopefully, people will be less confused by PMs than by random kicks.
       const adjusted_sr = player.pp.sr * DIFFICULTY_MODIFIER;
-      if (adjusted_sr < lobby.min_stars || adjusted_sr > lobby.max_stars) {
+      const slack = lobby.fixed_star_range ? 0.0 : 1.5;
+      if (adjusted_sr < lobby.min_stars - slack || adjusted_sr > lobby.max_stars + slack) {
         await lobby.kickPlayer(player.ircUsername);
 
         let apology = 'Sorry, but your level is';
