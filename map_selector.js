@@ -78,21 +78,18 @@ async function load_user_info(bancho_user, lobby) {
   }
 
   bancho_user.games_played = user.games_played;
+  bancho_user.pp = {
+    aim: user.aim_pp,
+    acc: user.acc_pp,
+    speed: user.speed_pp,
+    overall: user.overall_pp,
+    ar: user.avg_ar,
+    sr: user.avg_sr,
+  };
 
-  if (user.aim_pp) {
-    bancho_user.pp = {
-      aim: user.aim_pp,
-      acc: user.acc_pp,
-      speed: user.speed_pp,
-      overall: user.overall_pp,
-      ar: user.avg_ar,
-      sr: user.avg_sr,
-    };
-
-    // Already updated their profile recently enough
-    if (user.last_update_tms + 3600 * 24 > Date.now()) {
-      return;
-    }
+  // Already updated their profile recently enough
+  if (user.avg_sr != null && user.last_update_tms + 3600 * 24 > Date.now()) {
+    return;
   }
 
   // Fetch top user scores from osu!api
@@ -122,7 +119,7 @@ async function load_user_info(bancho_user, lobby) {
       break;
     }
   }
-  if (!has_new_score) {
+  if (user.avg_sr != null && !has_new_score) {
     return;
   }
 
@@ -224,7 +221,6 @@ async function load_user_info(bancho_user, lobby) {
     pp.overall /= total_weight;
     pp.ar /= total_weight;
   }
-  bancho_user.pp = pp;
 
   // Get average SR for those pp values
   if (pp.ar > 10.3) {
@@ -258,6 +254,7 @@ async function load_user_info(bancho_user, lobby) {
     );
     pp.sr = meta.avg_sr;
   }
+  bancho_user.pp = pp;
 
   await ranks_db.run(SQL`
     UPDATE user

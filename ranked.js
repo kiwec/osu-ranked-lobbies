@@ -41,7 +41,7 @@ async function set_new_title(lobby) {
   if (lobby.min_stars - Math.floor(lobby.min_stars) == 0) {
     fancy_min_stars = lobby.min_stars.toFixed(0);
   } else {
-    fancy_min_stars = lobby.min_stars.toFixed(2);
+    fancy_min_stars = lobby.min_stars.toFixed(1);
   }
 
   // Max stars: we prefer displaying .99 whenever possible
@@ -49,7 +49,7 @@ async function set_new_title(lobby) {
   if (lobby.max_stars - Math.floor(lobby.max_stars) == 0) {
     fancy_max_stars = (lobby.max_stars - 0.01).toFixed(2);
   } else {
-    fancy_max_stars = lobby.max_stars.toFixed(2);
+    fancy_max_stars = lobby.max_stars.toFixed(1);
   }
 
   const new_title = `${fancy_min_stars}-${fancy_max_stars}*${lobby.title_modifiers} | o!RL | Auto map select (!about)`;
@@ -410,7 +410,7 @@ async function join_lobby(lobby, client, creator, creator_discord_id, created_ju
         await lobby.kickPlayer(player.ircUsername);
 
         let apology = 'Sorry, but your level is';
-        if (adjusted_sr < lobby.min_stars) {
+        if (adjusted_sr < lobby.min_stars - slack) {
           apology += ` not high enough for this lobby (estimated ${adjusted_sr.toFixed(2)}*, lobby ${lobby.min_stars.toFixed(2)}*).`;
         } else {
           apology += ` too high for this lobby (estimated ${adjusted_sr.toFixed(2)}*, lobby ${lobby.max_stars.toFixed(2)}*).`;
