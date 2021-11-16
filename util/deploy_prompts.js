@@ -9,12 +9,12 @@ async function main() {
     console.log('ready');
     // const discord_channel = client.channels.cache.get('893207661225594880'); // test channel
 
-    const lobbies_channel = client.channels.cache.get('892789885335924786');
+    const lobbies_channel = client.channels.cache.get('891787381106171925');
     await lobbies_channel.send({
       embeds: [
         new MessageEmbed({
           title: 'Instructions for creating a new ranked lobby',
-          description: '**1.** Create a new lobby.\n**2.** BanchoBot should have sent a match history link. Copy the numbers after https://osu.ppy.sh/mp/.\n**3.** In the lobby chat, send **!mp addref kiwec**.\n**4.** In Discord, send **/make-lobby [the numbers you copied]** and the bot should join your lobby.',
+          description: '**1.** Create a new lobby.\n**2.** BanchoBot should have sent a match history link. Copy the numbers after https://osu.ppy.sh/mp/.\n**3.** In the lobby chat, send **!mp addref kiwec**.\n**4.** In Discord, send **/make-lobby [the numbers you copied]** and the bot should join your lobby. You can also specify **min-stars** and **max-stars** if you want a fixed star range.',
         }),
       ],
     });

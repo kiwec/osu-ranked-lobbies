@@ -222,38 +222,32 @@ async function load_user_info(bancho_user, lobby) {
     pp.ar /= total_weight;
   }
 
-  // Get average SR for those pp values
-  if (pp.ar > 10.3) {
-    const meta = await maps_db.get(SQL`
-      SELECT AVG(pp_stars) AS avg_sr FROM (
-        SELECT pp.stars AS pp_stars, (
-          ABS(${pp.aim} - dt_aim_pp)
-          + ABS(${pp.speed} - dt_speed_pp)
-          + ABS(${pp.acc} - dt_acc_pp)
-          + 10*ABS(${pp.ar} - pp.ar)
-        ) AS match_accuracy FROM map
-        INNER JOIN pp ON map.id = pp.map_id
-        WHERE mods = 65600 AND length > 60 AND length < 420 AND ranked IN (4, 5, 7) AND match_accuracy IS NOT NULL
-        ORDER BY match_accuracy LIMIT 1000
-      )`,
-    );
-    pp.sr = meta.avg_sr;
-  } else {
-    const meta = await maps_db.get(SQL`
-      SELECT AVG(pp_stars) AS avg_sr FROM (
-        SELECT pp.stars AS pp_stars, (
-          ABS(${pp.aim} - aim_pp)
-          + ABS(${pp.speed} - speed_pp)
-          + ABS(${pp.acc} - acc_pp)
-          + 10*ABS(${pp.ar} - pp.ar)
-        ) AS match_accuracy FROM map
-        INNER JOIN pp ON map.id = pp.map_id
-        WHERE mods = (1<<16) AND length > 60 AND length < 420 AND ranked IN (4, 5, 7) AND match_accuracy IS NOT NULL
-        ORDER BY match_accuracy LIMIT 1000
-      )`,
-    );
-    pp.sr = meta.avg_sr;
+  // Three digit players mostly farm, so their top 100 scores are not
+  // representative of what they usually achieve. Limit max pp to 500.
+  if (pp.overall > 500.0) {
+    const ratio = pp.overall / 500.0;
+    pp.aim /= ratio;
+    pp.acc /= ratio;
+    pp.speed /= ratio;
+    pp.overall /= ratio;
   }
+
+  // Get average SR for those pp values
+  const meta = await maps_db.get(SQL`
+    SELECT AVG(pp_stars) AS avg_sr FROM (
+      SELECT pp.stars AS pp_stars, (
+        ABS(${pp.aim} - aim_pp)
+        + ABS(${pp.speed} - speed_pp)
+        + ABS(${pp.acc} - acc_pp)
+        + 10*ABS(${pp.ar} - pp.ar)
+      ) AS match_accuracy FROM map
+      INNER JOIN pp ON map.id = pp.map_id
+      WHERE mods = (1<<16) AND length > 60 AND length < 420 AND ranked IN (4, 5, 7) AND match_accuracy IS NOT NULL
+      ORDER BY match_accuracy LIMIT 1000
+    )`,
+  );
+  pp.sr = meta.avg_sr;
+
   bancho_user.pp = pp;
 
   await ranks_db.run(SQL`

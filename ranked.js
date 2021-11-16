@@ -133,7 +133,9 @@ async function select_next_map(lobby) {
 
   let new_map = null;
   let tries = 0;
-  const is_dt = lobby.median_ar > 10.3;
+
+  // TODO: add DT vote
+  const is_dt = false;
 
   // If we have a variable star range, get it from the current lobby pp
   if (!lobby.fixed_star_range) {

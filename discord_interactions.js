@@ -160,8 +160,8 @@ async function on_make_ranked_command(user, interaction) {
       if (username != 'kiwec') return;
 
       await channel.sendMessage('Looks like we\'re done here.');
-      await channel.leave();
       channel.lobby.removeAllListeners();
+      await channel.leave();
     });
 
     await channel.lobby.clearHost();
