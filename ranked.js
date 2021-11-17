@@ -350,7 +350,7 @@ async function join_lobby(lobby, client, creator, creator_discord_id, created_ju
       await player.user.fetchFromAPI();
       await load_user_info(player.user, lobby);
     } catch (err) {
-      console.error(`[Ranked #${lobby.id}] Failed to fetch user data for '${player.user.ircUsername}: ${err}'`);
+      console.error(`[Ranked #${lobby.id}] Failed to fetch user data for '${player.user.ircUsername}': ${err}`);
       Sentry.captureException(err);
       await lobby.channel.sendMessage(`!mp ban ${player.user.ircUsername}`);
     }
@@ -393,7 +393,7 @@ async function join_lobby(lobby, client, creator, creator_discord_id, created_ju
       try {
         await player.fetchFromAPI();
       } catch (err) {
-        console.error(`[Ranked #${lobby.id}] Failed to fetch user data for '${evt.player.user.username}: ${err}'`);
+        console.error(`[Ranked #${lobby.id}] Failed to fetch user data for '${evt.player.user.username}': ${err}`);
         Sentry.captureException(err);
         await lobby.channel.sendMessage(`!mp ban ${evt.player.user.username}`);
       }
@@ -754,14 +754,17 @@ async function start_ranked(client, _map_db) {
 
   const lobbies = await discord_db.all('SELECT * from ranked_lobby');
   for (const lobby of lobbies) {
-    try {
-      const channel = await client.getChannel('#mp_' + lobby.osu_lobby_id);
-      await channel.join();
-      await join_lobby(channel.lobby, client, lobby.creator, lobby.creator_discord_id, false, lobby.min_stars, lobby.max_stars);
-    } catch (e) {
-      console.error('Failed to rejoin lobby ' + lobby.osu_lobby_id + ':', e);
-      await close_ranked_lobby_on_discord({id: lobby.osu_lobby_id});
-    }
+    // Rejoin all lobbies at the same time
+    (async () => {
+      try {
+        const channel = await client.getChannel('#mp_' + lobby.osu_lobby_id);
+        await channel.join();
+        await join_lobby(channel.lobby, client, lobby.creator, lobby.creator_discord_id, false, lobby.min_stars, lobby.max_stars);
+      } catch (e) {
+        console.error('Failed to rejoin lobby ' + lobby.osu_lobby_id + ':', e);
+        await close_ranked_lobby_on_discord({id: lobby.osu_lobby_id});
+      }
+    })();
   }
 
   await open_new_lobby_if_needed(client);
