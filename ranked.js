@@ -603,7 +603,7 @@ async function on_lobby_msg(lobby, msg) {
           Sentry.setContext('lobby', {
             slotUpdates: lobby.slotsUpdatesQueue.length,
             playerCreations: lobby.playerCreationQueue.length,
-            updateSettingsPromise: updateSettingsPromise != null,
+            updateSettingsPromise: lobby.updateSettingsPromise != null,
           });
           Sentry.captureException(new Error('bancho.js didn\'t register playerJoined event for 30 seconds'));
           lobby.slotsUpdateCallback();
