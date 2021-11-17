@@ -771,10 +771,8 @@ async function start_ranked(client, _map_db) {
   });
 
   const lobbies = await discord_db.all('SELECT * from ranked_lobby');
-  const rejoin_promises = [];
-
   for (const lobby of lobbies) {
-    rejoin_promises.push(async () => {
+    (async () => {
       console.log('Rejoining lobby #' + lobby.osu_lobby_id);
 
       try {
@@ -785,11 +783,8 @@ async function start_ranked(client, _map_db) {
         console.error('Failed to rejoin lobby ' + lobby.osu_lobby_id + ':', e);
         await close_ranked_lobby_on_discord({id: lobby.osu_lobby_id});
       }
-    });
+    })();
   }
-
-  await Promise.all(rejoin_promises);
-  await open_new_lobby_if_needed(client);
 
   client.on('PM', async (msg) => {
     Sentry.setUser({
