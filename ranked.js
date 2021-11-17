@@ -775,6 +775,8 @@ async function start_ranked(client, _map_db) {
 
   for (const lobby of lobbies) {
     rejoin_promises.push(async () => {
+      console.log('Rejoining lobby #' + lobby.osu_lobby_id);
+
       try {
         const channel = await client.getChannel('#mp_' + lobby.osu_lobby_id);
         await channel.join();
