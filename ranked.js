@@ -795,6 +795,8 @@ async function start_ranked(client, _map_db) {
     });
 
     try {
+      await msg.user.fetchFromAPI();
+
       if (msg.message == '!ranked') {
         const suggested_lobby = await get_matching_lobby_for_user(client, msg.user);
         if (suggested_lobby != null) {
