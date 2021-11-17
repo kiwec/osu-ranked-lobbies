@@ -292,12 +292,14 @@ async function on_lobby_invite_button_press(user, interaction) {
     return;
   }
 
+  await interaction.deferReply({ephemeral: true});
+
   const player = await bancho_client.getUserById(user.osu_id);
   for (const lobby of bancho_client.joined_lobbies) {
     if (lobby.id == lobby_id) {
       const lobby_invite_id = lobby.channel.topic.split('#')[1];
       await player.sendMessage(`Here's your invite: [http://osump://${lobby_invite_id}/ ${lobby.name}]`);
-      await interaction.reply({
+      await interaction.editReply({
         content: 'An invite to the lobby has been sent. Check your in-game messages. 😌',
         ephemeral: true,
       });
