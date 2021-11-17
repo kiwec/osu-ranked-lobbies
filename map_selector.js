@@ -88,7 +88,7 @@ async function load_user_info(bancho_user, lobby) {
   };
 
   // Already updated their profile recently enough
-  if (user.avg_sr != null && user.last_update_tms + 3600 * 24 > Date.now()) {
+  if (user.avg_sr != null && user.last_update_tms + (3600 * 24 * 1000) > Date.now()) {
     return;
   }
 
@@ -122,7 +122,6 @@ async function load_user_info(bancho_user, lobby) {
   if (user.avg_sr != null && !has_new_score) {
     return;
   }
-  console.log(user.username, user.avg_sr, user.last_update_tms, user.last_top_score_tms, has_new_score);
 
   // Re-scan all scores for pp values
   let total_weight = 0;
