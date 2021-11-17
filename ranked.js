@@ -282,10 +282,19 @@ async function open_new_lobby_if_needed(client) {
 
   if (empty_slots == 0) {
     creating_lobby = true;
-    const channel = await client.createLobby(`0-11* | o!RL | Auto map select (!about)`);
-    await join_lobby(channel.lobby, client, 'kiwec', '889603773574578198', false, null, null);
+
+    try {
+      const channel = await client.createLobby(`0-11* | o!RL | Auto map select (!about)`);
+      await join_lobby(channel.lobby, client, 'kiwec', '889603773574578198', false, null, null);
+      console.log(`[Ranked #${channel.lobby.id}] Created.`);
+    } catch (err) {
+      if (err.message != 'You cannot create any more tournament matches. Please close any previous tournament matches you have open.') {
+        console.error('Failed to create ranked lobby:', err);
+        Sentry.captureException(err);
+      }
+    }
+
     creating_lobby = false;
-    console.log(`[Ranked #${channel.lobby.id}] Created.`);
   }
 }
 
