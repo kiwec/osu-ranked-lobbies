@@ -407,7 +407,7 @@ async function join_lobby(lobby, client, creator, creator_discord_id, created_ju
       // Sadly, I don't see a better way to explain their kick than via PMs.
       // Hopefully, people will be less confused by PMs than by random kicks.
       const adjusted_sr = player.pp.sr * DIFFICULTY_MODIFIER;
-      const slack = lobby.fixed_star_range ? 0.0 : 1.5;
+      const slack = lobby.fixed_star_range ? 0.5 : 1.5;
       if (adjusted_sr < lobby.min_stars - slack || adjusted_sr > lobby.max_stars + slack) {
         await lobby.kickPlayer(player.ircUsername);
 
@@ -616,6 +616,31 @@ async function on_lobby_msg(lobby, msg) {
   if (msg.message == '!discord') {
     await lobby.channel.sendMessage('[https://kiwec.net/discord Come hang out in voice chat!] (or just text, no pressure)');
     return;
+  }
+
+  if (msg.message.indexOf('!setstars') == 0) {
+    if (lobby.creator != msg.user.ircUsername) {
+      await lobby.channel.sendMessage(msg.user.ircUsername + ': You need to be the lobby creator to use this command.');
+      return;
+    }
+
+    const args = msg.message.split(' ');
+    if (args.length < 3) {
+      await lobby.channel.sendMessage(msg.user.ircUsername + ': You need to specify minimum and maximum star values.');
+      return;
+    }
+
+    const min_stars = parseFloat(args[1]);
+    const max_stars = parseFloat(args[2]);
+    if (!isFinite(min_stars) || !isFinite(max_stars)) {
+      await lobby.channel.sendMessage(msg.user.ircUsername + ': Please use valid star values.');
+      return;
+    }
+
+    lobby.min_stars = min_stars;
+    lobby.max_stars = max_stars;
+    lobby.fixed_star_range = true;
+    await select_next_map(lobby);
   }
 
   if (msg.message.indexOf('!kick') == 0) {
