@@ -10,7 +10,7 @@
     "@discordjs/rest": "^0.1.0-canary.0",
     "@sentry/node": "^v6.14.0",
     "@sentry/tracing": "^v6.14.0",
-    "bancho.js": "^0.10.0-rc.5",
+    "bancho.js": "^0.10.0-rc.6",
     "discord-api-types": "^0.23.1",
     "discord.js": "^13.1.0",
     "express": "^4.17.1",

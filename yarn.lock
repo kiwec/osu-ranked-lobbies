@@ -355,10 +355,10 @@ balanced-match@^1.0.0:
   resolved "https://registry.yarnpkg.com/balanced-match/-/balanced-match-1.0.2.tgz#e83e3a7e3f300b34cb9d87f615fa0cbf357690ee"
   integrity sha512-3oSeUO0TMV67hN1AmbXsK4yaqU7tjiHlbxRDZOpH0KW9+CeX4bRAaX0Anxt0tx2MrpRpWwQaPwIlISEJhYU5Pw==
 
-bancho.js@^0.10.0-rc.5:
-  version "0.10.0-rc.5"
-  resolved "https://registry.yarnpkg.com/bancho.js/-/bancho.js-0.10.0-rc.5.tgz#1010c6613b4ce022471a2c33f059174b7c1106af"
-  integrity sha512-yPd85SScnQhrYYuiN7LCYaca9BmStRqXpn3MNOYrNbmBfA2OxtiUK9nVNTxowzgteHk0FPEfEXUiXzCQFiqALA==
+bancho.js@^0.10.0-rc.6:
+  version "0.10.0-rc.6"
+  resolved "https://registry.yarnpkg.com/bancho.js/-/bancho.js-0.10.0-rc.6.tgz#79b20235d5299b2c0a94ad65704f7b4122260df9"
+  integrity sha512-USv+F3ZD4gS+iA4hLa/FUDeq11h+d+e+DcqV9EHDkS+xwwFlx4mwuU/8EJMIiPyegdbM5QCRrD4kbfXPzsOjRA==
   dependencies:
     limiter "^2.1.0"
     nodesu "^0.7.2"
