@@ -18,11 +18,25 @@ Sentry.init({
 });
 
 
+let just_started = true;
+
+setTimeout(() => just_started = false, 10000);
+
+
 async function main() {
   console.log('Starting...');
 
   const client = new Bancho.BanchoClient(Config);
-  client.on('error', (err) => Sentry.captureException(err));
+  client.on('error', (err) => {
+    console.error('bancho.js error: ', err);
+    Sentry.captureException(err);
+
+    // If we just started, kill the process when receiving an error instead of
+    // getting stuck and not joining any lobbies
+    if (just_started) {
+      process.exit();
+    }
+  });
 
   const discord_client = await init_discord_interactions(client);
   await init_discord_updates(discord_client);

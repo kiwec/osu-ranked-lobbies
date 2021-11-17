@@ -1,5 +1,5 @@
 import fs from 'fs';
-import {Client, Intents, MessageActionRow, MessageEmbed, MessageSelectMenu} from 'discord.js';
+import {Client, Intents, MessageEmbed} from 'discord.js';
 
 
 async function main() {
