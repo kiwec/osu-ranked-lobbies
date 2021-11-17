@@ -351,8 +351,12 @@ async function join_lobby(lobby, client, creator, creator_discord_id, created_ju
       await load_user_info(player.user, lobby);
     } catch (err) {
       console.error(`[Ranked #${lobby.id}] Failed to fetch user data for '${player.user.ircUsername}': ${err}`);
-      Sentry.captureException(err);
       await lobby.channel.sendMessage(`!mp ban ${player.user.ircUsername}`);
+      if (err.message == 'Internal server error.') {
+        await player.user.sendMessage('Sorry, osu!api is having issues at the moment, so you cannot join o!RL lobbies. See https://status.ppy.sh/ for more info.');
+      } else {
+        Sentry.captureException(err);
+      }
     }
   }
   await update_median_pp(lobby);
@@ -394,8 +398,12 @@ async function join_lobby(lobby, client, creator, creator_discord_id, created_ju
         await player.fetchFromAPI();
       } catch (err) {
         console.error(`[Ranked #${lobby.id}] Failed to fetch user data for '${evt.player.user.username}': ${err}`);
-        Sentry.captureException(err);
         await lobby.channel.sendMessage(`!mp ban ${evt.player.user.username}`);
+        if (err.message == 'Internal server error.') {
+          await evt.player.user.sendMessage('Sorry, osu!api is having issues at the moment, so you cannot join o!RL lobbies. See https://status.ppy.sh/ for more info.');
+        } else {
+          Sentry.captureException(err);
+        }
       }
 
       await open_new_lobby_if_needed(client);
@@ -440,6 +448,7 @@ async function join_lobby(lobby, client, creator, creator_discord_id, created_ju
       }
       await update_ranked_lobby_on_discord(lobby);
     } catch (e) {
+      console.error(`[Ranked #${lobby.id}] Error in playerJoined event handler:`, e);
       Sentry.captureException(e);
     }
   });
