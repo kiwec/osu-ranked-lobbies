@@ -772,18 +772,16 @@ async function start_ranked(client, _map_db) {
 
   const lobbies = await discord_db.all('SELECT * from ranked_lobby');
   for (const lobby of lobbies) {
-    (async () => {
-      console.log('Rejoining lobby #' + lobby.osu_lobby_id);
+    console.log('Rejoining lobby #' + lobby.osu_lobby_id);
 
-      try {
-        const channel = await client.getChannel('#mp_' + lobby.osu_lobby_id);
-        await channel.join();
-        await join_lobby(channel.lobby, client, lobby.creator, lobby.creator_discord_id, false, lobby.min_stars, lobby.max_stars);
-      } catch (e) {
-        console.error('Failed to rejoin lobby ' + lobby.osu_lobby_id + ':', e);
-        await close_ranked_lobby_on_discord({id: lobby.osu_lobby_id});
-      }
-    })();
+    try {
+      const channel = await client.getChannel('#mp_' + lobby.osu_lobby_id);
+      await channel.join();
+      await join_lobby(channel.lobby, client, lobby.creator, lobby.creator_discord_id, false, lobby.min_stars, lobby.max_stars);
+    } catch (e) {
+      console.error('Failed to rejoin lobby ' + lobby.osu_lobby_id + ':', e);
+      await close_ranked_lobby_on_discord({id: lobby.osu_lobby_id});
+    }
   }
 
   client.on('PM', async (msg) => {
