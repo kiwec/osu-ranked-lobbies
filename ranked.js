@@ -600,12 +600,12 @@ async function on_lobby_msg(lobby, msg) {
       setTimeout(() => {
         if (deadlines.some((deadline) => deadline.id == id)) {
           console.error('bancho.js didn\'t register ' + m[1] + ' joining! Trying to recover.');
-          Sentry.setContext("lobby", {
+          Sentry.setContext('lobby', {
             slotUpdates: lobby.slotsUpdatesQueue.length,
-            playerCreations: lobby.playerCreationQueue.length
-            updateSettingsPromise: updateSettingsPromise != null
+            playerCreations: lobby.playerCreationQueue.length,
+            updateSettingsPromise: updateSettingsPromise != null,
           });
-          Sentry.captureException(new Error("bancho.js didn't register playerJoined event for 30 seconds"));
+          Sentry.captureException(new Error('bancho.js didn\'t register playerJoined event for 30 seconds'));
           lobby.slotsUpdateCallback();
           lobby.playersCreationCallback();
         }
