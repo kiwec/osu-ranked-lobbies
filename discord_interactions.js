@@ -306,6 +306,12 @@ async function on_lobby_invite_button_press(user, interaction) {
       return;
     }
   }
+
+  await interaction.editReply({
+    content: 'Sorry, looks like that lobby just closed. <:tf:900417849179389992>',
+    ephemeral: true,
+  });
+  await interaction.message.delete();
 }
 
 async function on_link_osu_account_press(user, interaction) {
