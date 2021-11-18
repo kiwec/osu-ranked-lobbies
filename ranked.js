@@ -342,6 +342,8 @@ async function join_lobby(lobby, client, creator, creator_discord_id, created_ju
 
   await lobby.setPassword('');
   await lobby.channel.sendMessage(`!mp set 0 ${scorev2 ? '3': '0'} 16`);
+  if (dt) await lobby.channel.sendMessage('!mp mods dt freemod');
+  else await lobby.channel.sendMessage('!mp mods freemod');
 
   // Fetch user info
   await lobby.updateSettings();
