@@ -120,7 +120,7 @@ async function update_ranked_lobby_on_discord(lobby) {
 
       await db.run(SQL`
         INSERT INTO ranked_lobby (osu_lobby_id, discord_channel_id, discord_msg_id, creator, creator_discord_id, min_stars, max_stars, dt, scorev2)
-        VALUES (${lobby.id}, ${discord_channel.id}, ${discord_msg.id}, ${lobby.creator}, ${lobby.creator_discord_id}, ${min_stars}, ${max_stars}, ${lobby.is_dt}, ${lobby.is_scorev2})`,
+        VALUES (${lobby.id}, ${discord_channel.id}, ${discord_msg.id}, ${lobby.creator}, ${lobby.creator_discord_id}, ${min_stars}, ${max_stars}, ${lobby.is_dt ? 1 : 0}, ${lobby.is_scorev2 ? 1 : 0})`,
       );
     } catch (err) {
       console.error(`[Ranked #${lobby.id}] Failed to create Discord message: ${err}`);
