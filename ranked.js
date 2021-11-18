@@ -5,12 +5,11 @@ import SQL from 'sql-template-strings';
 import BanchoLobbyPlayerStates from 'bancho.js/lib/Multiplayer/Enums/BanchoLobbyPlayerStates.js';
 
 import {init_db as init_ranking_db, update_mmr, get_rank_text_from_id} from './elo_mmr.js';
-import {load_user_info} from './map_selector.js';
+import {load_user_info} from './profile_scanner.js';
 import {
   update_ranked_lobby_on_discord,
   close_ranked_lobby_on_discord,
   update_discord_role,
-  get_scoring_preference,
 } from './discord_updates.js';
 
 
@@ -134,14 +133,11 @@ async function select_next_map(lobby) {
   let new_map = null;
   let tries = 0;
 
-  // TODO: add DT vote
-  const is_dt = false;
-
   // If we have a variable star range, get it from the current lobby pp
   if (!lobby.fixed_star_range) {
     let meta = null;
 
-    if (is_dt) {
+    if (lobby.is_dt) {
       meta = await map_db.get(SQL`
         SELECT MIN(pp_stars) AS min_stars, MAX(pp_stars) AS max_stars FROM (
           SELECT pp.stars AS pp_stars, (
@@ -176,7 +172,7 @@ async function select_next_map(lobby) {
   }
 
   do {
-    if (is_dt) {
+    if (lobby.is_dt) {
       new_map = await map_db.get(SQL`
         SELECT * FROM (
           SELECT *, pp.stars AS pp_stars, (
@@ -234,31 +230,12 @@ async function select_next_map(lobby) {
     const sayobot_link = `[https://osu.sayobot.cn/osu.php?s=${new_map.set_id} [4]]`;
     await lobby.channel.sendMessage(`!mp map ${new_map.id} 0 | ${map_name} (${flavor}) Alternate downloads: ${beatconnect_link} ${chimu_link} ${nerina_link} ${sayobot_link}`);
 
-    if (lobby.is_dt != is_dt) {
-      if (is_dt) {
-        await lobby.channel.sendMessage('!mp mods DT freemod');
-      } else {
-        await lobby.channel.sendMessage('!mp mods freemod');
-      }
-
-      lobby.is_dt = is_dt;
-    }
-
     const player_ids = [];
     for (const slot of lobby.slots) {
       if (slot) {
         player_ids.push(slot.user.id);
       }
     }
-    const score_system = await get_scoring_preference(player_ids);
-    const score_systems = ['ScoreV1', 'Accuracy', 'Combo', 'ScoreV2'];
-    if (lobby.winCondition != score_system) {
-      await lobby.channel.sendMessage(`!mp set 0 ${score_system} 16 | Now using ${score_systems[score_system]} as ranking criteria. [https://kiwec.net/discord Join the Discord] to vote for something else!`);
-    }
-
-    lobby.title_modifiers = '';
-    if (is_dt) lobby.title_modifiers += ' DT';
-    if (score_system == 3) lobby.title_modifiers += ' ScoreV2';
     await set_new_title(lobby);
   } catch (e) {
     console.error(`[Ranked #${lobby.id}] Failed to switch to map ${new_map.id} ${new_map.name}:`, e);
@@ -285,7 +262,17 @@ async function open_new_lobby_if_needed(client) {
 
     try {
       const channel = await client.createLobby(`0-11* | o!RL | Auto map select (!about)`);
-      await join_lobby(channel.lobby, client, 'kiwec', '889603773574578198', false, null, null);
+      await join_lobby(
+          channel.lobby,
+          client,
+          'kiwec',
+          '889603773574578198',
+          false,
+          null,
+          null,
+          false,
+          false,
+      );
       console.log(`[Ranked #${channel.lobby.id}] Created.`);
     } catch (err) {
       if (err.message != 'You cannot create any more tournament matches. Please close any previous tournament matches you have open.') {
@@ -332,7 +319,7 @@ async function update_median_pp(lobby) {
   return false;
 }
 
-async function join_lobby(lobby, client, creator, creator_discord_id, created_just_now, min_stars, max_stars) {
+async function join_lobby(lobby, client, creator, creator_discord_id, created_just_now, min_stars, max_stars, dt, scorev2) {
   lobby.recent_maps = [];
   lobby.votekicks = [];
   lobby.voteskips = [];
@@ -341,14 +328,20 @@ async function join_lobby(lobby, client, creator, creator_discord_id, created_ju
   lobby.median_overall = 0;
   lobby.nb_players = 0;
   lobby.last_ready_msg = 0;
-  lobby.is_dt = -1;
   lobby.creator = creator;
   lobby.creator_discord_id = creator_discord_id;
   lobby.min_stars = min_stars || 0.0;
   lobby.max_stars = max_stars || 11.0;
   lobby.fixed_star_range = (min_stars != null || max_stars != null);
+
+  lobby.is_dt = dt;
+  lobby.is_scorev2 = scorev2;
   lobby.title_modifiers = '';
+  if (scorev2) lobby.title_modifiers += ' ScoreV2';
+  if (dt) lobby.title_modifiers += ' DT';
+
   await lobby.setPassword('');
+  await lobby.channel.sendMessage(`!mp set 0 ${scorev2 ? '3': '0'} 16`);
 
   // Fetch user info
   await lobby.updateSettings();
@@ -776,7 +769,17 @@ async function start_ranked(client, _map_db) {
     try {
       const channel = await client.getChannel('#mp_' + lobby.osu_lobby_id);
       await channel.join();
-      await join_lobby(channel.lobby, client, lobby.creator, lobby.creator_discord_id, false, lobby.min_stars, lobby.max_stars);
+      await join_lobby(
+          channel.lobby,
+          client,
+          lobby.creator,
+          lobby.creator_discord_id,
+          false,
+          lobby.min_stars,
+          lobby.max_stars,
+          lobby.dt,
+          lobby.scorev2,
+      );
     } catch (e) {
       console.error('Failed to rejoin lobby ' + lobby.osu_lobby_id + ':', e);
       await close_ranked_lobby_on_discord({id: lobby.osu_lobby_id});

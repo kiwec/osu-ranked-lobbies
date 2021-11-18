@@ -119,8 +119,8 @@ async function update_ranked_lobby_on_discord(lobby) {
       }
 
       await db.run(SQL`
-        INSERT INTO ranked_lobby (osu_lobby_id, discord_channel_id, discord_msg_id, creator, creator_discord_id, min_stars, max_stars)
-        VALUES (${lobby.id}, ${discord_channel.id}, ${discord_msg.id}, ${lobby.creator}, ${lobby.creator_discord_id}, ${min_stars}, ${max_stars})`,
+        INSERT INTO ranked_lobby (osu_lobby_id, discord_channel_id, discord_msg_id, creator, creator_discord_id, min_stars, max_stars, dt, scorev2)
+        VALUES (${lobby.id}, ${discord_channel.id}, ${discord_msg.id}, ${lobby.creator}, ${lobby.creator_discord_id}, ${min_stars}, ${max_stars}, ${lobby.is_dt}, ${lobby.is_scorev2})`,
       );
     } catch (err) {
       console.error(`[Ranked #${lobby.id}] Failed to create Discord message: ${err}`);
@@ -221,26 +221,9 @@ async function update_discord_role(osu_user_id, rank_text) {
   }
 }
 
-async function get_scoring_preference(osu_id_list) {
-  // 0: ScoreV1
-  // 1: Accuracy
-  // 2: Combo
-  // 3: ScoreV2
-  const placeholders = osu_id_list.map(() => '?').join(',');
-  const res = await db.get(`
-    SELECT score_preference, COUNT(*) AS nb FROM user
-    WHERE osu_id IN (${placeholders}) AND score_preference IS NOT NULL
-    GROUP BY score_preference ORDER BY nb DESC LIMIT 1`,
-  osu_id_list,
-  );
-  if (!res) return 0;
-  return res.score_preference || 0;
-}
-
 export {
   init,
   update_ranked_lobby_on_discord,
   close_ranked_lobby_on_discord,
   update_discord_role,
-  get_scoring_preference,
 };

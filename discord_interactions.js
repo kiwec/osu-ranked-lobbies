@@ -32,7 +32,9 @@ function init(_bancho_client) {
         creator TEXT,
         creator_discord_id TEXT,
         min_stars REAL,
-        max_stars REAL
+        max_stars REAL,
+        dt BOOLEAN NOT NULL,
+        scorev2 BOOLEAN NOT NULL
       )`);
 
       await db.exec(`CREATE TABLE IF NOT EXISTS auth_tokens (
@@ -45,8 +47,7 @@ function init(_bancho_client) {
         osu_id INTEGER,
         osu_access_token TEXT,
         osu_refresh_token TEXT,
-        discord_rank TEXT,
-        score_preference INTEGER
+        discord_rank TEXT
       )`);
 
       client = new Client({intents: [Intents.FLAGS.GUILDS]});
@@ -81,13 +82,6 @@ async function on_interaction(interaction) {
       discord_id: interaction.user.id,
       username: interaction.user.username,
     });
-  }
-
-  if (interaction.isSelectMenu()) {
-    if (interaction.customId == 'orl_set_scoring') {
-      await on_set_preferred_scoring_system(user, interaction);
-      return;
-    }
   }
 
   if (interaction.isCommand()) {
@@ -165,7 +159,17 @@ async function on_make_ranked_command(user, interaction) {
     });
 
     await channel.lobby.clearHost();
-    await join_lobby(channel.lobby, bancho_client, host_user.ircUsername, user.discord_id, true, min_stars, max_stars);
+    await join_lobby(
+        channel.lobby,
+        bancho_client,
+        host_user.ircUsername,
+        user.discord_id,
+        true,
+        min_stars,
+        max_stars,
+        interaction.options.getBoolean('dt'),
+        interaction.options.getBoolean('scorev2'),
+    );
     console.log(`[Ranked #${channel.lobby.id}] Created by ${host_user.ircUsername}.`);
 
     await interaction.editReply({content: 'Lobby initialized ✅ Enjoy!'});
@@ -177,38 +181,6 @@ async function on_make_ranked_command(user, interaction) {
       Sentry.captureException(err);
     }
   }
-}
-
-async function on_set_preferred_scoring_system(user, interaction) {
-  if (!user) {
-    await interaction.reply({
-      content: `Before setting your preferred scoring system, you first need to link your account by clicking on the "Link account" button ☝️`,
-      ephemeral: true,
-    });
-    return;
-  }
-
-  if (interaction.values[0] == '0') {
-    await db.run(SQL`UPDATE user SET score_preference = 0 WHERE discord_id = ${interaction.user.id}`);
-    await interaction.reply({
-      content: `Ranked lobbies will now use ScoreV1 as the scoring system if the majority votes for it.`,
-      ephemeral: true,
-    });
-  } else if (interaction.values[0] == '3') {
-    await db.run(SQL`UPDATE user SET score_preference = 3 WHERE discord_id = ${interaction.user.id}`);
-    await interaction.reply({
-      content: `Ranked lobbies will now use ScoreV2 as the scoring system if the majority votes for it.`,
-      ephemeral: true,
-    });
-  } else {
-    await db.run(SQL`UPDATE user SET score_preference = NULL WHERE discord_id = ${interaction.user.id}`);
-    await interaction.reply({
-      content: `Ranked lobbies will use the scoring system voted by the majority.`,
-      ephemeral: true,
-    });
-  }
-
-  console.log(`[Discord] ${interaction.user} selected '${interaction.values[0]}' as their preferred scoring system.`);
 }
 
 async function on_profile_command(user, interaction) {

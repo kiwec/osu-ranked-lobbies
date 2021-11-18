@@ -36,8 +36,11 @@ BanchoUser.prototype.fetchFromAPI = async function() {
     this.id = res.user_id;
     this.username = res.username;
   } else {
-    console.log('user not found, fetching from osu!api');
+    console.log('Fetching user info for ' + this.ircUsername);
     const user = await this.banchojs.osuApi.user.get(this.ircUsername, null, null, Nodesu.LookupType.string);
+    if (!user) {
+      throw new Error('nodesu returned undefined. idk what to do.');
+    }
 
     const existing_user = await ranking_db.get(SQL`SELECT * FROM user WHERE user_id = ${user.id}`);
     if (existing_user) {

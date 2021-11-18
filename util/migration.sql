@@ -1,12 +1,4 @@
 -- discord.db
-ALTER TABLE ranked_lobby ADD COLUMN creator TEXT;
-ALTER TABLE ranked_lobby ADD COLUMN creator_discord_id TEXT;
-ALTER TABLE ranked_lobby ADD COLUMN min_stars REAL;
-ALTER TABLE ranked_lobby ADD COLUMN max_stars REAL;
-UPDATE ranked_lobby SET creator = 'kiwec';
-UPDATE ranked_lobby SET creator_discord_id = '889603773574578198';
-
--- ranks.db
-ALTER TABLE user ADD COLUMN avg_sr REAL;
-UPDATE user SET last_top_score_tms = 0;
-UPDATE user SET last_update_tms = 0;
+ALTER TABLE ranked_lobby ADD COLUMN dt BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE ranked_lobby ADD COLUMN scorev2 BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE user DROP COLUMN score_preference;
