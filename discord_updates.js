@@ -81,7 +81,7 @@ async function update_ranked_lobby_on_discord(lobby) {
             custom_id: 'orl_get_lobby_invite_' + lobby.id,
             label: 'Get invite',
             style: 'PRIMARY',
-            disabled: lobby.nb_players == 16,
+            disabled: lobby.nb_players == lobby.size,
           }),
         ]),
       ],

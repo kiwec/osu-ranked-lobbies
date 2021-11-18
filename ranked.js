@@ -67,7 +67,7 @@ async function get_matching_lobby_for_user(client, user) {
     if (user.pp.sr * DIFFICULTY_MODIFIER > lobby.max_stars) continue;
 
     const nb_players = get_nb_players(lobby);
-    if (nb_players > 0 && nb_players < 16) {
+    if (nb_players > 0 && nb_players < parseInt(lobby.size, 10)) {
       available_lobbies.push(lobby);
     }
   }
@@ -254,7 +254,7 @@ async function open_new_lobby_if_needed(client) {
     for (const s of jl.slots) {
       if (s) nb_players++;
     }
-    empty_slots += 16 - nb_players;
+    empty_slots += parseInt(jl.size, 10) - nb_players;
   }
 
   if (empty_slots == 0) {
