@@ -617,15 +617,14 @@ async function on_lobby_msg(lobby, msg) {
       });
       setTimeout(() => {
         if (deadlines.some((deadline) => deadline.id == id)) {
-          console.error('bancho.js didn\'t register ' + m[1] + ' joining! Trying to recover.');
+          console.error('bancho.js didn\'t register ' + m[1] + ' joining! Restarting.');
           Sentry.setContext('lobby', {
             slotUpdates: lobby.slotsUpdatesQueue.length,
             playerCreations: lobby.playerCreationQueue.length,
             updateSettingsPromise: lobby.updateSettingsPromise != null,
           });
           Sentry.captureException(new Error('bancho.js didn\'t register playerJoined event for 30 seconds'));
-          lobby.slotsUpdateCallback();
-          lobby.playersCreationCallback();
+          process.exit();
         }
       }, 30000);
     }
