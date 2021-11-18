@@ -19,29 +19,30 @@ async function init(discord_client) {
 
 
 function get_pp_color(lobby) {
-  if (!lobby || !lobby.median_overall) {
+  if (!lobby || lobby.nb_players == 0) {
     return null;
   }
 
   const sr = (lobby.min_stars + lobby.max_stars) / 2.0;
-  if (sr < 2.0) {
-    // Easy
-    return '#76b000';
-  } else if (sr < 2.7) {
-    // Normal
-    return '#58d6ff';
-  } else if (sr < 4) {
-    // Hard
-    return '#ffd60a';
-  } else if (sr < 5.3) {
-    // Insane
-    return '#ff58ac';
-  } else if (sr < 6.5) {
-    // Expert
-    return '#8158fe';
-  } else {
-    // God
+  if (sr <= 0.1) {
+    return '#4290FB';
+  } else if (sr >= 9) {
     return '#000000';
+  } else {
+    const star_levels = [0.1, 1.25, 2, 2.5, 3.3, 4.2, 4.9, 5.8, 6.7, 7.7, 9];
+    const star_colors = ['#4290FB', '#4FC0FF', '#4FFFD5', '#7CFF4F', '#F6F05C', '#FF8068', '#FF4E6F', '#C645B8', '#6563DE', '#18158E', '#000000'];
+    for (const i in star_levels) {
+      if (!star_levels.hasOwnProperty(i)) continue;
+      if (star_levels[i] > sr && star_levels[i-1] < sr) {
+        const lower = star_levels[i - 1];
+        const upper = star_levels[i];
+        const ratio = (sr - lower) / (upper - lower);
+        const r = parseInt(star_colors[i-1].substr(1, 2), 16) * (1 - ratio) + parseInt(star_colors[i].substr(1, 2), 16) * ratio;
+        const g = parseInt(star_colors[i-1].substr(3, 2), 16) * (1 - ratio) + parseInt(star_colors[i].substr(3, 2), 16) * ratio;
+        const b = parseInt(star_colors[i-1].substr(5, 2), 16) * (1 - ratio) + parseInt(star_colors[i].substr(5, 2), 16) * ratio;
+        return '#' + Math.round(r).toString(16).padStart(2, '0') + Math.round(g).toString(16).padStart(2, '0') + Math.round(b).toString(16).padStart(2, '0');
+      }
+    }
   }
 }
 
