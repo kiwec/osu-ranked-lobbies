@@ -395,7 +395,7 @@ async function join_lobby(lobby, client, creator, creator_discord_id, created_ju
     try {
       const joined_alone = get_nb_players(lobby) == 1;
 
-      deadlines = deadlines.filter((deadline) => deadline.username != evt.player.user.username.replace(/ /, '_'));
+      deadlines = deadlines.filter((deadline) => deadline.username != evt.player.user.username.replace(/ /g, '_'));
 
       const player = await client.getUser(evt.player.user.username);
       try {
@@ -608,11 +608,11 @@ async function on_lobby_msg(lobby, msg) {
       const id = deadline_id++;
       deadlines.push({
         id: id,
-        username: m[1].replace(/ /, '_'),
+        username: m[1].replace(/ /g, '_'),
       });
       setTimeout(() => {
         if (deadlines.some((deadline) => deadline.id == id)) {
-          console.error('bancho.js didn\'t register ' + m[1].replace(/ /, '_') + ' joining! Restarting.');
+          console.error('bancho.js didn\'t register ' + m[1].replace(/ /g, '_') + ' joining! Restarting.');
           Sentry.setContext('lobby', {
             slotUpdates: lobby.slotsUpdatesQueue.length,
             playerCreations: lobby.playerCreationQueue.length,
