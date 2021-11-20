@@ -422,7 +422,7 @@ async function join_lobby(lobby, client, creator, creator_discord_id, created_ju
       const adjusted_sr = player.pp.sr * DIFFICULTY_MODIFIER;
       const slack = lobby.fixed_star_range ? 0.5 : 1.5;
       if (adjusted_sr < lobby.min_stars - slack || adjusted_sr > lobby.max_stars + slack) {
-        await lobby.kickPlayer(player.ircUsername);
+        await lobby.channel.sendMessage('!mp ban ' + player.ircUsername);
 
         let apology = 'Sorry, but your level is';
         if (adjusted_sr < lobby.min_stars - slack) {
@@ -686,7 +686,7 @@ async function on_lobby_msg(lobby, msg) {
 
       if (nb_voted_to_kick >= nb_required_to_kick) {
         // I wonder what happens if people kick the bot?
-        await lobby.kickPlayer(bad_player);
+        await lobby.channel.sendMessage('!mp ban ' + bad_player);
       } else {
         await lobby.channel.sendMessage(`${msg.user.ircUsername} voted to kick ${bad_player}. ${nb_voted_to_kick}/${nb_required_to_kick} votes needed.`);
       }
