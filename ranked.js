@@ -19,6 +19,7 @@ let creating_lobby = false;
 let ranking_db = null;
 let map_db = null;
 const DIFFICULTY_MODIFIER = 1.1;
+const DT_DIFFICULTY_MODIFIER = 0.7;
 
 
 function set_sentry_context(lobby, current_task) {
@@ -141,9 +142,9 @@ async function select_next_map(lobby) {
       meta = await map_db.get(SQL`
         SELECT MIN(pp_stars) AS min_stars, MAX(pp_stars) AS max_stars FROM (
           SELECT pp.stars AS pp_stars, (
-            ABS(${lobby.median_aim} - dt_aim_pp)
-            + ABS(${lobby.median_speed} - dt_speed_pp)
-            + ABS(${lobby.median_acc} - dt_acc_pp)
+            ABS(${lobby.median_aim * DT_DIFFICULTY_MODIFIER} - dt_aim_pp)
+            + ABS(${lobby.median_speed * DT_DIFFICULTY_MODIFIER} - dt_speed_pp)
+            + ABS(${lobby.median_acc * DT_DIFFICULTY_MODIFIER} - dt_acc_pp)
             + 10*ABS(${lobby.median_ar} - pp.ar)
           ) AS match_accuracy FROM map
           INNER JOIN pp ON map.id = pp.map_id
@@ -176,9 +177,9 @@ async function select_next_map(lobby) {
       new_map = await map_db.get(SQL`
         SELECT * FROM (
           SELECT *, pp.stars AS pp_stars, (
-            ABS(${lobby.median_aim} - dt_aim_pp)
-            + ABS(${lobby.median_speed} - dt_speed_pp)
-            + ABS(${lobby.median_acc} - dt_acc_pp)
+            ABS(${lobby.median_aim * DT_DIFFICULTY_MODIFIER} - dt_aim_pp)
+            + ABS(${lobby.median_speed * DT_DIFFICULTY_MODIFIER} - dt_speed_pp)
+            + ABS(${lobby.median_acc * DT_DIFFICULTY_MODIFIER} - dt_acc_pp)
             + 10*ABS(${lobby.median_ar} - pp.ar)
           ) AS match_accuracy FROM map
           INNER JOIN pp ON map.id = pp.map_id
