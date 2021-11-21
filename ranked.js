@@ -14,6 +14,7 @@ import {
 
 
 let deadlines = [];
+let leave_deadlines = [];
 let deadline_id = 0;
 let creating_lobby = false;
 let ranking_db = null;
@@ -426,9 +427,9 @@ async function join_lobby(lobby, client, creator, creator_discord_id, created_ju
 
         let apology = 'Sorry, but your level is';
         if (adjusted_sr < lobby.min_stars - slack) {
-          apology += ` not high enough for this lobby (estimated ${adjusted_sr.toFixed(2)}*, lobby ${lobby.min_stars.toFixed(2)}*).`;
+          apology += ` not high enough for this lobby (you are ~${adjusted_sr.toFixed(2)}*, lobby is >${lobby.min_stars.toFixed(2)}*).`;
         } else {
-          apology += ` too high for this lobby (estimated ${adjusted_sr.toFixed(2)}*, lobby ${lobby.max_stars.toFixed(2)}*).`;
+          apology += ` too high for this lobby (you are ~${adjusted_sr.toFixed(2)}*, lobby is <${lobby.max_stars.toFixed(2)}*).`;
         }
 
         const suggested_lobby = await get_matching_lobby_for_user(client, player);
@@ -463,6 +464,10 @@ async function join_lobby(lobby, client, creator, creator_discord_id, created_ju
     Sentry.setUser({username: evt.user.ircUsername});
 
     try {
+      leave_deadlines = leave_deadlines.filter((deadline) =>
+        deadline.username != evt.user.ircUsername.replace(/ /g, '_'),
+      );
+
       // Remove user's votekicks, and votekicks against the user
       delete lobby.votekicks[evt.user.ircUsername];
       for (const annoyed_players of lobby.votekicks) {
@@ -603,6 +608,7 @@ async function on_lobby_msg(lobby, msg) {
   // Mostly copy/pasted from bancho.js itself.
   if (msg.user.ircUsername == 'BanchoBot') {
     const join_regex = /^(.+) joined in slot (\d+)( for team (red|blue))?\.$/;
+    const leave_regex = /^(.+) left the game\.$/;
 
     if (join_regex.test(msg.message)) {
       const m = join_regex.exec(msg.message);
@@ -619,7 +625,26 @@ async function on_lobby_msg(lobby, msg) {
             playerCreations: lobby.playerCreationQueue.length,
             updateSettingsPromise: lobby.updateSettingsPromise != null,
           });
-          Sentry.captureException(new Error('bancho.js didn\'t register playerJoined event for 30 seconds'));
+          Sentry.captureException(new Error('A playerJoined event is missing.'));
+          process.exit();
+        }
+      }, 30000);
+    } else if (leave_regex.test(msg.message)) {
+      const m = leave_regex.exec(msg.message);
+      const id = deadline_id++;
+      leave_deadlines.push({
+        id: id,
+        username: m[1].replace(/ /g, '_'),
+      });
+      setTimeout(() => {
+        if (leave_deadlines.some((deadline) => deadline.id == id)) {
+          console.error('bancho.js didn\'t register ' + m[1].replace(/ /g, '_') + ' leaving! Restarting.');
+          Sentry.setContext('lobby', {
+            slotUpdates: lobby.slotsUpdatesQueue.length,
+            playerCreations: lobby.playerCreationQueue.length,
+            updateSettingsPromise: lobby.updateSettingsPromise != null,
+          });
+          Sentry.captureException(new Error('A playerLeft event is missing.'));
           process.exit();
         }
       }, 30000);
