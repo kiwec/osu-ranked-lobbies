@@ -6,12 +6,22 @@ import Sentry from '@sentry/node';
 import {open} from 'sqlite';
 import sqlite3 from 'sqlite3';
 
-import {get_rank_text, get_rank_text_from_id} from './elo_mmr.js';
+import {get_rank, get_rank_text_from_id, init_db} from './elo_mmr.js';
 import {update_discord_role} from './discord_updates.js';
 import SQL from 'sql-template-strings';
 
 const Config = JSON.parse(fs.readFileSync('./config.json'));
 
+
+function median(numbers) {
+  if (numbers.length == 0) return 0;
+
+  const middle = Math.floor(numbers.length / 2);
+  if (numbers.length % 2 === 0) {
+    return (numbers[middle - 1] + numbers[middle]) / 2;
+  }
+  return numbers[middle];
+}
 
 async function listen() {
   const discord_db = await open({
@@ -31,8 +41,40 @@ async function listen() {
   app.set('trust proxy', () => true);
   app.use(express.static('public'));
 
-  app.get('/', (req, res) => {
-    res.redirect('https://kiwec.net/discord');
+  app.get('/', (req, http_res) => {
+    let top20 = '';
+    const res = await ranks_db.get(SQL`
+      SELECT * FROM user
+      ORDER BY elo DESC LIMIT 20`
+    );
+
+    let rank = 1;
+    for(let user of res) {
+      top20 += `<tr>
+        <td>${rank++}</td>
+        <td><a href="/u/${user.user_id}">${user.username}</a></td>
+        <td>${user.elo}</td>
+      </tr>`
+    }
+
+    http_res.send(`<html>
+    <head>
+      <meta charset="utf-8">
+      <title>Leaderboards</title>
+    </head>
+    <body>
+      <table>
+        <thead>
+          <tr>
+            <td>rank</td>
+            <td>username</td>
+            <td>elo</td>
+          </tr>
+        </thead>
+        <tbody>${top20}</tbody>
+      </table>
+    </body>
+    </html>`);
   });
 
   app.get('/auth', async (req, http_res) => {
@@ -159,14 +201,53 @@ async function listen() {
       return;
     }
 
+    const scores_res = await ranks_db.all(SQL`
+      SELECT * FROM score
+      WHERE user_id = ${req.params.userId}
+      ORDER BY tms DESC LIMIT 10`,
+    );
+    let last_elo = 1500;
+    let scores = '';
+    for (const score of scores_res) {
+      // Kind of dumb and slow
+      const contest_res = await ranks_db.all(SQL`
+        SELECT *, overall_pp FROM score
+        INNER JOIN user ON user.user_id = score.user_id
+        WHERE contest_id = ${score.contest_id}
+        ORDER BY score DESC`,
+      );
+      let place = 1;
+      for (const contest_score of contest_res) {
+        if (contest_score.user_id == req.params.userId) {
+          break;
+        }
+        place++;
+      }
+
+      const pps = [];
+      for (const contest_score of contest_res) {
+        pps.push(contest_score.overall_pp);
+      }
+
+      let mmr_diff = Math.round(score.logistic_mu - last_elo);
+      if (mmr_diff >= 0) mmr_diff = '+' + mmr_diff;
+
+      last_elo = score.logistic_mu;
+
+      scores += `<tr>
+        <td>${Math.round(median(pps))}pp</td>
+        <td>${place}/${contest_res.length}</td>
+        <td>${mmr_diff}</td>
+        <td>${score.tms}</td>
+      </tr>`;
+    }
+
     if (res.games_played < 5) {
       http_res.send('unranked');
       return;
     }
 
-    const better_users = await ranks_db.get(SQL`SELECT COUNT(*) AS nb FROM user WHERE elo > ${res.elo} AND games_played > 4`);
-    const all_users = await ranks_db.get('SELECT COUNT(*) AS nb FROM user WHERE games_played > 4');
-
+    const rank = await get_rank(res.elo);
     http_res.send(`<html>
     <head>
       <meta charset="utf-8">
@@ -178,8 +259,22 @@ async function listen() {
         user id: ${res.user_id}
         username: ${res.username}
         games played: ${res.games_played}
-        rank: ${get_rank_text(1.0 - (better_users.nb / all_users.nb))} (#${better_users.nb + 1}/${all_users.nb})
+        rank: ${rank.text} (#${rank.rank_nb}/${rank.total_nb})
+        pp: ${res.overall_pp}
       </pre>
+      <h3>last 10 matches</h3>
+      <table>
+        <thead><tr>
+          <th>lobby skill</th>
+          <th>placement</th>
+          <th>mmr diff</th>
+          <th>timestamp</th>
+        </tr></thead>
+        <tbody>
+          ${scores}
+        </tbody>
+      </table>
+      <br>
       <div>
         <!-- shameless but i'm still too lazy to design the website so... -->
         <a href="https://kiwec.net/discord">Join the o!RL discord if you haven't already #ad</a>

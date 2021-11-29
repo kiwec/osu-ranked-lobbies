@@ -88,7 +88,7 @@ async function update_ranked_lobby_on_discord(lobby) {
       ],
     };
   } catch (err) {
-    console.error(`[Ranked #${lobby.id}] Failed to generate Discord message: ${err}`);
+    console.error(`#mp_${lobby.id} Failed to generate Discord message: ${err}`);
     Sentry.captureException(err);
     return;
   }
@@ -102,7 +102,7 @@ async function update_ranked_lobby_on_discord(lobby) {
       const discord_msg = await discord_channel.messages.fetch(ranked_lobby.discord_msg_id + '');
       await discord_msg.edit(msg);
     } catch (err) {
-      console.error(`[Ranked #${lobby.id}] Failed to edit Discord message:`, err);
+      console.error(`#mp_${lobby.id} Failed to edit Discord message:`, err);
       await db.run(SQL`DELETE FROM ranked_lobby WHERE osu_lobby_id = ${lobby.id}`);
       Sentry.captureException(err);
       return;
@@ -124,7 +124,7 @@ async function update_ranked_lobby_on_discord(lobby) {
         VALUES (${lobby.id}, ${discord_channel.id}, ${discord_msg.id}, ${lobby.creator}, ${lobby.creator_discord_id}, ${min_stars}, ${max_stars}, ${lobby.is_dt ? 1 : 0}, ${lobby.is_scorev2 ? 1 : 0})`,
       );
     } catch (err) {
-      console.error(`[Ranked #${lobby.id}] Failed to create Discord message: ${err}`);
+      console.error(`#mp_${lobby.id} Failed to create Discord message: ${err}`);
       Sentry.captureException(err);
       return;
     }
@@ -143,7 +143,7 @@ async function close_ranked_lobby_on_discord(lobby) {
     const discord_channel = client.channels.cache.get(ranked_lobby.discord_channel_id);
     await discord_channel.messages.delete(ranked_lobby.discord_msg_id);
   } catch (err) {
-    console.error(`[Ranked #${lobby.id}] Failed to remove Discord message: ${err}`);
+    console.error(`#mp_${lobby.id} Failed to remove Discord message: ${err}`);
   }
 }
 

@@ -9,7 +9,7 @@ import Nodesu from 'nodesu';
 import {init as init_discord_interactions} from './discord_interactions.js';
 import {init as init_discord_updates} from './discord_updates.js';
 import {listen as website_listen} from './website.js';
-import {start_ranked} from './ranked.js';
+import {start_ranked, join_lobby} from './ranked.js';
 
 
 // fuck you, es6 modules, for making this inconvenient
@@ -115,7 +115,86 @@ async function main() {
     }
   });
 
+  // Check for lobby creation every 10 minutes
+  setInterval(() => create_lobby_if_needed(client), 10 * 60 * 1000);
+
   console.log('All ready and fired up!');
+}
+
+
+async function create_lobby_if_needed(client) {
+  const db = await open({
+    filename: 'discord.db',
+    driver: sqlite3.cached.Database,
+  });
+
+  const lobbies = db.all(`SELECT * FROM ranked_lobby WHERE creator = 'kiwec'`);
+  if (lobbies.length >= 4) return;
+
+  console.log(`Creating ${4 - lobbies.length} missing lobbies...`);
+
+  if (!lobbies.some((lobby) => lobby.min_stars == 0.0)) {
+    const channel = await client.createLobby(`0-2.99* | o!RL | Auto map select (!about)`);
+    await join_lobby(
+        channel.lobby,
+        client,
+        'kiwec',
+        '889603773574578198',
+        false,
+        0.0,
+        3.0,
+        false,
+        false,
+    );
+    console.log(`Created 0-2.99* lobby #mp_${channel.lobby.id}.`);
+  }
+  if (!lobbies.some((lobby) => lobby.min_stars == 3.0)) {
+    const channel = await client.createLobby(`3-3.99* | o!RL | Auto map select (!about)`);
+    await join_lobby(
+        channel.lobby,
+        client,
+        'kiwec',
+        '889603773574578198',
+        false,
+        3.0,
+        4.0,
+        false,
+        false,
+    );
+    console.log(`Created 3-3.99* lobby #mp_${channel.lobby.id}.`);
+  }
+  if (!lobbies.some((lobby) => lobby.min_stars == 4.0)) {
+    const channel = await client.createLobby(`4-4.99* | o!RL | Auto map select (!about)`);
+    await join_lobby(
+        channel.lobby,
+        client,
+        'kiwec',
+        '889603773574578198',
+        false,
+        4.0,
+        5.0,
+        false,
+        false,
+    );
+    console.log(`Created 4-4.99* lobby #mp_${channel.lobby.id}.`);
+  }
+  if (!lobbies.some((lobby) => lobby.min_stars == 5.0)) {
+    const channel = await client.createLobby(`5-5.99* | o!RL | Auto map select (!about)`);
+    await join_lobby(
+        channel.lobby,
+        client,
+        'kiwec',
+        '889603773574578198',
+        false,
+        5.0,
+        6.0,
+        false,
+        false,
+    );
+    console.log(`Created 5-5.99* lobby #mp_${channel.lobby.id}.`);
+  }
+
+  console.log('Done creating missing lobbies.');
 }
 
 main();

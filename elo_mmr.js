@@ -6,29 +6,52 @@ import {open} from 'sqlite';
 import sqlite3 from 'sqlite3';
 import SQL from 'sql-template-strings';
 
+import {update_discord_role} from './discord_updates.js';
+
 let db = null;
+let maps_db = null;
 
 
 // Squared variation in individual performances
-const BETA = 400.0;
+const BETA = 200.0;
 
 // Each contest participation adds an amount of drift such that, in the
 // absence of much time passing, the limiting skill uncertainty's square
 // approaches this value
 const SIG_LIMIT = 80.0;
 
-// Additional variance per second, from a drift that's continuous in time
-const DRIFT_PER_SEC = 0.0;
-
 // Maximum number of opponents and recent events to use, as a compute-saving
 // approximation
-const TRANSFER_SPEED = 16.0;
+const TRANSFER_SPEED = 1.0;
 
 // Limits the maximum number of contests to be included in the rating
 // computation
-const MAX_LOGISTIC_FACTORS = 1000;
+const MAX_LOGISTIC_FACTORS = 100;
 
 const TANH_MULTIPLIER = Math.PI / 1.7320508075688772;
+
+const RANK_DIVISIONS = [
+  'Cardboard',
+  'Copper',
+  'Copper+',
+  'Copper++',
+  'Bronze',
+  'Bronze+',
+  'Bronze++',
+  'Silver',
+  'Silver+',
+  'Silver++',
+  'Gold',
+  'Gold+',
+  'Gold++',
+  'Platinum',
+  'Platinum+',
+  'Platinum++',
+  'Diamond',
+  'Diamond+',
+  'Diamond++',
+  'Legendary',
+];
 
 assert(BETA > SIG_LIMIT, 'beta must exceed sig_limit');
 
@@ -83,48 +106,55 @@ class Contest {
       });
     }
 
-    // Dodgers share last place, with 0 score.
-    for (const player of lobby.confirmed_players) {
-      if (this.standings.every((standing) => standing.player_id != player.id)) {
-        console.log(player.ircUsername + ' tried dodging, but no.');
-        this.standings.push({
-          player_id: player.id,
-          bancho_user: player,
-          score: 0,
-          mods: 0,
-        });
-      }
-    }
+    // NOTE: due to lobby desync issues, dodge detection was not working as intended.
+    //       it is disabled until the desync issue is fixed.
+
+    // // Dodgers share last place, with 0 score.
+    // for (const player of lobby.confirmed_players) {
+    //   if (this.standings.every((standing) => standing.player_id != player.id)) {
+    //     console.log(player.ircUsername + ' tried dodging, but no.');
+    //     this.standings.push({
+    //       player_id: player.id,
+    //       bancho_user: player,
+    //       score: 0,
+    //       mods: 0,
+    //     });
+    //   }
+    // }
 
     this.standings.sort((a, b) => a.score - b.score);
     this.standings.reverse();
+
     let last_score = -1;
-    let lo = 0;
-    let hi = -1;
-    for (const standing of this.standings) {
-      standing.lo = lo;
-      standing.hi = hi;
-      if (standing.score == last_score) {
-        hi++;
-        for (const s of this.standings) {
-          if (s.lo == lo) {
-            s.hi = hi;
-          }
+    let last_tie = 0;
+    this.standings.forEach((elm, i) => {
+      if (elm.score == last_score) {
+        // Tie: set `lo` to `last_tie`
+        elm.lo = last_tie;
+        elm.hi = i;
+
+        // Update `hi` of tied players
+        const ties = this.standings.filter((s) => s.lo == last_tie);
+        for (const tie of ties) {
+          tie.hi = i;
         }
       } else {
-        lo++;
-        hi = lo;
-        last_score = standing.score;
+        // No tie
+        elm.lo = i;
+        elm.hi = i;
+        last_tie = i;
       }
-    }
+
+      last_score = elm.score;
+    });
   }
 
   // Fills the missing values from `this.standings`
   // Fetches players from database if they're not already loaded - expensive operation.
   async init() {
     const res = await db.run(SQL`
-      INSERT INTO contest (lobby_id, map_id, scoring_system, mods, tms, lobby_creator)
-      VALUES (${this.lobby_id}, ${this.map_id}, ${this.winCondition}, ${this.mods}, ${this.tms}, ${this.lobby_creator})`,
+      INSERT INTO contest (lobby_id, map_id, scoring_system, mods, tms, lobby_creator, weight)
+      VALUES (${this.lobby_id}, ${this.map_id}, ${this.winCondition}, ${this.mods}, ${this.tms}, ${this.lobby_creator}, ${this.weight})`,
     );
     this.id = res.lastID;
 
@@ -161,7 +191,6 @@ class Player {
         INSERT INTO user (user_id, username, approx_mu, approx_sig, normal_mu, normal_sig, games_played)
         VALUES (${this.user_id}, ${this.username}, 1500, 350, 1500, 350, 0)`,
       );
-      this.old_rating = null;
       return;
     }
 
@@ -190,12 +219,8 @@ class Player {
     }
 
     // Not used for computing new rank - but for knowing when the display text changed
-    const better_users = await db.get(SQL`
-      SELECT COUNT(*) AS nb FROM user
-      WHERE elo > ${this.approx_posterior.toFloat()} AND games_played > 4`,
-    );
-    const all_users = await db.get('SELECT COUNT(*) AS nb FROM user WHERE games_played > 4');
-    this.rank_float = 1.0 - (better_users.nb / all_users.nb);
+    const rank = await get_rank(this.approx_posterior.toFloat());
+    this.rank_float = rank.ratio;
   }
 
   // Modifies the player object. Returns nothing.
@@ -233,7 +258,7 @@ class Rating {
   }
 
   toFloat() {
-    return this.mu - 2.0 * (this.sig - SIG_LIMIT);
+    return this.mu - 3.0 * this.sig;
   }
 
   toInt() {
@@ -285,6 +310,23 @@ function solve_newton(f) {
 async function update_mmr(lobby) {
   const contest = new Contest(lobby);
   if (contest.standings.length < 2) return [];
+
+  // Bot restarted, fetch how much the map weighs.
+  if (!lobby.current_map_pp) {
+    const pp = await maps_db.get(SQL`
+      SELECT pp FROM pp
+      WHERE map_id = ${contest.map_id} AND mods = ${contest.mods | (1<<16)}`,
+    );
+    if (!pp) {
+      console.error('Failed to fetch pp for map', contest.map_id, 'with mods', contest.mods);
+      return [];
+    }
+
+    lobby.current_map_pp = pp.pp;
+  }
+
+  contest.weight = Math.min(lobby.current_map_pp / 500.0, 1.0);
+  contest.weight = 1.0 - Math.pow(1.0 - contest.weight, 4.0);
   await contest.init();
 
   const scores_flat = [];
@@ -293,7 +335,7 @@ async function update_mmr(lobby) {
   }
 
   // Compute sig_perf and discrete_drift
-  const excess_beta_sq = (BETA * BETA - SIG_LIMIT * SIG_LIMIT);
+  const excess_beta_sq = (BETA * BETA - SIG_LIMIT * SIG_LIMIT) / contest.weight;
   const sig_perf = Math.sqrt(SIG_LIMIT * SIG_LIMIT + excess_beta_sq);
   const discrete_drift = Math.pow(SIG_LIMIT, 4) / excess_beta_sq;
 
@@ -302,8 +344,8 @@ async function update_mmr(lobby) {
   // in order to determine if it's a win, loss, or tie term.
   const tanh_terms = [];
   for (const standing of contest.standings) {
-    const continuous_drift = DRIFT_PER_SEC * contest.tms;
-    const sig_drift = Math.sqrt(discrete_drift + continuous_drift);
+    // TODO: add time drift here?
+    const sig_drift = Math.sqrt(discrete_drift);
     standing.player.add_noise_best(sig_drift);
     tanh_terms.push(new TanhTerm(standing.player.approx_posterior.with_noise(sig_perf)));
   }
@@ -360,12 +402,6 @@ async function update_mmr(lobby) {
     player.approx_posterior = new Rating(mu, sig);
 
     await db.run(SQL`
-      UPDATE user
-      SET elo = ${player.approx_posterior.toFloat()}, approx_mu = ${mu}, approx_sig = ${sig},
-          normal_mu = ${player.normal_factor.mu}, normal_sig = ${player.normal_factor.sig}
-      WHERE user_id = ${player.user_id}`,
-    );
-    await db.run(SQL`
       INSERT INTO score (
         user_id, contest_id, score, mods,
         logistic_mu, logistic_sig, tms
@@ -377,41 +413,53 @@ async function update_mmr(lobby) {
     );
     await db.run(SQL`
       UPDATE user
-      SET games_played = (SELECT COUNT(*) FROM score WHERE user_id = ${player.user_id})
+      SET
+        elo = ${player.approx_posterior.toFloat()}, approx_mu = ${mu}, approx_sig = ${sig},
+        normal_mu = ${player.normal_factor.mu}, normal_sig = ${player.normal_factor.sig},
+        games_played = (SELECT COUNT(*) FROM score WHERE user_id = ${player.user_id}),
+        last_contest_tms = ${contest.tms}
       WHERE user_id = ${player.user_id}`,
     );
 
     player.games_played++;
   }
 
+
+  return; // TODO DEBUG FOR RANK RECOMPUTING
+
+
+  const division_to_index = (text) => {
+    if (text == 'Unranked') {
+      return -1;
+    } else if (text == 'The One') {
+      return RANK_DIVISIONS.length;
+    } else {
+      return RANK_DIVISIONS.indexOf(text);
+    }
+  };
+
   // Return the users whose rank's display text changed
   const rank_changes = [];
   for (const standing of contest.standings) {
     if (standing.player.games_played < 5) continue;
 
-    const better_users = await db.get(SQL`
-      SELECT COUNT(*) AS nb FROM user
-      WHERE
-        elo > ${standing.player.approx_posterior.toFloat()}
-        AND games_played > 4`,
-    );
-    const all_users = await db.get('SELECT COUNT(*) AS nb FROM user WHERE games_played > 4');
-    const new_rank_float = 1.0 - (better_users.nb / all_users.nb);
-    const new_rank_text = get_rank_text(new_rank_float);
+    const new_rank = await get_rank(standing.player.approx_posterior.toFloat());
+    if (new_rank.text != standing.player.rank_text) {
+      const old_index = division_to_index(standing.player.rank_text);
+      const new_index = division_to_index(new_rank.text);
 
-    if (new_rank_text != standing.player.rank_text) {
-      rank_changes.push({
-        user_id: standing.player.user_id,
-        username: standing.player.username,
-        rank_before: standing.player.rank_float,
-        rank_after: new_rank_float,
-        rank_text: new_rank_text,
-      });
+      if (new_index > old_index) {
+        rank_changes.push(`${standing.player.username} [https://osu.kiwec.net/u/${standing.player.user_id}/ ▲ ${new_rank.text} ]`);
+      } else {
+        rank_changes.push(`${standing.player.username} [https://osu.kiwec.net/u/${standing.player.user_id}/ ▼ ${new_rank.text} ]`);
+      }
 
-      standing.player.rank_float = new_rank_float;
-      standing.player.rank_text = new_rank_text;
+      await update_discord_role(standing.player.user_id, new_rank.text);
+
+      standing.player.rank_float = new_rank.ratio;
+      standing.player.rank_text = new_rank.text;
       await db.run(SQL`
-        UPDATE user SET rank_text = ${new_rank_text}
+        UPDATE user SET rank_text = ${new_rank.text}
         WHERE user_id = ${standing.player.user_id}`,
       );
     }
@@ -421,6 +469,9 @@ async function update_mmr(lobby) {
 
 
 function get_rank_text(rank_float) {
+  // TODO: use a better distribution, so diamond doesn't feel underwhelming
+  // put more players in bronze/silver? gaussian distribution? see valorant's
+
   if (rank_float == null || typeof rank_float === 'undefined') {
     return 'Unranked';
   }
@@ -429,34 +480,41 @@ function get_rank_text(rank_float) {
   }
 
   // Epic rank distribution algorithm
-  const ranks = [
-    'Cardboard',
-    'Copper', 'Copper+', 'Copper++',
-    'Bronze', 'Bronze+', 'Bronze++',
-    'Silver', 'Silver+', 'Silver++',
-    'Gold', 'Gold+', 'Gold++',
-    'Platinum', 'Platinum+', 'Platinum++',
-    'Diamond', 'Diamond+', 'Diamond++',
-    'Legendary',
-  ];
-  for (let i in ranks) {
-    if (!ranks.hasOwnProperty(i)) continue;
-
-    i = parseInt(i, 10); // FUCK YOU FUCK YOU FUCK YOU FUCK YOU
-
+  for (let i = 0; i < RANK_DIVISIONS.length; i++) {
     // Turn current 'Cardboard' rank into a value between 0 and 1
-    const rank_nb = (i + 1) / ranks.length;
+    const rank_nb = (i + 1) / RANK_DIVISIONS.length;
 
     // This turns a linear curve into a smoother curve (yeah I'm not good at maths)
     // Visual representation: https://www.wolframalpha.com/input/?i=1+-+%28%28cos%28x+*+PI%29+%2F+2%29+%2B+0.5%29+with+x+from+0+to+1
     const cutoff = 1 - ((Math.cos(rank_nb * Math.PI) / 2) + 0.5);
     if (rank_float < cutoff) {
-      return ranks[i];
+      return RANK_DIVISIONS[i];
     }
   }
 
   // Ok, floating point errors, who cares
-  return 'Legendary+';
+  return RANK_DIVISIONS[RANK_DIVISIONS.length - 1];
+}
+
+async function get_rank(elo) {
+  const month_ago_tms = Date.now() - (30 * 24 * 3600 * 1000);
+  const better_users = await db.get(SQL`
+    SELECT COUNT(*) AS nb FROM user
+    WHERE elo > ${elo} AND games_played > 4 AND last_contest_tms > ${month_ago_tms}`,
+  );
+  const all_users = await db.get(SQL`
+    SELECT COUNT(*) AS nb FROM user
+    WHERE games_played > 4 AND last_contest_tms > ${month_ago_tms}`,
+  );
+  const ratio = 1.0 - (better_users.nb / all_users.nb);
+
+  return {
+    elo: elo,
+    ratio: ratio,
+    total_nb: all_users.nb,
+    rank_nb: better_users.nb + 1,
+    text: get_rank_text(ratio),
+  };
 }
 
 async function get_rank_text_from_id(osu_user_id) {
@@ -468,15 +526,8 @@ async function get_rank_text_from_id(osu_user_id) {
     return 'Unranked';
   }
 
-  const better_users = await db.get(SQL`
-    SELECT COUNT(*) AS nb FROM user
-    WHERE elo > ${res.elo} AND games_played > 4`,
-  );
-  const all_users = await db.get(SQL`
-    SELECT COUNT(*) AS nb FROM user
-    WHERE games_played > 4`,
-  );
-  return get_rank_text(1.0 - (better_users.nb / all_users.nb));
+  const rank = await get_rank(res.elo);
+  return rank.text;
 }
 
 async function init_db() {
@@ -484,6 +535,17 @@ async function init_db() {
     filename: 'ranks.db',
     driver: sqlite3.cached.Database,
   });
+
+  maps_db = await open({
+    filename: 'maps.db',
+    driver: sqlite3.cached.Database,
+  });
+
+  // TODO DEBUG REMOVE THIS WHEN DONE MIGRATING RANKS
+  await db.run('PRAGMA synchronous=OFF');
+  await db.run('PRAGMA count_changes=OFF');
+  await db.run('PRAGMA journal_mode=MEMORY');
+  await db.run('PRAGMA temp_store=MEMORY');
 
   await db.exec(`CREATE TABLE IF NOT EXISTS user (
     user_id INTEGER PRIMARY KEY,
@@ -502,6 +564,7 @@ async function init_db() {
     last_top_score_tms INTEGER,
     last_update_tms INTEGER,
     games_played INTEGER NOT NULL,
+    last_contest_tms INTEGER,
     rank_text TEXT
   )`);
 
@@ -511,7 +574,8 @@ async function init_db() {
     scoring_system INTEGER,
     mods INTEGER,
     tms INTEGER,
-    lobby_creator TEXT
+    lobby_creator TEXT,
+    weight REAL
   )`);
 
   await db.exec(`CREATE TABLE IF NOT EXISTS score (
@@ -527,4 +591,4 @@ async function init_db() {
   return db;
 }
 
-export {init_db, update_mmr, get_rank_text, get_rank_text_from_id};
+export {init_db, update_mmr, get_rank, get_rank_text, get_rank_text_from_id};
