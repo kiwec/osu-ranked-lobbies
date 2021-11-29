@@ -129,7 +129,7 @@ async function create_lobby_if_needed(client) {
   });
 
   const lobbies = db.all(`SELECT * FROM ranked_lobby WHERE creator = 'kiwec'`);
-  if (lobbies.length >= 4) return;
+  if (!lobbies || lobbies.length >= 4) return;
 
   console.log(`Creating ${4 - lobbies.length} missing lobbies...`);
 

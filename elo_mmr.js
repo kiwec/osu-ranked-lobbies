@@ -311,22 +311,22 @@ async function update_mmr(lobby) {
   const contest = new Contest(lobby);
   if (contest.standings.length < 2) return [];
 
-  // Bot restarted, fetch how much the map weighs.
-  if (!lobby.current_map_pp) {
-    const pp = await maps_db.get(SQL`
-      SELECT pp FROM pp
-      WHERE map_id = ${contest.map_id} AND mods = ${contest.mods | (1<<16)}`,
-    );
-    if (!pp) {
-      console.error('Failed to fetch pp for map', contest.map_id, 'with mods', contest.mods);
-      return [];
-    }
+  // // Bot restarted, fetch how much the map weighs.
+  // if (!lobby.current_map_pp) {
+  //   const pp = await maps_db.get(SQL`
+  //     SELECT pp FROM pp
+  //     WHERE map_id = ${contest.map_id} AND mods = ${contest.mods | (1<<16)}`,
+  //   );
+  //   if (!pp) {
+  //     console.error('Failed to fetch pp for map', contest.map_id, 'with mods', contest.mods);
+  //     return [];
+  //   }
 
-    lobby.current_map_pp = pp.pp;
-  }
+  //   lobby.current_map_pp = pp.pp;
+  // }
 
-  contest.weight = Math.min(lobby.current_map_pp / 500.0, 1.0);
-  contest.weight = 1.0 - Math.pow(1.0 - contest.weight, 4.0);
+  // contest.weight = Math.min(lobby.current_map_pp / 500.0, 1.0);
+  // contest.weight = 1.0 - Math.pow(1.0 - contest.weight, 4.0);
   await contest.init();
 
   const scores_flat = [];
@@ -335,7 +335,7 @@ async function update_mmr(lobby) {
   }
 
   // Compute sig_perf and discrete_drift
-  const excess_beta_sq = (BETA * BETA - SIG_LIMIT * SIG_LIMIT) / contest.weight;
+  const excess_beta_sq = (BETA * BETA - SIG_LIMIT * SIG_LIMIT);
   const sig_perf = Math.sqrt(SIG_LIMIT * SIG_LIMIT + excess_beta_sq);
   const discrete_drift = Math.pow(SIG_LIMIT, 4) / excess_beta_sq;
 
