@@ -128,7 +128,7 @@ async function create_lobby_if_needed(client) {
     driver: sqlite3.cached.Database,
   });
 
-  const lobbies = db.all(`SELECT * FROM ranked_lobby WHERE creator = 'kiwec'`);
+  const lobbies = await db.all(`SELECT * FROM ranked_lobby WHERE creator = 'kiwec'`);
   if (!lobbies || lobbies.length >= 4) return;
 
   console.log(`Creating ${4 - lobbies.length} missing lobbies...`);
