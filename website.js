@@ -43,7 +43,7 @@ async function listen() {
 
   app.get('/', async (req, http_res) => {
     let top20 = '';
-    const res = await ranks_db.get(SQL`
+    const res = await ranks_db.all(SQL`
       SELECT * FROM user
       ORDER BY elo DESC LIMIT 20`,
     );
