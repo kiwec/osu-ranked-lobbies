@@ -19,10 +19,12 @@ discord_client.once('ready', () => {
   clear_discord_roles();
 });
 
-// TODO DEBUG uncomment this
+// uncomment when needed
 // const {discord_token} = JSON.parse(fs.readFileSync('./config.json'));
 // discord_client.login(discord_token);
-recompute_ranks();
+
+// uncomment when needed
+// recompute_ranks();
 
 async function clear_discord_roles() {
   const DISCORD_ROLES = {
@@ -61,7 +63,7 @@ async function clear_discord_roles() {
 
   console.log('Done updating roles.');
 
-  // TODO: run "UPDATE user SET discord_rank = NULL;" manually
+  // NOTE: run "UPDATE user SET discord_rank = NULL;" manually
 }
 
 async function recompute_ranks() {

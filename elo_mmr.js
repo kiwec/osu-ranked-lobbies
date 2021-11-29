@@ -424,10 +424,6 @@ async function update_mmr(lobby) {
     player.games_played++;
   }
 
-
-  return; // TODO DEBUG FOR RANK RECOMPUTING
-
-
   const division_to_index = (text) => {
     if (text == 'Unranked') {
       return -1;
@@ -540,12 +536,6 @@ async function init_db() {
     filename: 'maps.db',
     driver: sqlite3.cached.Database,
   });
-
-  // TODO DEBUG REMOVE THIS WHEN DONE MIGRATING RANKS
-  await db.run('PRAGMA synchronous=OFF');
-  await db.run('PRAGMA count_changes=OFF');
-  await db.run('PRAGMA journal_mode=MEMORY');
-  await db.run('PRAGMA temp_store=MEMORY');
 
   await db.exec(`CREATE TABLE IF NOT EXISTS user (
     user_id INTEGER PRIMARY KEY,
