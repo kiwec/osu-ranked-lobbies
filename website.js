@@ -41,20 +41,20 @@ async function listen() {
   app.set('trust proxy', () => true);
   app.use(express.static('public'));
 
-  app.get('/', (req, http_res) => {
+  app.get('/', async (req, http_res) => {
     let top20 = '';
     const res = await ranks_db.get(SQL`
       SELECT * FROM user
-      ORDER BY elo DESC LIMIT 20`
+      ORDER BY elo DESC LIMIT 20`,
     );
 
     let rank = 1;
-    for(let user of res) {
+    for (const user of res) {
       top20 += `<tr>
         <td>${rank++}</td>
         <td><a href="/u/${user.user_id}">${user.username}</a></td>
         <td>${user.elo}</td>
-      </tr>`
+      </tr>`;
     }
 
     http_res.send(`<html>
