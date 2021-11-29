@@ -43,8 +43,10 @@ async function listen() {
 
   app.get('/', async (req, http_res) => {
     let top20 = '';
+    const month_ago_tms = Date.now() - (30 * 24 * 3600 * 1000);
     const res = await ranks_db.all(SQL`
       SELECT * FROM user
+      WHERE games_played > 4 AND last_contest_tms > ${month_ago_tms}
       ORDER BY elo DESC LIMIT 20`,
     );
 
