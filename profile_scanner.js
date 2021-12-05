@@ -223,9 +223,9 @@ async function load_user_info(bancho_user, lobby) {
   }
 
   // Three digit players mostly farm, so their top 100 scores are not
-  // representative of what they usually achieve. Limit max pp to 500.
-  if (pp.overall > 500.0) {
-    const ratio = pp.overall / 500.0;
+  // representative of what they usually achieve. Limit max pp to 600.
+  if (pp.overall > 600.0) {
+    const ratio = pp.overall / 600.0;
     pp.aim /= ratio;
     pp.acc /= ratio;
     pp.speed /= ratio;
