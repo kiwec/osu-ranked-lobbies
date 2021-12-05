@@ -147,7 +147,7 @@ async function select_next_map(lobby) {
             + 10*ABS(${lobby.median_ar} - pp.ar)
           ) AS match_accuracy FROM map
           INNER JOIN pp ON map.id = pp.map_id
-          WHERE mods = 65600 AND length > 60 AND length < 420 AND ranked IN (4, 5, 7) AND match_accuracy IS NOT NULL
+          WHERE mods = 65600 AND length > 60 AND ranked IN (4, 5, 7) AND match_accuracy IS NOT NULL
           ORDER BY match_accuracy LIMIT 1000
         )`,
       );
@@ -161,7 +161,7 @@ async function select_next_map(lobby) {
             + 10*ABS(${lobby.median_ar} - pp.ar)
           ) AS match_accuracy FROM map
           INNER JOIN pp ON map.id = pp.map_id
-          WHERE mods = (1<<16) AND length > 60 AND length < 420 AND ranked IN (4, 5, 7) AND match_accuracy IS NOT NULL
+          WHERE mods = (1<<16) AND length > 60 AND AND ranked IN (4, 5, 7) AND match_accuracy IS NOT NULL
           ORDER BY match_accuracy LIMIT 1000
         )`,
       );
@@ -184,7 +184,7 @@ async function select_next_map(lobby) {
           INNER JOIN pp ON map.id = pp.map_id
           WHERE mods = 65600
             AND pp.stars >= ${lobby.min_stars} AND pp.stars <= ${lobby.max_stars}
-            AND length > 60 AND length < 420
+            AND length > 60
             AND ranked IN (4, 5, 7)
             AND match_accuracy IS NOT NULL
           ORDER BY match_accuracy LIMIT 1000
@@ -202,7 +202,7 @@ async function select_next_map(lobby) {
           INNER JOIN pp ON map.id = pp.map_id
           WHERE mods = (1<<16)
             AND pp.stars >= ${lobby.min_stars} AND pp.stars <= ${lobby.max_stars}
-            AND length > 60 AND length < 420
+            AND length > 60
             AND ranked IN (4, 5, 7)
             AND match_accuracy IS NOT NULL
           ORDER BY match_accuracy LIMIT 1000
