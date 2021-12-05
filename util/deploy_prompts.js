@@ -82,16 +82,20 @@ async function main() {
               value: 'Display some information for new players.',
             },
             {
-              name: '!skip',
-              value: 'Vote to skip the current map. At least half the players in the lobby must vote to skip for a map to get skipped.',
-            },
-            {
               name: '!start',
               value: `Count down 30 seconds then start the map. Useful when some players are AFK or forget to ready up. Anybody can use this command.`,
             },
             {
               name: '!wait',
               value: `Cancel !start. Use it when you're not done downloading.`,
+            },
+            {
+              name: '!skip',
+              value: 'Vote to skip the current map. At least half the players in the lobby must vote to skip for a map to get skipped.',
+            },
+            {
+              name: '!abort',
+              value: 'Vote to abort the match. At least half the players in the lobby must vote to abort for a match to get aborted.',
             },
             {
               name: '!kick <player>',

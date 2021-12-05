@@ -284,6 +284,7 @@ async function update_median_pp(lobby) {
 
 async function join_lobby(lobby, client, creator, creator_discord_id, created_just_now, min_stars, max_stars, dt, scorev2) {
   lobby.recent_maps = [];
+  lobby.voteaborts = [];
   lobby.votekicks = [];
   lobby.voteskips = [];
   lobby.confirmed_players = [];
@@ -395,6 +396,11 @@ async function join_lobby(lobby, client, creator, creator_discord_id, created_ju
         }
       }
 
+      // Remove user from abort list, if they voted to abort
+      if (lobby.voteaborts.includes(evt.user.ircUsername)) {
+        lobby.voteaborts.splice(lobby.voteaborts.indexOf(evt.user.ircUsername), 1);
+      }
+
       // Remove user from voteskip list, if they voted to skip
       if (lobby.voteskips.includes(evt.user.ircUsername)) {
         lobby.voteskips.splice(lobby.voteskips.indexOf(evt.user.ircUsername), 1);
@@ -409,6 +415,14 @@ async function join_lobby(lobby, client, creator, creator_discord_id, created_ju
           lobby.max_stars = 11.0;
           await set_new_title(lobby);
         }
+        return;
+      }
+
+      // Check if we should abort
+      if (lobby.voteaborts.length >= lobby.nb_players / 2) {
+        await lobby.abortMatch();
+        lobby.voteaborts = [];
+        await select_next_map(lobby);
         return;
       }
 
@@ -449,6 +463,7 @@ async function join_lobby(lobby, client, creator, creator_discord_id, created_ju
     set_sentry_context(lobby, 'matchStarted');
 
     try {
+      lobby.voteaborts = [];
       lobby.voteskips = [];
       lobby.confirmed_players = [];
       for (const slot of lobby.slots) {
@@ -621,6 +636,25 @@ async function on_lobby_msg(lobby, msg) {
     lobby.max_stars = max_stars;
     lobby.fixed_star_range = true;
     await select_next_map(lobby);
+  }
+
+  if (msg.message.toLowerCase() == '!abort') {
+    if (!lobby.playing) {
+      await lobby.channel.sendMessage('The match has not started, cannot abort.');
+    }
+
+    if (!lobby.voteaborts.includes(msg.user.ircUsername)) {
+      lobby.voteaborts.push(msg.user.ircUsername);
+      const nb_voted_to_abort = lobby.voteaborts.length;
+      const nb_required_to_abort = Math.ceil(get_nb_players(lobby) / 2);
+      if (lobby.voteaborts.length >= nb_required_to_abort) {
+        await lobby.abortMatch();
+        lobby.voteaborts = [];
+        await select_next_map(lobby);
+      } else {
+        await lobby.channel.sendMessage(`${msg.user.ircUsername} voted to abort the match. ${nb_voted_to_abort}/${nb_required_to_abort} votes needed.`);
+      }
+    }
   }
 
   if (msg.message.indexOf('!kick') == 0) {

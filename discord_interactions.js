@@ -204,10 +204,12 @@ async function on_profile_command(user, interaction) {
   let rank_nb = '-';
   let rank_text = 'Unranked';
   const profile = await ranks_db.get(SQL`SELECT * FROM user WHERE user_id = ${user.osu_id}`);
+  console.log(profile);
   if (profile.elo) {
     const rank = await get_rank(profile.elo);
     rank_nb = rank.rank_nb;
     rank_text = rank.text;
+    console.log(rank);
   }
 
   await interaction.reply({
