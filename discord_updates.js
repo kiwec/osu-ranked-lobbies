@@ -82,7 +82,6 @@ async function update_ranked_lobby_on_discord(lobby) {
             custom_id: 'orl_get_lobby_invite_' + lobby.id,
             label: 'Get invite',
             style: 'PRIMARY',
-            disabled: lobby.nb_players == lobby.size,
           }),
         ]),
       ],
@@ -99,6 +98,19 @@ async function update_ranked_lobby_on_discord(lobby) {
   if (ranked_lobby) {
     try {
       const discord_channel = client.channels.cache.get(ranked_lobby.discord_channel_id);
+
+      // Lobby is full: delete existing #lobbies message
+      if (lobby.nb_players == lobby.size) {
+        try {
+          await discord_channel.messages.delete(ranked_lobby.discord_msg_id);
+        } catch (err) {
+          // If it's already deleted, ignore the error. We don't want to
+          // delete the actual lobby from the database.
+        }
+
+        return;
+      }
+
       const discord_msg = await discord_channel.messages.fetch(ranked_lobby.discord_msg_id + '');
       await discord_msg.edit(msg);
     } catch (err) {
@@ -108,6 +120,13 @@ async function update_ranked_lobby_on_discord(lobby) {
       return;
     }
   } else {
+    // Lobby is full: don't create a message in #lobbies
+    // This will not register user-created lobbies in the database when
+    // they're full during the creation, but that only happens when someone
+    // creates a 1-slot lobby anyway, so it's not crucial to stay connected
+    // to that lobby.
+    if (lobby.nb_players == lobby.size) return;
+
     try {
       const discord_channel = client.channels.cache.get('892789885335924786');
       const discord_msg = await discord_channel.send(msg);
