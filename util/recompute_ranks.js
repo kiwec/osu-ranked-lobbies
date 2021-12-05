@@ -29,7 +29,7 @@ discord_client.once('ready', () => {
 async function clear_discord_roles() {
   const DISCORD_ROLES = {
     'Cardboard': '893082878806732851',
-    'Copper': '893083179601260574',
+    'Wood': '893083179601260574',
     'Bronze': '893083324673822771',
     'Silver': '893083428260556801',
     'Gold': '893083477531033613',

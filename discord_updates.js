@@ -192,7 +192,7 @@ async function update_discord_username(osu_user_id, new_username, reason) {
 async function update_discord_role(osu_user_id, rank_text) {
   const DISCORD_ROLES = {
     'Cardboard': '893082878806732851',
-    'Copper': '893083179601260574',
+    'Wood': '893083179601260574',
     'Bronze': '893083324673822771',
     'Silver': '893083428260556801',
     'Gold': '893083477531033613',

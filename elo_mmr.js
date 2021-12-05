@@ -32,9 +32,9 @@ const TANH_MULTIPLIER = Math.PI / 1.7320508075688772;
 
 const RANK_DIVISIONS = [
   'Cardboard',
-  'Copper',
-  'Copper+',
-  'Copper++',
+  'Wood',
+  'Wood+',
+  'Wood++',
   'Bronze',
   'Bronze+',
   'Bronze++',
