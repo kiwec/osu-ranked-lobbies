@@ -567,13 +567,23 @@ async function on_lobby_msg(lobby, msg) {
     return;
   }
 
-  if (msg.message.indexOf('!setstars') == 0) {
+  if (msg.message.indexOf('!star') == 0 || msg.message.indexOf('!setstar') == 0) {
     if (lobby.creator != msg.user.ircUsername) {
       await lobby.channel.sendMessage(msg.user.ircUsername + ': You need to be the lobby creator to use this command.');
       return;
     }
 
     const args = msg.message.split(' ');
+
+    // No arguments: remove star rating restrictions
+    if (args.length == 1) {
+      lobby.min_stars = 0.0;
+      lobby.max_stars = 11.0;
+      lobby.fixed_star_range = false;
+      await select_next_map(lobby);
+      return;
+    }
+
     if (args.length < 3) {
       await lobby.channel.sendMessage(msg.user.ircUsername + ': You need to specify minimum and maximum star values.');
       return;

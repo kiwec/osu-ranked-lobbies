@@ -63,6 +63,53 @@ async function main() {
       ],
     });
 
+    const lobbies_channel = client.channels.cache.get('892789885335924786');
+    await lobbies_channel.send({
+      embeds: [
+        new MessageEmbed({
+          title: 'Instructions for creating a new ranked lobby',
+          description: '**1.** Create a new lobby.\n**2.** BanchoBot should have sent a match history link. Copy the numbers after https://osu.ppy.sh/mp/.\n**3.** In the lobby chat, send **!mp addref kiwec**.\n**4.** In Discord, send **/make-lobby [the numbers you copied]** and the bot should join your lobby.',
+        }),
+      ],
+    });
+    await lobbies_channel.send({
+      embeds: [
+        new MessageEmbed({
+          title: 'Commands for ranked lobbies',
+          fields: [
+            {
+              name: '!about or !discord',
+              value: 'Display some information for new players.',
+            },
+            {
+              name: '!skip',
+              value: 'Vote to skip the current map. At least half the players in the lobby must vote to skip for a map to get skipped.',
+            },
+            {
+              name: '!start',
+              value: `Count down 30 seconds then start the map. Useful when some players are AFK or forget to ready up. Anybody can use this command.`,
+            },
+            {
+              name: '!wait',
+              value: `Cancel !start. Use it when you're not done downloading.`,
+            },
+            {
+              name: '!kick <player>',
+              value: `Vote to kick a player. This is used in rare cases where the lobby gets stuck because of a single player. Most of the time, you'll want to use the in-game ignoring and reporting features.`,
+            },
+            {
+              name: '!rank',
+              value: `Display your rank.`,
+            },
+            {
+              name: '!stars <minimum> <maximum>',
+              value: 'Set the minimum and maximum star values of the lobby. Only the lobby creator can use this command.',
+            },
+          ],
+        }),
+      ],
+    });
+
     console.log('sent');
   });
 
