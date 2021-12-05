@@ -105,6 +105,14 @@ async function main() {
               name: '!stars <minimum> <maximum>',
               value: 'Set the minimum and maximum star values of the lobby. Only the lobby creator can use this command.',
             },
+            {
+              name: '!dt',
+              value: 'Toggle the Double Time mod on/off. Only the lobby creator can use this command.',
+            },
+            {
+              name: '!scorev2',
+              value: 'Toggle ScoreV2 scoring on/off. Only the lobby creator can use this command.',
+            },
           ],
         }),
       ],

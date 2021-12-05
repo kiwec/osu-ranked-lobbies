@@ -35,6 +35,10 @@ function set_sentry_context(lobby, current_task) {
 }
 
 async function set_new_title(lobby) {
+  let title_modifiers = '';
+  if (lobby.is_dt) title_modifiers += ' DT';
+  if (lobby.is_scorev2) title_modifiers += ' ScoreV2';
+
   // Min stars: we prefer not displaying the decimals whenever possible
   let fancy_min_stars;
   if (Math.abs(lobby.min_stars - Math.round(lobby.min_stars)) <= 0.1) {
@@ -51,7 +55,7 @@ async function set_new_title(lobby) {
     fancy_max_stars = lobby.max_stars.toFixed(1);
   }
 
-  const new_title = `${fancy_min_stars}-${fancy_max_stars}*${lobby.title_modifiers} | o!RL | Auto map select (!about)`;
+  const new_title = `${fancy_min_stars}-${fancy_max_stars}*${title_modifiers} | o!RL | Auto map select (!about)`;
   if (lobby.name != new_title) {
     await lobby.channel.sendMessage(`!mp name ${new_title}`);
     lobby.name = new_title;
@@ -292,12 +296,8 @@ async function join_lobby(lobby, client, creator, creator_discord_id, created_ju
   lobby.min_stars = min_stars || 0.0;
   lobby.max_stars = max_stars || 11.0;
   lobby.fixed_star_range = (min_stars != null || max_stars != null);
-
   lobby.is_dt = dt;
   lobby.is_scorev2 = scorev2;
-  lobby.title_modifiers = '';
-  if (scorev2) lobby.title_modifiers += ' ScoreV2';
-  if (dt) lobby.title_modifiers += ' DT';
 
   await lobby.setPassword('');
   await lobby.channel.sendMessage(`!mp set 0 ${scorev2 ? '3': '0'} 16`);
@@ -565,6 +565,27 @@ async function on_lobby_msg(lobby, msg) {
   if (msg.message == '!discord') {
     await lobby.channel.sendMessage('[https://kiwec.net/discord Come hang out in voice chat!] (or just text, no pressure)');
     return;
+  }
+
+  if (msg.message.indexOf('!dt') == 0) {
+    if (lobby.creator != msg.user.ircUsername) {
+      await lobby.channel.sendMessage(msg.user.ircUsername + ': You need to be the lobby creator to use this command.');
+      return;
+    }
+
+    lobby.is_dt = !lobby.is_dt;
+    if (lobby.is_dt) await lobby.channel.sendMessage('!mp mods dt freemod');
+    else await lobby.channel.sendMessage('!mp mods freemod');
+  }
+
+  if (msg.message.indexOf('!scorev') == 0) {
+    if (lobby.creator != msg.user.ircUsername) {
+      await lobby.channel.sendMessage(msg.user.ircUsername + ': You need to be the lobby creator to use this command.');
+      return;
+    }
+
+    lobby.is_scorev2 = !lobby.is_scorev2;
+    await lobby.channel.sendMessage(`!mp set 0 ${lobby.is_scorev2 ? '3': '0'} 16`);
   }
 
   if (msg.message.indexOf('!star') == 0 || msg.message.indexOf('!setstar') == 0) {
