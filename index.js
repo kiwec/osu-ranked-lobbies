@@ -133,21 +133,6 @@ async function create_lobby_if_needed(client) {
 
   console.log(`Creating ${4 - lobbies.length} missing lobbies...`);
 
-  if (!lobbies.some((lobby) => lobby.min_stars == 0.0)) {
-    const channel = await client.createLobby(`0-2.99* | o!RL | Auto map select (!about)`);
-    await join_lobby(
-        channel.lobby,
-        client,
-        'kiwec',
-        '889603773574578198',
-        false,
-        0.0,
-        3.0,
-        false,
-        false,
-    );
-    console.log(`Created 0-2.99* lobby #mp_${channel.lobby.id}.`);
-  }
   if (!lobbies.some((lobby) => lobby.min_stars == 3.0)) {
     const channel = await client.createLobby(`3-3.99* | o!RL | Auto map select (!about)`);
     await join_lobby(
@@ -192,6 +177,21 @@ async function create_lobby_if_needed(client) {
         false,
     );
     console.log(`Created 5-5.99* lobby #mp_${channel.lobby.id}.`);
+  }
+  if (!lobbies.some((lobby) => lobby.min_stars == 0.0)) {
+    const channel = await client.createLobby(`6-6.99* | o!RL | Auto map select (!about)`);
+    await join_lobby(
+        channel.lobby,
+        client,
+        'kiwec',
+        '889603773574578198',
+        false,
+        6.0,
+        7.0,
+        false,
+        false,
+    );
+    console.log(`Created 6-6.99* lobby #mp_${channel.lobby.id}.`);
   }
 
   console.log('Done creating missing lobbies.');
