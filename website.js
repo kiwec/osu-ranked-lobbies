@@ -7,7 +7,7 @@ import {open} from 'sqlite';
 import sqlite3 from 'sqlite3';
 
 import {get_rank, get_rank_text_from_id, init_db} from './elo_mmr.js';
-import {update_discord_role} from './discord_updates.js';
+import {update_discord_role, update_discord_username} from './discord_updates.js';
 import SQL from 'sql-template-strings';
 
 const Config = JSON.parse(fs.readFileSync('./config.json'));
@@ -167,6 +167,11 @@ async function listen() {
     http_res.redirect('/success');
 
     // Now for the fun part: add Discord roles, etc.
+    await update_discord_username(
+        user_profile.id,
+        user_profile.username,
+        'Linked their account',
+    );
     await update_discord_role(
         user_profile.id,
         await get_rank_text_from_id(user_profile.id),

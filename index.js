@@ -7,7 +7,7 @@ import SQL from 'sql-template-strings';
 import Nodesu from 'nodesu';
 
 import {init as init_discord_interactions} from './discord_interactions.js';
-import {init as init_discord_updates} from './discord_updates.js';
+import {init as init_discord_updates, update_discord_username} from './discord_updates.js';
 import {listen as website_listen} from './website.js';
 import {start_ranked, join_lobby} from './ranked.js';
 
@@ -46,10 +46,17 @@ BanchoUser.prototype.fetchFromAPI = async function() {
     if (existing_user) {
       console.log(`User #${user.id} (${existing_user.username}) is now known as ${this.ircUsername}`);
       await ranking_db.run(SQL`UPDATE user SET username = ${this.ircUsername} WHERE user_id = ${user.id}`);
+      await update_discord_username(user.id, user.username, 'Changed their osu! username');
     } else {
       await ranking_db.run(SQL`
-        INSERT INTO user (user_id, username, approx_mu, approx_sig, normal_mu, normal_sig, games_played)
-        VALUES (${user.id}, ${this.ircUsername}, 1500, 350, 1500, 350, 0)`,
+        INSERT INTO user (
+          user_id, username, approx_mu, approx_sig, normal_mu, normal_sig, games_played,
+          aim_pp, acc_pp, speed_pp, overall_pp, avg_ar, avg_sr
+        )
+        VALUES (
+          ${user.id}, ${this.ircUsername}, 1500, 350, 1500, 350, 0,
+          10.0, 1.0, 1.0, 1.0, 8.0, 2.0
+        )`,
       );
     }
 

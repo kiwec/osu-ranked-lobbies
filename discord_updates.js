@@ -147,6 +147,29 @@ async function close_ranked_lobby_on_discord(lobby) {
   }
 }
 
+async function update_discord_username(osu_user_id, new_username, reason) {
+  try {
+    const user = await db.get(SQL`
+      SELECT * FROM user WHERE osu_id = ${osu_user_id}`,
+    );
+    if (!user) return;
+
+    const guild = await client.guilds.fetch('891781932067749948');
+    let member;
+    try {
+      member = await guild.members.fetch(user.discord_id);
+    } catch (err) {
+      console.error('[Discord] <@' + user.discord_id + '> left the discord server?');
+      return;
+    }
+
+    await member.setNickname(new_username, reason);
+  } catch (err) {
+    console.error(`[Discord] Failed to update nickname for <@${user.discord_id}>: ${err}`);
+    Sentry.captureException(err);
+  }
+}
+
 async function update_discord_role(osu_user_id, rank_text) {
   const DISCORD_ROLES = {
     'Cardboard': '893082878806732851',
@@ -227,4 +250,5 @@ export {
   update_ranked_lobby_on_discord,
   close_ranked_lobby_on_discord,
   update_discord_role,
+  update_discord_username,
 };

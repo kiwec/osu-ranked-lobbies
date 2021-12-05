@@ -6,6 +6,8 @@ import {promisify} from 'util';
 import ojsama from 'ojsama';
 import SQL from 'sql-template-strings';
 
+import {update_discord_username} from './discord_updates.js';
+
 import {readFileSync, constants} from 'fs';
 const Config = JSON.parse(readFileSync('./config.json'));
 
@@ -68,13 +70,9 @@ async function load_user_info(bancho_user, lobby) {
   }
 
   // Try to fetch user info from database
-  let user = await ranks_db.get(SQL`SELECT * FROM user WHERE user_id = ${bancho_user.id}`);
+  const user = await ranks_db.get(SQL`SELECT * FROM user WHERE user_id = ${bancho_user.id}`);
   if (!user) {
-    await ranks_db.run(SQL`
-      INSERT INTO user (user_id, username, approx_mu, approx_sig, normal_mu, normal_sig, games_played)
-      VALUES (${bancho_user.id}, ${bancho_user.ircUsername}, 1500, 350, 1500, 350, 0)`,
-    );
-    user = await ranks_db.get(SQL`SELECT * FROM user WHERE user_id = ${bancho_user.id}`);
+    throw new Error('osu! user not found in database');
   }
 
   bancho_user.games_played = user.games_played;
@@ -98,14 +96,6 @@ async function load_user_info(bancho_user, lobby) {
       {method: 'get'},
   );
   if (res.statusCode >= 500) {
-    bancho_user.pp = {
-      aim: 10.0,
-      acc: 1.0,
-      speed: 1.0,
-      overall: 1.0,
-      ar: 8.0,
-      sr: 2.0,
-    };
     await lobby.channel.sendMessage(`Sorry, ${bancho_user.ircUsername}, I couldn't load your profile. The osu! servers are having issues, please try joining again later.`);
     return;
   }
@@ -119,7 +109,9 @@ async function load_user_info(bancho_user, lobby) {
       break;
     }
   }
-  if (user.avg_sr != null && !has_new_score) {
+
+  // Re-scan users with last_update below 1638722217000 to set their nickname (see bottom of file)
+  if (user.last_update_tms > 1638722217000 && user.avg_sr != null && !has_new_score) {
     return;
   }
 
@@ -263,6 +255,16 @@ async function load_user_info(bancho_user, lobby) {
       last_update_tms = ${Date.now()}
     WHERE user_id = ${bancho_user.id}`,
   );
+
+  // User never got their discord nickname set
+  if (recent_scores.length > 0 && user.last_update_tms < 1638722217000) {
+    await update_discord_username(
+        bancho_user.id,
+        recent_scores[0].user.username,
+        'Fixed nickname for existing user',
+    );
+  }
+
   console.log('Finished recalculating pp for ' + bancho_user.ircUsername);
 }
 

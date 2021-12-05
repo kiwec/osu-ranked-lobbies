@@ -187,21 +187,8 @@ class Player {
   async fetch_from_database() {
     const user = await db.get(SQL`SELECT * FROM user WHERE user_id = ${this.user_id}`);
     if (!user) {
-      await db.run(SQL`
-        INSERT INTO user (user_id, username, approx_mu, approx_sig, normal_mu, normal_sig, games_played)
-        VALUES (${this.user_id}, ${this.username}, 1500, 350, 1500, 350, 0)`,
-      );
-      return;
-    }
-
-    // User changed their nickname - update it in database
-    if (this.username != user.username) {
-      console.log('INFO: ' + user.username + ' is now known as ' + this.username + '.');
-      await db.run(SQL`
-        UPDATE user
-        SET username = ${this.username}
-        WHERE user_id = ${this.user_id}`,
-      );
+      console.error('Did not find osu! user with id', this.user_id);
+      throw new Error('osu! user not found in database');
     }
 
     this.rank_text = user.rank_text;
