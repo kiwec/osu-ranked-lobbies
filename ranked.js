@@ -603,7 +603,7 @@ async function on_lobby_msg(lobby, msg) {
     await lobby.channel.sendMessage(`!mp set 0 ${lobby.is_scorev2 ? '3': '0'} 16`);
   }
 
-  if (msg.message.indexOf('!star') == 0 || msg.message.indexOf('!setstar') == 0) {
+  if (msg.message.indexOf('!stars') == 0 || msg.message.indexOf('!setstar') == 0) {
     if (lobby.creator != msg.user.ircUsername) {
       await lobby.channel.sendMessage(msg.user.ircUsername + ': You need to be the lobby creator to use this command.');
       return;
