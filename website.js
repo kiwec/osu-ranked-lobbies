@@ -1,6 +1,5 @@
 import express from 'express';
 import fetch from 'node-fetch';
-import fs from 'fs';
 import morgan from 'morgan';
 import Sentry from '@sentry/node';
 import {open} from 'sqlite';
@@ -9,9 +8,8 @@ import sqlite3 from 'sqlite3';
 import {get_rank, get_rank_text_from_id} from './elo_mmr.js';
 import {update_discord_role, update_discord_username} from './discord_updates.js';
 import SQL from 'sql-template-strings';
-
-const Config = JSON.parse(fs.readFileSync('./config.json'));
-
+import Config from './util/config.js';
+import {capture_sentry_exception} from './util/helpers.js';
 
 function median(numbers) {
   if (numbers.length == 0) return 0;
@@ -35,13 +33,18 @@ async function listen() {
   });
 
   const app = express();
-  app.use(Sentry.Handlers.requestHandler());
+
+  if (Config.ENABLE_SENTRY) {
+    app.use(Sentry.Handlers.requestHandler());
+  }
+
   app.use(morgan('combined'));
   app.enable('trust proxy');
   app.set('trust proxy', () => true);
   app.use(express.static('public'));
 
   app.get('/', async (req, http_res) => {
+    capture_sentry_exception(1);
     let top20 = '';
     const month_ago_tms = Date.now() - (30 * 24 * 3600 * 1000);
     const res = await ranks_db.all(SQL`
@@ -290,7 +293,9 @@ async function listen() {
     </html>`);
   });
 
-  app.use(Sentry.Handlers.errorHandler());
+  if (Config.ENABLE_SENTRY) {
+    app.use(Sentry.Handlers.errorHandler());
+  }
 
   app.listen(3001, () => {
     console.log(`Listening on :${3001}`);

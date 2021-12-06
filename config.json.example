@@ -27,6 +27,8 @@
 
     "HOST_WEBSITE": true,
     "website_base_url": "https://osu.kiwec.net",
+    
+    "ENABLE_SENTRY": true,
 
     "sentry_dsn": "create a project on https://sentry.io/ and copy the dsn url here"
 }

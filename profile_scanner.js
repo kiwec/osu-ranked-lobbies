@@ -8,8 +8,8 @@ import SQL from 'sql-template-strings';
 
 import {update_discord_username} from './discord_updates.js';
 
-import {readFileSync, constants} from 'fs';
-const Config = JSON.parse(readFileSync('./config.json'));
+import {constants} from 'fs';
+import Config from './util/config.js';
 
 let oauth_token = null;
 let maps_db = null;

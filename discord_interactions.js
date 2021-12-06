@@ -8,8 +8,9 @@ import {Client, Intents, MessageActionRow, MessageButton, MessageEmbed} from 'di
 
 import {get_rank} from './elo_mmr.js';
 import {join_lobby} from './ranked.js';
+import {capture_sentry_exception} from './util/helpers.js';
+import Config from './util/config.js';
 
-const Config = JSON.parse(fs.readFileSync('./config.json'));
 let client = null;
 let bancho_client = null;
 let db = null;
@@ -54,7 +55,7 @@ function init(_bancho_client) {
       client = new Client({intents: [Intents.FLAGS.GUILDS]});
 
       client.once('ready', async () => {
-        client.on('interactionCreate', (interaction) => on_interaction(interaction).catch(Sentry.captureException));
+        client.on('interactionCreate', (interaction) => on_interaction(interaction).catch(capture_sentry_exception));
         console.log('Discord bot is ready.');
         resolve(client);
       });
@@ -71,18 +72,20 @@ async function on_interaction(interaction) {
   const user = await db.get(
       SQL`SELECT * FROM user WHERE discord_id = ${interaction.user.id}`,
   );
-  if (user) {
-    Sentry.setUser({
-      osu_id: user.osu_id,
-      discord_id: user.discord_id,
-      discord_rank: user.discord_rank,
-      username: interaction.user.username,
-    });
-  } else {
-    Sentry.setUser({
-      discord_id: interaction.user.id,
-      username: interaction.user.username,
-    });
+  if (Config.ENABLE_SENTRY) {
+    if (user) {
+      Sentry.setUser({
+        osu_id: user.osu_id,
+        discord_id: user.discord_id,
+        discord_rank: user.discord_rank,
+        username: interaction.user.username,
+      });
+    } else {
+      Sentry.setUser({
+        discord_id: interaction.user.id,
+        username: interaction.user.username,
+      });
+    }
   }
 
   if (interaction.isCommand()) {
@@ -179,7 +182,7 @@ async function on_make_ranked_command(user, interaction) {
       await interaction.editReply({content: `Failed to join lobby. Are you sure you ran **!mp addref ${Config.osu_username}**, and that the lobby id is correct?`});
     } else {
       await interaction.editReply({content: 'Failed to join lobby: ' + err});
-      Sentry.captureException(err);
+      capture_sentry_exception(err);
     }
   }
 }

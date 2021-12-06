@@ -11,6 +11,7 @@ import {
   close_ranked_lobby_on_discord,
 } from './discord_updates.js';
 
+import {capture_sentry_exception} from './util/helpers.js';
 
 let deadlines = [];
 let leave_deadlines = [];
@@ -20,18 +21,19 @@ let map_db = null;
 const DIFFICULTY_MODIFIER = 1.1;
 const DT_DIFFICULTY_MODIFIER = 0.7;
 
-
 function set_sentry_context(lobby, current_task) {
-  Sentry.setContext('lobby', {
-    id: lobby.id,
-    median_pp: lobby.median_overall,
-    nb_players: lobby.nb_players,
-    creator: lobby.creator,
-    creator_discord_id: lobby.creator_discord_id,
-    min_stars: lobby.min_stars,
-    max_stars: lobby.max_stars,
-    task: current_task,
-  });
+  if (Config.ENABLE_SENTRY) {
+    Sentry.setContext('lobby', {
+      id: lobby.id,
+      median_pp: lobby.median_overall,
+      nb_players: lobby.nb_players,
+      creator: lobby.creator,
+      creator_discord_id: lobby.creator_discord_id,
+      min_stars: lobby.min_stars,
+      max_stars: lobby.max_stars,
+      task: current_task,
+    });
+  }
 }
 
 async function set_new_title(lobby) {
@@ -321,7 +323,7 @@ async function join_lobby(lobby, client, creator, creator_discord_id, created_ju
       if (err.message == 'Internal server error.') {
         await player.user.sendMessage('Sorry, osu!api is having issues at the moment, so you cannot join o!RL lobbies. See https://status.ppy.sh/ for more info.');
       } else {
-        Sentry.captureException(err);
+        capture_sentry_exception(err)
       }
     }
   }
@@ -338,8 +340,8 @@ async function join_lobby(lobby, client, creator, creator_discord_id, created_ju
         await close_ranked_lobby_on_discord(lobby);
         console.log(`#mp_${lobby.id} Closed.`);
       }
-    } catch (e) {
-      Sentry.captureException(e);
+    } catch (err) {
+      capture_sentry_exception(err)
     }
   });
 
@@ -361,7 +363,7 @@ async function join_lobby(lobby, client, creator, creator_discord_id, created_ju
         if (err.message == 'Internal server error.') {
           await evt.player.user.sendMessage('Sorry, osu!api is having issues at the moment, so you cannot join o!RL lobbies. See https://status.ppy.sh/ for more info.');
         } else {
-          Sentry.captureException(err);
+          capture_sentry_exception(err)
         }
       }
 
@@ -375,9 +377,9 @@ async function join_lobby(lobby, client, creator, creator_discord_id, created_ju
         }
       }
       await update_ranked_lobby_on_discord(lobby);
-    } catch (e) {
-      console.error(`#mp_${lobby.id} Error in playerJoined event handler:`, e);
-      Sentry.captureException(e);
+    } catch (err) {
+      console.error(`#mp_${lobby.id} Error in playerJoined event handler:`, err);
+      capture_sentry_exception(err)
     }
   });
 
@@ -433,8 +435,8 @@ async function join_lobby(lobby, client, creator, creator_discord_id, created_ju
         await select_next_map(lobby);
         return;
       }
-    } catch (e) {
-      Sentry.captureException(e);
+    } catch (err) {
+      capture_sentry_exception(err)
     }
   });
 
@@ -456,8 +458,8 @@ async function join_lobby(lobby, client, creator, creator_discord_id, created_ju
       }
 
       await lobby.startMatch();
-    } catch (e) {
-      Sentry.captureException(e);
+    } catch (err) {
+      capture_sentry_exception(err)
     }
   });
 
@@ -480,8 +482,8 @@ async function join_lobby(lobby, client, creator, creator_discord_id, created_ju
       lobby.countdown = -1;
 
       await update_ranked_lobby_on_discord(lobby);
-    } catch (e) {
-      Sentry.captureException(e);
+    } catch (err) {
+      capture_sentry_exception(err)
     }
   });
 
@@ -505,8 +507,8 @@ async function join_lobby(lobby, client, creator, creator_discord_id, created_ju
           }
         }
       }
-    } catch (e) {
-      Sentry.captureException(e);
+    } catch (err) {
+      capture_sentry_exception(err)
     }
   });
 
@@ -828,9 +830,9 @@ async function start_ranked(client, _map_db) {
         }
         return;
       }
-    } catch (e) {
-      console.log('Failed to process PM: ' + e);
-      Sentry.captureException(e);
+    } catch (err) {
+      console.log('Failed to process PM: ' + err);
+      capture_sentry_exception(err)
     }
   });
 }
