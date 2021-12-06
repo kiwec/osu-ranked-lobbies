@@ -1,14 +1,13 @@
-import fs from 'fs';
-import Sentry from '@sentry/node';
 import {open} from 'sqlite';
 import sqlite3 from 'sqlite3';
 import SQL from 'sql-template-strings';
 import {MessageActionRow, MessageButton, MessageEmbed} from 'discord.js';
 
-const Config = JSON.parse(fs.readFileSync('./config.json'));
+import {capture_sentry_exception} from './util/helpers.js';
+import Config from './util/config.js';
+
 let discord_client = null;
 let db = null;
-
 
 async function init(discord_client_) {
   discord_client = discord_client_;
@@ -140,7 +139,7 @@ async function update_ranked_lobby_on_discord(lobby) {
     };
   } catch (err) {
     console.error(`#mp_${lobby.id} Failed to generate Discord message: ${err}`);
-    Sentry.captureException(err);
+    capture_sentry_exception(err);
     return;
   }
 
@@ -162,7 +161,7 @@ async function update_ranked_lobby_on_discord(lobby) {
       }
 
       console.error(`#mp_${lobby.id} Failed to update Discord message: ${err}`);
-      Sentry.captureException(err);
+      capture_sentry_exception(err);
       return;
     }
   }
@@ -177,7 +176,7 @@ async function update_ranked_lobby_on_discord(lobby) {
     discord_msg = msg.id;
   } catch (err) {
     console.error(`#mp_${lobby.id} Failed to create Discord message: ${err}`);
-    Sentry.captureException(err);
+    capture_sentry_exception(err);
   }
 
   await db.run(SQL`
@@ -227,7 +226,7 @@ async function update_discord_username(osu_user_id, new_username, reason) {
     await member.setNickname(new_username, reason);
   } catch (err) {
     console.error(`[Discord] Failed to update nickname for <@${user.discord_id}>: ${err}`);
-    Sentry.captureException(err);
+    capture_sentry_exception(err);
   }
 }
 
@@ -281,7 +280,7 @@ async function update_discord_role(osu_user_id, rank_text) {
             await member.roles.add(DISCORD_ROLES['Legendary']);
           } catch (err) {
             console.error('Failed to remove the one/add legendary to ' + member + ': ' + err);
-            Sentry.captureException(err);
+            capture_sentry_exception(err);
           }
         });
       }
@@ -303,7 +302,7 @@ async function update_discord_role(osu_user_id, rank_text) {
       );
     } catch (err) {
       console.error(`[Discord] Failed to update role for user ${osu_user_id}: ${err}`);
-      Sentry.captureException(err);
+      capture_sentry_exception(err);
     }
   }
 }

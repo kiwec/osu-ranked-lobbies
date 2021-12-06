@@ -1,4 +1,3 @@
-import fs from 'fs';
 import Bancho from 'bancho.js';
 import Sentry from '@sentry/node';
 import {open} from 'sqlite';
@@ -10,13 +9,14 @@ import {init as init_discord_interactions} from './discord_interactions.js';
 import {init as init_discord_updates, update_discord_username} from './discord_updates.js';
 import {listen as website_listen} from './website.js';
 import {start_ranked, join_lobby} from './ranked.js';
+import {capture_sentry_exception} from './util/helpers.js';
+import Config from './util/config.js';
 
-
-const Config = JSON.parse(fs.readFileSync('./config.json'));
-
-Sentry.init({
-  dsn: Config.sentry_dsn,
-});
+if (Config.ENABLE_SENTRY) {
+  Sentry.init({
+    dsn: Config.sentry_dsn
+  });
+}
 
 
 let ranking_db = null;
@@ -83,7 +83,7 @@ async function main() {
 
   client.on('error', (err) => {
     console.error('bancho.js error: ', err);
-    Sentry.captureException(err);
+    capture_sentry_exception(err);
   });
 
   client.on('PM', async (msg) => {

@@ -1,7 +1,6 @@
 import fs from 'fs';
 import {Client, Intents, MessageEmbed} from 'discord.js';
 
-
 async function main() {
   const client = new Client({intents: [Intents.FLAGS.GUILDS]});
 

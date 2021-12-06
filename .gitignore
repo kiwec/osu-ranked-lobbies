@@ -1,6 +1,7 @@
 .ipynb_checkpoints/
 node_modules/
 maps/
+.idea/
 
 config.json
 
