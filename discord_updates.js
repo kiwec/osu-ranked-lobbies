@@ -208,10 +208,11 @@ async function close_ranked_lobby_on_discord(lobby) {
 async function update_discord_username(osu_user_id, new_username, reason) {
   if (!discord_client) return;
 
+  const user = await db.get(SQL`
+    SELECT * FROM user WHERE osu_id = ${osu_user_id}`,
+  );
+
   try {
-    const user = await db.get(SQL`
-      SELECT * FROM user WHERE osu_id = ${osu_user_id}`,
-    );
     if (!user) return;
 
     const guild = await discord_client.guilds.fetch(Config.discord_guild_id);
