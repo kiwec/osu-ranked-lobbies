@@ -124,6 +124,8 @@ async function select_next_map(lobby) {
   };
 
   lobby.voteskips = [];
+  clearTimeout(lobby.countdown);
+  lobby.countdown = -1;
 
   // When the bot restarts, re-add the currently selected map to recent maps
   if (!lobby.recent_maps.includes(lobby.beatmapId)) {
@@ -572,6 +574,38 @@ async function on_lobby_msg(lobby, msg) {
     return;
   }
 
+  // NOTE: !start needs to be checked before !star (because we allow multiple spelling for !stars)
+  if (msg.message.toLowerCase() == '!start' && lobby.countdown == -1 && !lobby.playing) {
+    if (get_nb_players(lobby) < 2) {
+      await lobby.startMatch();
+      return;
+    }
+
+    lobby.countdown = setTimeout(async () => {
+      if (lobby.playing) {
+        lobby.countdown = -1;
+        return;
+      }
+
+      lobby.countdown = setTimeout(async () => {
+        lobby.countdown = -1;
+        if (!lobby.playing) {
+          await lobby.startMatch();
+        }
+      }, 10000);
+      await lobby.channel.sendMessage('Starting the match in 10 seconds... Ready up to start sooner.');
+    }, 20000);
+    await lobby.channel.sendMessage('Starting the match in 30 seconds... Ready up to start sooner.');
+    return;
+  }
+
+  if ((msg.message.toLowerCase() == '!wait' || msg.message.toLowerCase() == '!stop') && lobby.countdown != -1) {
+    clearTimeout(lobby.countdown);
+    lobby.countdown = -1;
+    await lobby.channel.sendMessage('Match auto-start is cancelled. Type !start to restart it.');
+    return;
+  }
+
   if (msg.message == '!about') {
     await lobby.channel.sendMessage('In this lobby, you get a rank based on how well you play compared to other players. All commands and answers to your questions are [https://kiwec.net/discord in the Discord.]');
     return;
@@ -591,6 +625,8 @@ async function on_lobby_msg(lobby, msg) {
     lobby.is_dt = !lobby.is_dt;
     if (lobby.is_dt) await lobby.channel.sendMessage('!mp mods dt freemod');
     else await lobby.channel.sendMessage('!mp mods freemod');
+    await select_next_map(lobby);
+    return;
   }
 
   if (msg.message.indexOf('!scorev') == 0) {
@@ -601,9 +637,11 @@ async function on_lobby_msg(lobby, msg) {
 
     lobby.is_scorev2 = !lobby.is_scorev2;
     await lobby.channel.sendMessage(`!mp set 0 ${lobby.is_scorev2 ? '3': '0'} 16`);
+    await select_next_map(lobby);
+    return;
   }
 
-  if (msg.message.indexOf('!stars') == 0 || msg.message.indexOf('!setstar') == 0) {
+  if (msg.message.indexOf('!star') == 0 || msg.message.indexOf('!setstar') == 0) {
     if (lobby.creator != msg.user.ircUsername) {
       await lobby.channel.sendMessage(msg.user.ircUsername + ': You need to be the lobby creator to use this command.');
       return;
@@ -636,6 +674,7 @@ async function on_lobby_msg(lobby, msg) {
     lobby.max_stars = max_stars;
     lobby.fixed_star_range = true;
     await select_next_map(lobby);
+    return;
   }
 
   if (msg.message.toLowerCase() == '!abort') {
@@ -655,6 +694,8 @@ async function on_lobby_msg(lobby, msg) {
         await lobby.channel.sendMessage(`${msg.user.ircUsername} voted to abort the match. ${nb_voted_to_abort}/${nb_required_to_abort} votes needed.`);
       }
     }
+
+    return;
   }
 
   if (msg.message.indexOf('!kick') == 0) {
@@ -684,6 +725,8 @@ async function on_lobby_msg(lobby, msg) {
         await lobby.channel.sendMessage(`${msg.user.ircUsername} voted to kick ${bad_player}. ${nb_voted_to_kick}/${nb_required_to_kick} votes needed.`);
       }
     }
+
+    return;
   }
 
   if (msg.message == '!rank') {
@@ -697,6 +740,8 @@ async function on_lobby_msg(lobby, msg) {
     } else {
       await lobby.channel.sendMessage(`${msg.user.ircUsername}: You are [https://osu.kiwec.net/u/${msg.user.id}/ ${rank_text}].`);
     }
+
+    return;
   }
 
   if (msg.message == '!skip' && !lobby.voteskips.includes(msg.user.ircUsername)) {
@@ -709,35 +754,8 @@ async function on_lobby_msg(lobby, msg) {
     } else {
       await lobby.channel.sendMessage(`${lobby.voteskips.length}/${Math.ceil(get_nb_players(lobby) / 2)} players voted to switch to another map.`);
     }
-  }
 
-  if (msg.message == '!start' && lobby.countdown == -1 && !lobby.playing) {
-    if (get_nb_players(lobby) < 2) {
-      await lobby.startMatch();
-      return;
-    }
-
-    lobby.countdown = setTimeout(async () => {
-      if (lobby.playing) {
-        lobby.countdown = -1;
-        return;
-      }
-
-      lobby.countdown = setTimeout(async () => {
-        lobby.countdown = -1;
-        if (!lobby.playing) {
-          await lobby.startMatch();
-        }
-      }, 10000);
-      await lobby.channel.sendMessage('Starting the match in 10 seconds... Ready up to start sooner.');
-    }, 20000);
-    await lobby.channel.sendMessage('Starting the match in 30 seconds... Ready up to start sooner.');
-  }
-
-  if (msg.message == '!wait' && lobby.countdown != -1) {
-    clearTimeout(lobby.countdown);
-    lobby.countdown = -1;
-    await lobby.channel.sendMessage('Match auto-start is cancelled. Type !start to restart it.');
+    return;
   }
 }
 
