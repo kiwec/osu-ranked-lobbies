@@ -12,6 +12,7 @@ import {
 } from './discord_updates.js';
 
 import {capture_sentry_exception} from './util/helpers.js';
+import Config from './util/config.js';
 
 let deadlines = [];
 let leave_deadlines = [];

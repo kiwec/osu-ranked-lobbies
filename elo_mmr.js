@@ -7,6 +7,7 @@ import sqlite3 from 'sqlite3';
 import SQL from 'sql-template-strings';
 
 import {update_discord_role} from './discord_updates.js';
+import Config from './util/config.js';
 
 let db = null;
 // let maps_db = null;

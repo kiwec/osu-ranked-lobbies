@@ -3,15 +3,14 @@
 // Instructions:
 // - node recompute_ranks.js
 
-import fs from 'fs';
 import {open} from 'sqlite';
 import sqlite3 from 'sqlite3';
 import SQL from 'sql-template-strings';
 import {Client, Intents} from 'discord.js';
 
 import {init_db, update_mmr} from '../elo_mmr.js';
+import Config from './config.js';
 
-const Config = JSON.parse(fs.readFileSync('./config.json'));
 const discord_client = new Client({intents: [Intents.FLAGS.GUILDS]});
 
 discord_client.once('ready', () => {
