@@ -371,7 +371,7 @@ async function join_lobby(lobby, client, creator, creator_discord_id, created_ju
       if (joined_alone) {
         await select_next_map(lobby);
         if (player.games_played == 0) {
-          await lobby.channel.sendMessage(`Welcome, ${player.ircUsername}! There is no host: use !start if the players aren't readying up, and !skip if the map is bad. [https://kiwec.net/discord Join the Discord] for more info.`);
+          await lobby.channel.sendMessage(`Welcome, ${player.ircUsername}! There is no host: use !start if the players aren't readying up, and !skip if the map is bad. [${Config.discord_invite_link} Join the Discord] for more info.`);
         }
       }
       await update_ranked_lobby_on_discord(lobby);
@@ -607,12 +607,12 @@ async function on_lobby_msg(lobby, msg) {
   }
 
   if (msg.message == '!about') {
-    await lobby.channel.sendMessage('In this lobby, you get a rank based on how well you play compared to other players. All commands and answers to your questions are [https://kiwec.net/discord in the Discord.]');
+    await lobby.channel.sendMessage(`In this lobby, you get a rank based on how well you play compared to other players. All commands and answers to your questions are [${Config.discord_invite_link} in the Discord.]`);
     return;
   }
 
   if (msg.message == '!discord') {
-    await lobby.channel.sendMessage('[https://kiwec.net/discord Come hang out in voice chat!] (or just text, no pressure)');
+    await lobby.channel.sendMessage(`[${Config.discord_invite_link} Come hang out in voice chat!] (or just text, no pressure)`);
     return;
   }
 
@@ -738,7 +738,7 @@ async function on_lobby_msg(lobby, msg) {
       );
       await lobby.channel.sendMessage(`${msg.user.ircUsername}: You are unranked. Play ${5 - res.games_played} more games to get a rank!`);
     } else {
-      await lobby.channel.sendMessage(`${msg.user.ircUsername}: You are [https://osu.kiwec.net/u/${msg.user.id}/ ${rank_text}].`);
+      await lobby.channel.sendMessage(`${msg.user.ircUsername}: You are [${Config.website_base_url}/u/${msg.user.id}/ ${rank_text}].`);
     }
 
     return;
@@ -761,14 +761,7 @@ async function on_lobby_msg(lobby, msg) {
 
 async function start_ranked(client, _map_db) {
   map_db = _map_db;
-
-  client.joined_lobbies = [];
-
-  await init_ranking_db();
-  ranking_db = await open({
-    filename: 'ranks.db',
-    driver: sqlite3.cached.Database,
-  });
+  ranking_db = await init_ranking_db();
 
   const discord_db = await open({
     filename: 'discord.db',
@@ -812,7 +805,7 @@ async function start_ranked(client, _map_db) {
         if (suggested_lobby != null) {
           await suggested_lobby.invitePlayer(msg.user.ircUsername);
         } else {
-          await msg.user.sendMessage(`Looks like there are no open lobbies that match your skill level. [https://kiwec.net/discord Join the Discord] to create a new one.`);
+          await msg.user.sendMessage(`Looks like there are no open lobbies that match your skill level. [${Config.discord_invite_link} Join the Discord] to create a new one.`);
         }
       }
 
@@ -831,7 +824,7 @@ async function start_ranked(client, _map_db) {
           }
           await msg.user.sendMessage(`You are unranked. Play ${5 - res.games_played} more games to get a rank!`);
         } else {
-          await msg.user.sendMessage(`You are [https://osu.kiwec.net/u/${msg.user.id}/ ${rank_text}].`);
+          await msg.user.sendMessage(`You are [${Config.website_base_url}/u/${msg.user.id}/ ${rank_text}].`);
         }
         return;
       }

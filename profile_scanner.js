@@ -20,8 +20,8 @@ async function osu_fetch(url, options) {
     const res = await fetch('https://osu.ppy.sh/oauth/token', {
       method: 'post',
       body: JSON.stringify({
-        client_id: Config.client_id,
-        client_secret: Config.client_secret,
+        client_id: Config.osu_v2api_client_id,
+        client_secret: Config.osu_v2api_client_secret,
         grant_type: 'client_credentials',
         scope: 'public',
       }),

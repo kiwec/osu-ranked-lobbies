@@ -110,7 +110,7 @@ async function on_interaction(interaction) {
 
 async function on_make_ranked_command(user, interaction) {
   if (!user) {
-    const welcome = await client.channels.cache.get('892880734526795826');
+    const welcome = await client.channels.cache.get(Config.discord_welcome_channel_id);
     await interaction.reply({
       content: `To create a ranked lobby, you first need to click the button in ${welcome} to link your osu! account.`,
       ephemeral: true,
@@ -152,7 +152,7 @@ async function on_make_ranked_command(user, interaction) {
     }
 
     channel.lobby.on('refereeRemoved', async (username) => {
-      if (username != 'kiwec') return;
+      if (username != Config.osu_username) return;
 
       await channel.sendMessage('Looks like we\'re done here.');
       channel.lobby.removeAllListeners();
@@ -176,7 +176,7 @@ async function on_make_ranked_command(user, interaction) {
     await interaction.editReply({content: 'Lobby initialized ✅ Enjoy!'});
   } catch (err) {
     if (err.message == 'No such channel') {
-      await interaction.editReply({content: 'Failed to join lobby. Are you sure you ran **!mp addref kiwec**, and that the lobby id is correct?'});
+      await interaction.editReply({content: `Failed to join lobby. Are you sure you ran **!mp addref ${Config.osu_username}**, and that the lobby id is correct?`});
     } else {
       await interaction.editReply({content: 'Failed to join lobby: ' + err});
       Sentry.captureException(err);
@@ -193,7 +193,7 @@ async function on_profile_command(user, interaction) {
   }
 
   if (!user) {
-    const welcome = await client.channels.cache.get('892880734526795826');
+    const welcome = await client.channels.cache.get(Config.discord_welcome_channel_id);
     await interaction.reply({
       content: `To check your profile, you first need to click the button in ${welcome} to link your osu! account.`,
       ephemeral: true,
@@ -258,7 +258,7 @@ async function on_lobby_invite_button_press(user, interaction) {
   const lobby_id = parseInt(parts[parts.length - 1], 10);
 
   if (!user) {
-    const welcome = await client.channels.cache.get('892880734526795826');
+    const welcome = await client.channels.cache.get(Config.discord_welcome_channel_id);
     await interaction.reply({
       content: `Before getting an invite, you need to click the button in ${welcome} to link your osu! account.`,
       ephemeral: true,
@@ -316,7 +316,7 @@ async function on_link_osu_account_press(user, interaction) {
     components: [
       new MessageActionRow().addComponents([
         new MessageButton({
-          url: `https://osu.ppy.sh/oauth/authorize?client_id=${Config.client_id}&response_type=code&scope=identify&state=${ephemeral_token}&redirect_uri=https://osu.kiwec.net/auth`,
+          url: `https://osu.ppy.sh/oauth/authorize?client_id=${Config.osu_v2api_client_id}&response_type=code&scope=identify&state=${ephemeral_token}&redirect_uri=${Config.website_base_url}/auth`,
           label: 'Verify using osu!web',
           style: 'LINK',
         }),

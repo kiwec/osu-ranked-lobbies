@@ -12,7 +12,6 @@ import {listen as website_listen} from './website.js';
 import {start_ranked, join_lobby} from './ranked.js';
 
 
-// fuck you, es6 modules, for making this inconvenient
 const Config = JSON.parse(fs.readFileSync('./config.json'));
 
 Sentry.init({
@@ -69,42 +68,34 @@ BanchoUser.prototype.fetchFromAPI = async function() {
 async function main() {
   console.log('Starting...');
 
+  // Used in the BanchoUser.fetchFromAPI monkey-patch above.
   ranking_db = await open({
     filename: 'ranks.db',
     driver: sqlite3.cached.Database,
   });
 
-  const client = new Bancho.BanchoClient(Config);
+  const client = new Bancho.BanchoClient({
+    username: Config.osu_username,
+    password: Config.osu_irc_password,
+    apiKey: Config.osu_v1api_key,
+  });
+  client.joined_lobbies = [];
+
   client.on('error', (err) => {
     console.error('bancho.js error: ', err);
     Sentry.captureException(err);
   });
 
-  const discord_client = await init_discord_interactions(client);
-  await init_discord_updates(discord_client);
-
-  website_listen();
-
-  await client.connect();
-  console.log('Connected to bancho.');
-
-  const map_db = await open({
-    filename: 'maps.db',
-    driver: sqlite3.cached.Database,
-  });
-
-  await start_ranked(client, map_db);
-
   client.on('PM', async (msg) => {
     console.log(`[PM] ${msg.user.ircUsername}: ${msg.message}`);
 
     if (msg.message == '!discord') {
-      await msg.user.sendMessage('https://kiwec.net/discord');
+      await msg.user.sendMessage(Config.discord_invite_link);
       return;
     }
 
     if (msg.message == '!about' || msg.message == '!help' || msg.message == '!commands') {
-      await msg.user.sendMessage('All bot commands and answers to your questions are [https://kiwec.net/discord in the Discord.]');
+      await msg.user.sendMessage(`All bot commands and answers to your questions are [${Config.discord_invite_link} in the Discord.]`);
       return;
     }
 
@@ -122,8 +113,36 @@ async function main() {
     }
   });
 
-  // Check for lobby creation every 10 minutes
-  setInterval(() => create_lobby_if_needed(client), 10 * 60 * 1000);
+  let discord_client = null;
+  if (Config.CONNECT_TO_DISCORD) {
+    discord_client = await init_discord_interactions(client);
+  }
+
+  // We still want to call this even without connecting to discord, since this
+  // initalizes discord.db which is used for tracking ranked lobbies.
+  await init_discord_updates(discord_client);
+
+  if (Config.HOST_WEBSITE) {
+    website_listen();
+  }
+
+  if (Config.CONNECT_TO_BANCHO) {
+    await client.connect();
+    console.log('Connected to bancho.');
+
+    const map_db = await open({
+      filename: 'maps.db',
+      driver: sqlite3.cached.Database,
+    });
+
+    await start_ranked(client, map_db);
+
+    if (Config.CREATE_LOBBIES) {
+      // Check for lobby creation every 10 minutes
+      setInterval(() => create_lobby_if_needed(client), 10 * 60 * 1000);
+      await create_lobby_if_needed(client);
+    }
+  }
 
   console.log('All ready and fired up!');
 }
@@ -135,7 +154,7 @@ async function create_lobby_if_needed(client) {
     driver: sqlite3.cached.Database,
   });
 
-  const lobbies = await db.all(`SELECT * FROM ranked_lobby WHERE creator = 'kiwec'`);
+  const lobbies = await db.all(SQL`SELECT * FROM ranked_lobby WHERE creator = ${Config.osu_username}`);
   if (!lobbies || lobbies.length >= 4) return;
 
   console.log(`Creating ${4 - lobbies.length} missing lobbies...`);
@@ -145,8 +164,8 @@ async function create_lobby_if_needed(client) {
     await join_lobby(
         channel.lobby,
         client,
-        'kiwec',
-        '889603773574578198',
+        Config.osu_username,
+        Config.discord_bot_id,
         false,
         3.0,
         4.0,
@@ -160,8 +179,8 @@ async function create_lobby_if_needed(client) {
     await join_lobby(
         channel.lobby,
         client,
-        'kiwec',
-        '889603773574578198',
+        Config.osu_username,
+        Config.discord_bot_id,
         false,
         4.0,
         5.0,
@@ -175,8 +194,8 @@ async function create_lobby_if_needed(client) {
     await join_lobby(
         channel.lobby,
         client,
-        'kiwec',
-        '889603773574578198',
+        Config.osu_username,
+        Config.discord_bot_id,
         false,
         5.0,
         6.0,
@@ -190,8 +209,8 @@ async function create_lobby_if_needed(client) {
     await join_lobby(
         channel.lobby,
         client,
-        'kiwec',
-        '889603773574578198',
+        Config.osu_username,
+        Config.discord_bot_id,
         false,
         6.0,
         7.0,

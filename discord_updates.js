@@ -1,15 +1,17 @@
+import fs from 'fs';
 import Sentry from '@sentry/node';
 import {open} from 'sqlite';
 import sqlite3 from 'sqlite3';
 import SQL from 'sql-template-strings';
 import {MessageActionRow, MessageButton, MessageEmbed} from 'discord.js';
 
-let client = null;
+const Config = JSON.parse(fs.readFileSync('./config.json'));
+let discord_client = null;
 let db = null;
 
 
-async function init(discord_client) {
-  client = discord_client;
+async function init(discord_client_) {
+  discord_client = discord_client_;
 
   db = await open({
     filename: 'discord.db',
@@ -49,8 +51,58 @@ function get_pp_color(lobby) {
 // Updates the lobby information on Discord.
 // Creates the message in the o!rl #lobbies channel if it doesn't exist.
 async function update_ranked_lobby_on_discord(lobby) {
-  let msg = null;
+  const ranked_lobby = await db.get(
+      SQL`SELECT * FROM ranked_lobby WHERE osu_lobby_id = ${lobby.id}`,
+  );
+  if (!ranked_lobby) {
+    // If the lobby isn't yet in the database, create it here and call this
+    // method again to create/update/delete the discord messages
+    // in #lobbies.
+    let min_stars = null;
+    let max_stars = null;
+    if (lobby.fixed_star_range) {
+      min_stars = lobby.min_stars;
+      max_stars = lobby.max_stars;
+    }
 
+    await db.run(SQL`
+      INSERT INTO ranked_lobby (
+        osu_lobby_id, creator, creator_discord_id,
+        min_stars, max_stars, dt, scorev2
+      )
+      VALUES (
+        ${lobby.id}, ${lobby.creator}, ${lobby.creator_discord_id},
+        ${min_stars}, ${max_stars}, ${lobby.is_dt ? 1 : 0}, ${lobby.is_scorev2 ? 1 : 0}
+      )`,
+    );
+
+    return await update_ranked_lobby_on_discord(lobby);
+  }
+
+  if (!discord_client) {
+    // We're not connected to Discord; don't bother managing Discord messages.
+    return;
+  }
+
+  // Lobby is full: delete existing #lobbies message
+  if (lobby.nb_players == lobby.size) {
+    try {
+      await discord_channel.messages.delete(ranked_lobby.discord_msg_id);
+    } catch (err) {
+      // If it's already deleted, ignore the error. We don't want to
+      // delete the actual lobby from the database.
+    }
+
+    await db.run(SQL`
+      UPDATE ranked_lobby (discord_channel_id, discord_msg_id)
+      SET discord_channel_id = NULL, discord_msg_id = NULL
+      WHERE osu_lobby_id = ${lobby.id}
+    `);
+
+    return;
+  }
+
+  let msg = null;
   try {
     msg = {
       embeds: [
@@ -92,71 +144,47 @@ async function update_ranked_lobby_on_discord(lobby) {
     return;
   }
 
-  const ranked_lobby = await db.get(
-      SQL`SELECT * FROM ranked_lobby WHERE osu_lobby_id = ${lobby.id}`,
-  );
-  if (ranked_lobby) {
+  // Try to update existing message
+  if (ranked_lobby.discord_channel_id && ranked_lobby.discord_msg_id) {
     try {
-      const discord_channel = client.channels.cache.get(ranked_lobby.discord_channel_id);
-
-      // Lobby is full: delete existing #lobbies message
-      if (lobby.nb_players == lobby.size) {
-        try {
-          await discord_channel.messages.delete(ranked_lobby.discord_msg_id);
-        } catch (err) {
-          // If it's already deleted, ignore the error. We don't want to
-          // delete the actual lobby from the database.
-        }
-
-        return;
-      }
-
+      const discord_channel = discord_client.channels.cache.get(ranked_lobby.discord_channel_id);
       const discord_msg = await discord_channel.messages.fetch(ranked_lobby.discord_msg_id + '');
-      try {
-        await discord_msg.edit(msg);
-      } catch (err) {
-        const discord_msg = await discord_channel.send(msg);
+      await discord_msg.edit(msg);
+    } catch (err) {
+      if (err.message == 'Unknown Message') {
+        // Message was deleted, try again
         await db.run(SQL`
-          UPDATE ranked_lobby
-          SET discord_msg_id = ${discord_msg.id}
-          WHERE osu_lobby_id = ${lobby.id}`,
-        );
-      }
-    } catch (err) {
-      console.error(`#mp_${lobby.id} Failed to edit Discord message:`, err);
-      await db.run(SQL`DELETE FROM ranked_lobby WHERE osu_lobby_id = ${lobby.id}`);
-      Sentry.captureException(err);
-      return;
-    }
-  } else {
-    // Lobby is full: don't create a message in #lobbies
-    // This will not register user-created lobbies in the database when
-    // they're full during the creation, but that only happens when someone
-    // creates a 1-slot lobby anyway, so it's not crucial to stay connected
-    // to that lobby.
-    if (lobby.nb_players == lobby.size) return;
-
-    try {
-      const discord_channel = client.channels.cache.get('892789885335924786');
-      const discord_msg = await discord_channel.send(msg);
-
-      let min_stars = null;
-      let max_stars = null;
-      if (lobby.fixed_star_range) {
-        min_stars = lobby.min_stars;
-        max_stars = lobby.max_stars;
+          UPDATE ranked_lobby (discord_channel_id, discord_msg_id)
+          SET discord_channel_id = NULL, discord_msg_id = NULL
+          WHERE osu_lobby_id = ${lobby.id}
+        `);
+        return await update_ranked_lobby_on_discord(lobby);
       }
 
-      await db.run(SQL`
-        INSERT INTO ranked_lobby (osu_lobby_id, discord_channel_id, discord_msg_id, creator, creator_discord_id, min_stars, max_stars, dt, scorev2)
-        VALUES (${lobby.id}, ${discord_channel.id}, ${discord_msg.id}, ${lobby.creator}, ${lobby.creator_discord_id}, ${min_stars}, ${max_stars}, ${lobby.is_dt ? 1 : 0}, ${lobby.is_scorev2 ? 1 : 0})`,
-      );
-    } catch (err) {
-      console.error(`#mp_${lobby.id} Failed to create Discord message: ${err}`);
+      console.error(`#mp_${lobby.id} Failed to update Discord message: ${err}`);
       Sentry.captureException(err);
       return;
     }
   }
+
+  // Try to create new message
+  let discord_channel = null;
+  let discord_msg = null;
+  try {
+    const chan = discord_client.channels.cache.get(Config.discord_lobbies_channel_id);
+    discord_channel = chan.id;
+    const msg = await discord_channel.send(msg);
+    discord_msg = msg.id;
+  } catch (err) {
+    console.error(`#mp_${lobby.id} Failed to create Discord message: ${err}`);
+    Sentry.captureException(err);
+  }
+
+  await db.run(SQL`
+    UPDATE ranked_lobby
+    SET discord_channel_id = ${discord_channel.id}, discord_msg_id = ${discord_msg.id}
+    WHERE osu_lobby_id = ${lobby.id}`,
+  );
 }
 
 // Removes the lobby information from the o!rl #lobbies channel.
@@ -168,21 +196,26 @@ async function close_ranked_lobby_on_discord(lobby) {
 
   try {
     await db.run(SQL`DELETE FROM ranked_lobby WHERE osu_lobby_id = ${lobby.id}`);
-    const discord_channel = client.channels.cache.get(ranked_lobby.discord_channel_id);
-    await discord_channel.messages.delete(ranked_lobby.discord_msg_id);
+
+    if (discord_client) {
+      const discord_channel = discord_client.channels.cache.get(ranked_lobby.discord_channel_id);
+      await discord_channel.messages.delete(ranked_lobby.discord_msg_id);
+    }
   } catch (err) {
     console.error(`#mp_${lobby.id} Failed to remove Discord message: ${err}`);
   }
 }
 
 async function update_discord_username(osu_user_id, new_username, reason) {
+  if (!discord_client) return;
+
   try {
     const user = await db.get(SQL`
       SELECT * FROM user WHERE osu_id = ${osu_user_id}`,
     );
     if (!user) return;
 
-    const guild = await client.guilds.fetch('891781932067749948');
+    const guild = await discord_client.guilds.fetch(Config.discord_guild_id);
     let member;
     try {
       member = await guild.members.fetch(user.discord_id);
@@ -199,16 +232,18 @@ async function update_discord_username(osu_user_id, new_username, reason) {
 }
 
 async function update_discord_role(osu_user_id, rank_text) {
+  if (!discord_client) return;
+
   const DISCORD_ROLES = {
-    'Cardboard': '893082878806732851',
-    'Wood': '893083179601260574',
-    'Bronze': '893083324673822771',
-    'Silver': '893083428260556801',
-    'Gold': '893083477531033613',
-    'Platinum': '893083535907377152',
-    'Diamond': '893083693244100608',
-    'Legendary': '893083871309082645',
-    'The One': '892966704991330364',
+    'Cardboard': Config.discord_cardboard_role_id,
+    'Wood': Config.discord_wood_role_id,
+    'Bronze': Config.discord_bronze_role_id,
+    'Silver': Config.discord_silver_role_id,
+    'Gold': Config.discord_gold_role_id,
+    'Platinum': Config.discord_platinum_role_id,
+    'Diamond': Config.discord_diamond_role_id,
+    'Legendary': Config.discord_legendary_role_id,
+    'The One': Config.discord_the_one_role_id,
   };
 
   // Remove '++' suffix from the rank_text
@@ -226,7 +261,7 @@ async function update_discord_role(osu_user_id, rank_text) {
     console.log('[Discord] Updating role for user ' + osu_user_id + ': ' + user.discord_rank + ' -> ' + rank_text);
 
     try {
-      const guild = await client.guilds.fetch('891781932067749948');
+      const guild = await discord_client.guilds.fetch(Config.discord_guild_id);
       let member;
       try {
         member = await guild.members.fetch(user.discord_id);
@@ -236,7 +271,7 @@ async function update_discord_role(osu_user_id, rank_text) {
       }
 
       // Add 'Linked account' role
-      await member.roles.add('909777665223966750');
+      await member.roles.add(Config.discord_linked_account_role_id);
 
       if (rank_text == 'The One') {
         const role = await guild.roles.fetch(DISCORD_ROLES[rank_text]);

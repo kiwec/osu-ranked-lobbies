@@ -9,9 +9,9 @@ import sqlite3 from 'sqlite3';
 import SQL from 'sql-template-strings';
 import {Client, Intents} from 'discord.js';
 
-import {init_db, get_rank_text_from_id, update_mmr} from '../elo_mmr.js';
+import {init_db, update_mmr} from '../elo_mmr.js';
 
-
+const Config = JSON.parse(fs.readFileSync('./config.json'));
 const discord_client = new Client({intents: [Intents.FLAGS.GUILDS]});
 
 discord_client.once('ready', () => {
@@ -24,7 +24,7 @@ discord_client.once('ready', () => {
 // discord_client.login(discord_token);
 
 // uncomment when needed
-// recompute_ranks();
+recompute_ranks();
 
 async function clear_discord_roles() {
   const DISCORD_ROLES = {
@@ -44,7 +44,7 @@ async function clear_discord_roles() {
     driver: sqlite3.cached.Database,
   });
 
-  const guild = await discord_client.guilds.fetch('891781932067749948');
+  const guild = await discord_client.guilds.fetch(Config.discord_guild_id);
   const users = await discord_db.all('SELECT discord_id, discord_rank FROM user');
   for (const user of users) {
     try {

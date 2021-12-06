@@ -6,7 +6,7 @@ import Sentry from '@sentry/node';
 import {open} from 'sqlite';
 import sqlite3 from 'sqlite3';
 
-import {get_rank, get_rank_text_from_id, init_db} from './elo_mmr.js';
+import {get_rank, get_rank_text_from_id} from './elo_mmr.js';
 import {update_discord_role, update_discord_username} from './discord_updates.js';
 import SQL from 'sql-template-strings';
 
@@ -117,11 +117,11 @@ async function listen() {
     res = await fetch('https://osu.ppy.sh/oauth/token', {
       method: 'post',
       body: JSON.stringify({
-        client_id: Config.client_id,
-        client_secret: Config.client_secret,
+        client_id: Config.osu_v2api_client_id,
+        client_secret: Config.osu_v2api_client_secret,
         code: req.query.code,
         grant_type: 'authorization_code',
-        redirect_uri: 'https://osu.kiwec.net/auth',
+        redirect_uri: Config.website_base_url + '/auth',
       }),
       headers: {
         'Accept': 'application/json',

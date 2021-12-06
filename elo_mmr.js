@@ -9,7 +9,7 @@ import SQL from 'sql-template-strings';
 import {update_discord_role} from './discord_updates.js';
 
 let db = null;
-let maps_db = null;
+// let maps_db = null;
 
 
 // Squared variation in individual performances
@@ -295,6 +295,10 @@ function solve_newton(f) {
 }
 
 async function update_mmr(lobby) {
+  if (!db) {
+    await init_db();
+  }
+
   const contest = new Contest(lobby);
   if (contest.standings.length < 2) return [];
 
@@ -432,9 +436,9 @@ async function update_mmr(lobby) {
       const new_index = division_to_index(new_rank.text);
 
       if (new_index > old_index) {
-        rank_changes.push(`${standing.player.username} [https://osu.kiwec.net/u/${standing.player.user_id}/ ▲ ${new_rank.text} ]`);
+        rank_changes.push(`${standing.player.username} [${Config.website_base_url}/u/${standing.player.user_id}/ ▲ ${new_rank.text} ]`);
       } else {
-        rank_changes.push(`${standing.player.username} [https://osu.kiwec.net/u/${standing.player.user_id}/ ▼ ${new_rank.text} ]`);
+        rank_changes.push(`${standing.player.username} [${Config.website_base_url}/u/${standing.player.user_id}/ ▼ ${new_rank.text} ]`);
       }
 
       await update_discord_role(standing.player.user_id, new_rank.text);
@@ -480,6 +484,10 @@ function get_rank_text(rank_float) {
 }
 
 async function get_rank(elo) {
+  if (!db) {
+    await init_db();
+  }
+
   const month_ago_tms = Date.now() - (30 * 24 * 3600 * 1000);
   const better_users = await db.get(SQL`
     SELECT COUNT(*) AS nb FROM user
@@ -501,6 +509,10 @@ async function get_rank(elo) {
 }
 
 async function get_rank_text_from_id(osu_user_id) {
+  if (!db) {
+    await init_db();
+  }
+
   const res = await db.get(SQL`
     SELECT elo, games_played FROM user
     WHERE user_id = ${osu_user_id}`,
@@ -519,10 +531,10 @@ async function init_db() {
     driver: sqlite3.cached.Database,
   });
 
-  maps_db = await open({
-    filename: 'maps.db',
-    driver: sqlite3.cached.Database,
-  });
+  // maps_db = await open({
+  //   filename: 'maps.db',
+  //   driver: sqlite3.cached.Database,
+  // });
 
   await db.exec(`CREATE TABLE IF NOT EXISTS user (
     user_id INTEGER PRIMARY KEY,
@@ -568,4 +580,4 @@ async function init_db() {
   return db;
 }
 
-export {init_db, update_mmr, get_rank, get_rank_text, get_rank_text_from_id};
+export {init_db, update_mmr, get_rank, get_rank_text_from_id};

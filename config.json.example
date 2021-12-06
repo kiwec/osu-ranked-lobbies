@@ -1,0 +1,32 @@
+{
+    "CONNECT_TO_BANCHO": true,
+    "CREATE_LOBBIES": false,
+    "osu_username": "your osu! username here",
+    "osu_irc_password": "get it here: https://osu.ppy.sh/p/irc",
+    "osu_v1api_key": "get it here: https://osu.ppy.sh/p/api",
+    "osu_v2api_client_id": 1234,
+    "osu_v2api_client_secret": "get it here: https://osu.ppy.sh/home/account/edit#new-oauth-application",
+
+    "CONNECT_TO_DISCORD": true,
+    "discord_token": "get it here: https://discord.com/developers/applications",
+    "discord_invite_link": "don't use a discord.gg link directly, bancho wordswaps those to google.com",
+    "discord_guild_id": "891781932067749948",
+    "discord_bot_id": "892791929455128596",
+    "discord_welcome_channel_id": "892880734526795826",
+    "discord_lobbies_channel_id": "892789885335924786",
+    "discord_cardboard_role_id": "893082878806732851",
+    "discord_wood_role_id": "893083179601260574",
+    "discord_bronze_role_id": "893083324673822771",
+    "discord_silver_role_id": "893083428260556801",
+    "discord_gold_role_id": "893083477531033613",
+    "discord_platinum_role_id": "893083535907377152",
+    "discord_diamond_role_id": "893083693244100608",
+    "discord_legendary_role_id": "893083871309082645",
+    "discord_the_one_role_id": "892966704991330364",
+    "discord_linked_account_role_id": "909777665223966750",
+
+    "HOST_WEBSITE": true,
+    "website_base_url": "https://osu.kiwec.net",
+
+    "sentry_dsn": "create a project on https://sentry.io/ and copy the dsn url here"
+}
