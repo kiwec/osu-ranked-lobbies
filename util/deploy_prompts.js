@@ -1,5 +1,5 @@
 import fs from 'fs';
-import {Client, Intents, MessageEmbed} from 'discord.js';
+import {Client, Intents, MessageActionRow, MessageButton, MessageEmbed} from 'discord.js';
 import Config from './config.js';
 
 async function main() {
@@ -9,6 +9,18 @@ async function main() {
     console.log('ready');
 
     const welcome_channel = client.channels.cache.get(Config.discord_welcome_channel_id);
+    await discord_channel.send({
+      content: 'Link your osu! account to get special roles, in-game invites, and more.',
+      components: [
+        new MessageActionRow().addComponents([
+          new MessageButton({
+            custom_id: 'orl_link_osu_account',
+            label: 'Link account',
+            style: 'PRIMARY',
+          }),
+        ]),
+      ],
+    });
 
     const discord_channel = client.channels.cache.get(Config.discord_faq_channel_id); // faq channel
 
