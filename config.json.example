@@ -8,11 +8,13 @@
     "osu_v2api_client_secret": "get it here: https://osu.ppy.sh/home/account/edit#new-oauth-application",
 
     "CONNECT_TO_DISCORD": true,
+    
     "discord_token": "get it here: https://discord.com/developers/applications",
     "discord_invite_link": "don't use a discord.gg link directly, bancho wordswaps those to google.com",
     "discord_guild_id": "891781932067749948",
     "discord_bot_id": "892791929455128596",
     "discord_welcome_channel_id": "892880734526795826",
+    "discord_faq_channel_id": "891782460365471764",
     "discord_lobbies_channel_id": "892789885335924786",
     "discord_cardboard_role_id": "893082878806732851",
     "discord_wood_role_id": "893083179601260574",

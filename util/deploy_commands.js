@@ -2,7 +2,7 @@ import {SlashCommandBuilder} from '@discordjs/builders';
 import {REST} from '@discordjs/rest';
 import {Routes} from 'discord-api-types/v9';
 
-import Config from './util/config.js';
+import Config from './config.js';
 
 const commands = [
   new SlashCommandBuilder()
@@ -33,7 +33,7 @@ const commands = [
 const rest = new REST({version: '9'}).setToken(Config.discord_token);
 
 rest.put(
-    Routes.applicationCommands('892791929455128596'),
+    Routes.applicationCommands(Config.discord_bot_id),
     {body: commands},
 )
     .then(() => console.log('Successfully registered application commands.'))

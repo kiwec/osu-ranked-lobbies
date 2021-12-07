@@ -27,15 +27,15 @@ recompute_ranks();
 
 async function clear_discord_roles() {
   const DISCORD_ROLES = {
-    'Cardboard': '893082878806732851',
-    'Wood': '893083179601260574',
-    'Bronze': '893083324673822771',
-    'Silver': '893083428260556801',
-    'Gold': '893083477531033613',
-    'Platinum': '893083535907377152',
-    'Diamond': '893083693244100608',
-    'Legendary': '893083871309082645',
-    'The One': '892966704991330364',
+    'Cardboard': Config.discord_cardboard_role_id,
+    'Wood': Config.discord_wood_role_id,
+    'Bronze': Config.discord_bronze_role_id,
+    'Silver': Config.discord_silver_role_id,
+    'Gold': Config.discord_gold_role_id,
+    'Platinum': Config.discord_platinum_role_id,
+    'Diamond': Config.discord_diamond_role_id,
+    'Legendary': Config.discord_legendary_role_id,
+    'The One': Config.discord_the_one_role_id
   };
 
   const discord_db = await open({
@@ -51,7 +51,7 @@ async function clear_discord_roles() {
       console.log('Updating roles for ' + member.displayName);
 
       // Add 'Linked account' role
-      await member.roles.add('909777665223966750');
+      await member.roles.add(Config.discord_linked_account_role_id);
 
       // Remove rank role
       await member.roles.remove(DISCORD_ROLES[user.discord_rank.split('+')[0]]);

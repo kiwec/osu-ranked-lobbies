@@ -1,5 +1,6 @@
 import fs from 'fs';
 import {Client, Intents, MessageEmbed} from 'discord.js';
+import Config from './config.js';
 
 async function main() {
   const client = new Client({intents: [Intents.FLAGS.GUILDS]});
@@ -7,9 +8,9 @@ async function main() {
   client.once('ready', async () => {
     console.log('ready');
 
-    const welcome_channel = client.channels.cache.get('892880734526795826');
+    const welcome_channel = client.channels.cache.get(Config.discord_welcome_channel_id);
 
-    const discord_channel = client.channels.cache.get('891782460365471764'); // faq channel
+    const discord_channel = client.channels.cache.get(Config.discord_faq_channel_id); // faq channel
 
     await discord_channel.send({
       embeds: [
@@ -62,7 +63,7 @@ async function main() {
       ],
     });
 
-    const lobbies_channel = client.channels.cache.get('892789885335924786');
+    const lobbies_channel = client.channels.cache.get(Config.discord_lobbies_channel_id);
     await lobbies_channel.send({
       embeds: [
         new MessageEmbed({
