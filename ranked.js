@@ -324,7 +324,7 @@ async function join_lobby(lobby, client, creator, creator_discord_id, created_ju
       if (err.message == 'Internal server error.') {
         await player.user.sendMessage('Sorry, osu!api is having issues at the moment, so you cannot join o!RL lobbies. See https://status.ppy.sh/ for more info.');
       } else {
-        capture_sentry_exception(err)
+        capture_sentry_exception(err);
       }
     }
   }
@@ -342,7 +342,7 @@ async function join_lobby(lobby, client, creator, creator_discord_id, created_ju
         console.log(`#mp_${lobby.id} Closed.`);
       }
     } catch (err) {
-      capture_sentry_exception(err)
+      capture_sentry_exception(err);
     }
   });
 
@@ -364,7 +364,7 @@ async function join_lobby(lobby, client, creator, creator_discord_id, created_ju
         if (err.message == 'Internal server error.') {
           await evt.player.user.sendMessage('Sorry, osu!api is having issues at the moment, so you cannot join o!RL lobbies. See https://status.ppy.sh/ for more info.');
         } else {
-          capture_sentry_exception(err)
+          capture_sentry_exception(err);
         }
       }
 
@@ -380,7 +380,7 @@ async function join_lobby(lobby, client, creator, creator_discord_id, created_ju
       await update_ranked_lobby_on_discord(lobby);
     } catch (err) {
       console.error(`#mp_${lobby.id} Error in playerJoined event handler:`, err);
-      capture_sentry_exception(err)
+      capture_sentry_exception(err);
     }
   });
 
@@ -437,7 +437,7 @@ async function join_lobby(lobby, client, creator, creator_discord_id, created_ju
         return;
       }
     } catch (err) {
-      capture_sentry_exception(err)
+      capture_sentry_exception(err);
     }
   });
 
@@ -460,7 +460,7 @@ async function join_lobby(lobby, client, creator, creator_discord_id, created_ju
 
       await lobby.startMatch();
     } catch (err) {
-      capture_sentry_exception(err)
+      capture_sentry_exception(err);
     }
   });
 
@@ -484,7 +484,7 @@ async function join_lobby(lobby, client, creator, creator_discord_id, created_ju
 
       await update_ranked_lobby_on_discord(lobby);
     } catch (err) {
-      capture_sentry_exception(err)
+      capture_sentry_exception(err);
     }
   });
 
@@ -509,7 +509,7 @@ async function join_lobby(lobby, client, creator, creator_discord_id, created_ju
         }
       }
     } catch (err) {
-      capture_sentry_exception(err)
+      capture_sentry_exception(err);
     }
   });
 
@@ -833,7 +833,7 @@ async function start_ranked(client, _map_db) {
       }
     } catch (err) {
       console.log('Failed to process PM: ' + err);
-      capture_sentry_exception(err)
+      capture_sentry_exception(err);
     }
   });
 }

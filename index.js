@@ -14,7 +14,7 @@ import Config from './util/config.js';
 
 if (Config.ENABLE_SENTRY) {
   Sentry.init({
-    dsn: Config.sentry_dsn
+    dsn: Config.sentry_dsn,
   });
 }
 

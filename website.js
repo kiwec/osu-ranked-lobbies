@@ -9,7 +9,6 @@ import {get_rank, get_rank_text_from_id} from './elo_mmr.js';
 import {update_discord_role, update_discord_username} from './discord_updates.js';
 import SQL from 'sql-template-strings';
 import Config from './util/config.js';
-import {capture_sentry_exception} from './util/helpers.js';
 
 function median(numbers) {
   if (numbers.length == 0) return 0;

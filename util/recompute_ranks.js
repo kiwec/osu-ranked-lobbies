@@ -35,7 +35,7 @@ async function clear_discord_roles() {
     'Platinum': Config.discord_platinum_role_id,
     'Diamond': Config.discord_diamond_role_id,
     'Legendary': Config.discord_legendary_role_id,
-    'The One': Config.discord_the_one_role_id
+    'The One': Config.discord_the_one_role_id,
   };
 
   const discord_db = await open({
