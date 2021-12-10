@@ -167,23 +167,19 @@ async function update_ranked_lobby_on_discord(lobby) {
   }
 
   // Try to create new message
-  let discord_channel = null;
-  let discord_msg = null;
   try {
-    const chan = discord_client.channels.cache.get(Config.discord_lobbies_channel_id);
-    discord_channel = chan.id;
-    const msg = await discord_channel.send(msg);
-    discord_msg = msg.id;
+    const discord_channel = discord_client.channels.cache.get(Config.discord_lobbies_channel_id);
+    const discord_msg = await discord_channel.send(msg);
+
+    await db.run(SQL`
+      UPDATE ranked_lobby
+      SET discord_channel_id = ${discord_channel.id}, discord_msg_id = ${discord_msg.id}
+      WHERE osu_lobby_id = ${lobby.id}`,
+    );
   } catch (err) {
     console.error(`#mp_${lobby.id} Failed to create Discord message: ${err}`);
     capture_sentry_exception(err);
   }
-
-  await db.run(SQL`
-    UPDATE ranked_lobby
-    SET discord_channel_id = ${discord_channel.id}, discord_msg_id = ${discord_msg.id}
-    WHERE osu_lobby_id = ${lobby.id}`,
-  );
 }
 
 // Removes the lobby information from the o!rl #lobbies channel.
