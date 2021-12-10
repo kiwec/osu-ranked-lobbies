@@ -149,6 +149,7 @@ async function update_ranked_lobby_on_discord(lobby) {
       const discord_channel = discord_client.channels.cache.get(ranked_lobby.discord_channel_id);
       const discord_msg = await discord_channel.messages.fetch(ranked_lobby.discord_msg_id + '');
       await discord_msg.edit(msg);
+      return;
     } catch (err) {
       if (err.message == 'Unknown Message') {
         // Message was deleted, try again
