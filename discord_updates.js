@@ -86,17 +86,18 @@ async function update_ranked_lobby_on_discord(lobby) {
   // Lobby is full: delete existing #lobbies message
   if (lobby.nb_players == lobby.size) {
     try {
+      const discord_channel = discord_client.channels.cache.get(ranked_lobby.discord_channel_id);
       await discord_channel.messages.delete(ranked_lobby.discord_msg_id);
+
+      await db.run(SQL`
+        UPDATE ranked_lobby
+        SET discord_channel_id = NULL, discord_msg_id = NULL
+        WHERE osu_lobby_id = ${lobby.id}
+      `);
     } catch (err) {
       // If it's already deleted, ignore the error. We don't want to
       // delete the actual lobby from the database.
     }
-
-    await db.run(SQL`
-      UPDATE ranked_lobby
-      SET discord_channel_id = NULL, discord_msg_id = NULL
-      WHERE osu_lobby_id = ${lobby.id}
-    `);
 
     return;
   }
