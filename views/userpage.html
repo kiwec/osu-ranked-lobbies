@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{ username }} - Userpage - o!RL</title>
+    <link rel="stylesheet" href="/reset.css?v=1.0">
+    <link rel="stylesheet" href="/stylesheet.css?v=1.0">
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="96x96" href="/favicon-96x96.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+
+    <meta content="{{ username }} - Userpage - o!RL" property="og:title" />
+    <meta content="#{{ rank.rank_nb }} - {{ rank.text }}" property="og:description" />
+    <meta content="https://osu.kiwec.net/u/{{ user_id }}" property="og:url" />
+    <meta content="https://s.ppy.sh/a/{{ user_id }}" property="og:image" />
+  </head>
+  <body>
+    <div class="sidebar">
+      <a class="logo" href="/">
+        <img src="/images/o!RL-logo.png" />
+      </a>
+      <nav>
+        <a class="leaderboard-link" href="/leaderboard/">
+          <img src="/images/leaderboard.png" />
+          <span>Leaderboard</span>
+        </a>
+        <a class="discord-link" href="https://kiwec.net/discord">
+          <img src="/images/discord.png" />
+          <span>Discord</span>
+        </a>
+      </nav>
+    </div>
+    <main>
+      <div class="heading">
+        <div class="heading-left">
+          <img src="https://s.ppy.sh/a/{{ user_id }}" />
+        </div>
+        <div class="heading-right">
+          <h1>{{ username }}</h1>
+          <div class="subheading">User ID: {{ user_id }}</div>
+        </div>
+      </div>
+      <div class="user-section">
+        <div class="user-focus">
+          <div class="user-focus-block">
+            <span>{{ rank.text }}</span>
+            <span>Rank #{{ rank.rank_nb }}</span>
+          </div>
+          <div class="user-focus-block">
+            <span>{{ games_played }}</span>
+            <span>Games Played</span>
+          </div>
+          <div class="user-focus-block">
+            <span>{{ pp }}</span>
+            <span>Performance Points</span>
+          </div>
+        </div>
+        <h2>Match History</h2>
+        <table class="match-history">
+          <thead>
+            <tr>
+              <td class="map">Map</td>
+              <td>Placement</td>
+              <td>Elo change</td>
+              <td>Time</td>
+            </tr>
+          </thead>
+          <tbody>
+            {{# matches }}
+            <tr>
+              <td class="map"><a href="https://osu.ppy.sh/beatmapsets/{{ map.set_id }}#osu/{{ map.id }}">{{ map.name }}</a></td>
+              <td>{{ placement }}/{{ players_in_match }}</td>
+              <td
+                {{# negative }}class="red"{{/ negative }}
+                {{# positive }}class="green"{{/ positive }}
+              >
+                {{# positive }}+{{/positive}}{{ elo_change }}
+              </td>
+              <td data-tms="{{ tms }}">{{ time }}</td>
+            </tr>
+            {{/ matches }}
+          </tbody>
+        </table>
+        <div class="pagination">
+          <a href="/u/{{ user_id }}/page-{{ pagination.previous }}/"><span class="left-arrow">‹</span>Previous</a>
+          <div class="number-nav">
+            {{# pagination.pages }}
+            <a {{# is_current }}class="current-page"{{/ is_current }} href="/u/{{ user_id }}/page-{{ number }}/">{{ number }}</a>
+            {{/ pagination.pages }}
+          </div>
+          <a href="/u/{{ user_id }}/page-{{ pagination.next }}/">Next<span class="right-arrow">›</span></a>
+        </div>
+      </div>
+    </main>
+
+    <script src="/instantclick.min.js" data-no-instant></script>
+    <script data-no-instant>InstantClick.init(50);</script>
+  </body>
+</html>

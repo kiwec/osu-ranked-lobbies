@@ -1,9 +1,15 @@
 import express from 'express';
+import fs from 'fs';
 import fetch from 'node-fetch';
 import morgan from 'morgan';
 import Sentry from '@sentry/node';
 import {open} from 'sqlite';
 import sqlite3 from 'sqlite3';
+import Mustache from 'mustache';
+
+import dayjs from 'dayjs';
+import relativeTime from 'dayjs/plugin/relativeTime.js';
+dayjs.extend(relativeTime);
 
 import {get_rank, get_rank_text_from_id} from './elo_mmr.js';
 import {update_discord_role, update_discord_username} from './discord_updates.js';
@@ -20,9 +26,50 @@ function median(numbers) {
   return numbers[middle];
 }
 
+function generate_pagination(page_num, min_pages, max_pages) {
+  const MAX_PAGINATED_PAGES = Math.min(max_pages, 9);
+  let pagination_min = page_num;
+  let pagination_max = page_num;
+  let nb_paginated_pages = min_pages;
+  const pages = [];
+
+  while (nb_paginated_pages < MAX_PAGINATED_PAGES) {
+    if (pagination_min > min_pages) {
+      pagination_min--;
+      nb_paginated_pages++;
+    }
+    if (pagination_max < max_pages) {
+      pagination_max++;
+      nb_paginated_pages++;
+    }
+  }
+  for (let i = pagination_min; i <= pagination_max; i++) {
+    pages.push({
+      number: i,
+      is_current: i == page_num,
+    });
+  }
+
+  return {
+    previous: Math.max(page_num - 1, 1),
+    next: Math.min(page_num + 1, max_pages),
+    pages: pages,
+  };
+}
+
 async function listen() {
+  const leaderboard = await fs.promises.readFile('views/leaderboard.html', 'utf-8');
+  const userpage = await fs.promises.readFile('views/userpage.html', 'utf-8');
+  Mustache.parse(leaderboard);
+  Mustache.parse(userpage);
+
   const discord_db = await open({
     filename: 'discord.db',
+    driver: sqlite3.cached.Database,
+  });
+
+  const maps_db = await open({
+    filename: 'maps.db',
     driver: sqlite3.cached.Database,
   });
 
@@ -42,42 +89,182 @@ async function listen() {
   app.set('trust proxy', () => true);
   app.use(express.static('public'));
 
-  app.get('/', async (req, http_res) => {
-    let top20 = '';
+  const render_leaderboard = async (page_num) => {
+    const PLAYERS_PER_PAGE = 20;
+
     const month_ago_tms = Date.now() - (30 * 24 * 3600 * 1000);
+    const total_players = await ranks_db.get(SQL`
+      SELECT COUNT(*) AS nb FROM user
+      WHERE games_played > 4 AND last_contest_tms > ${month_ago_tms}`,
+    );
+
+    // Fix user-provided page number
+    const nb_pages = Math.ceil(total_players.nb / PLAYERS_PER_PAGE);
+    if (page_num <= 0 || isNaN(page_num)) {
+      page_num = 1;
+      // TODO: redirect?
+    }
+    if (page_num > nb_pages) {
+      page_num = nb_pages;
+      // TODO: redirect?
+    }
+
+    const offset = (page_num - 1) * PLAYERS_PER_PAGE;
     const res = await ranks_db.all(SQL`
       SELECT * FROM user
       WHERE games_played > 4 AND last_contest_tms > ${month_ago_tms}
-      ORDER BY elo DESC LIMIT 20`,
+      ORDER BY elo DESC LIMIT ${PLAYERS_PER_PAGE} OFFSET ${offset}`,
     );
 
-    let rank = 1;
-    for (const user of res) {
-      top20 += `<tr>
-        <td>${rank++}</td>
-        <td><a href="/u/${user.user_id}">${user.username}</a></td>
-        <td>${user.elo}</td>
-      </tr>`;
+
+    const data = {
+      nb_ranked_players: total_players.nb,
+      the_one: false,
+      players: [],
+      pagination: generate_pagination(page_num, 1, nb_pages),
+    };
+
+    // Players
+    let ranking = offset + 1;
+    if (ranking == 1) {
+      data.the_one = {
+        user_id: res[0].user_id,
+        username: res[0].username,
+        ranking: ranking,
+        elo: Math.round(res[0].elo),
+      };
+
+      res.shift();
+      ranking++;
     }
 
-    http_res.send(`<html>
-    <head>
-      <meta charset="utf-8">
-      <title>Leaderboards</title>
-    </head>
-    <body>
-      <table>
-        <thead>
-          <tr>
-            <td>rank</td>
-            <td>username</td>
-            <td>elo</td>
-          </tr>
-        </thead>
-        <tbody>${top20}</tbody>
-      </table>
-    </body>
-    </html>`);
+    for (const user of res) {
+      data.players.push({
+        user_id: user.user_id,
+        username: user.username,
+        ranking: ranking,
+        elo: Math.round(user.elo),
+      });
+
+      ranking++;
+    }
+
+    return Mustache.render(leaderboard, data);
+  };
+
+  const render_user = async (user, page_num) => {
+    const MATCHES_PER_PAGE = 20;
+
+    // Fix user-provided page number
+    const nb_pages = Math.ceil(user.games_played / MATCHES_PER_PAGE);
+    if (page_num <= 0 || isNaN(page_num)) {
+      page_num = 1;
+      // TODO: redirect?
+    }
+    if (page_num > nb_pages) {
+      page_num = nb_pages;
+      // TODO: redirect?
+    }
+
+    const data = {
+      username: user.username,
+      user_id: user.user_id,
+      games_played: user.games_played,
+      pp: user.overall_pp.toFixed(2),
+      rank: await get_rank(user.elo),
+      matches: [],
+      pagination: generate_pagination(page_num, 1, nb_pages),
+    };
+
+    const offset = (page_num - 1) * MATCHES_PER_PAGE;
+    const scores = await ranks_db.all(SQL`
+      SELECT * FROM score
+      WHERE user_id = ${user.user_id}
+      ORDER BY tms DESC LIMIT ${MATCHES_PER_PAGE + 1} OFFSET ${offset}`,
+    );
+
+    let last_elo = scores[scores.length - 1].logistic_mu;
+    if (scores.length == MATCHES_PER_PAGE + 1) {
+      // We only used that score for setting last_elo.
+      scores.pop();
+    }
+
+    for (let i = scores.length - 1; i >= 0; i--) {
+      const elo_change = Math.round(scores[i].logistic_mu - last_elo);
+
+      let placement = 0;
+      const contest = await ranks_db.get(SQL`
+        SELECT * FROM contest WHERE rowid = ${scores[i].contest_id}`,
+      );
+      const contest_scores = await ranks_db.all(SQL`
+        SELECT user_id FROM score
+        WHERE contest_id = ${scores[i].contest_id}
+        ORDER BY score DESC`,
+      );
+      for (const contest_score of contest_scores) {
+        placement++;
+        if (contest_score.user_id == user.user_id) {
+          break;
+        }
+      }
+
+      data.matches.push({
+        map: await maps_db.get(SQL`SELECT * FROM map WHERE id = ${contest.map_id}`),
+        placement: placement,
+        players_in_match: contest_scores.length,
+        elo_change: elo_change,
+        positive: elo_change > 0,
+        negative: elo_change < 0,
+        time: dayjs(scores[i].tms).fromNow(),
+        tms: Math.round(scores[i].tms / 1000),
+      });
+
+      last_elo = scores[i].logistic_mu;
+    }
+
+    data.matches.reverse();
+
+    return Mustache.render(userpage, data);
+  };
+
+  app.get('/', async (req, http_res) => {
+    http_res.redirect('/leaderboard/');
+  });
+
+  app.get('/leaderboard/', async (req, http_res) => {
+    http_res.send(await render_leaderboard(1));
+  });
+
+  app.get('/leaderboard/page-:pageNum/', async (req, http_res) => {
+    http_res.send(await render_leaderboard(parseInt(req.params.pageNum, 10)));
+  });
+
+  app.get('/u/:userId/', async (req, http_res) => {
+    const user = await ranks_db.get(SQL`
+      SELECT * FROM user
+      WHERE user_id = ${req.params.userId}
+      AND games_played > 0`,
+    );
+    if (!user) {
+      http_res.status(404).send(`Profile not found. Have you played a game in a ranked lobby yet?`);
+      return;
+    }
+
+    http_res.send(await render_user(user, 1));
+  });
+
+  app.get('/u/:userId/page-:pageNum', async (req, http_res) => {
+    const user = await ranks_db.get(SQL`
+      SELECT * FROM user
+      WHERE user_id = ${req.params.userId}
+      AND games_played > 0`,
+    );
+    if (!user) {
+      http_res.status(404).send(`Profile not found. Have you played a game in a ranked lobby yet?`);
+      return;
+    }
+
+    http_res.send(await render_user(user, parseInt(req.params.pageNum, 10)));
   });
 
   app.get('/auth', async (req, http_res) => {
@@ -191,102 +378,6 @@ async function listen() {
 
       Your Discord account is now linked to your osu! account.
       </pre>
-    </body>
-    </html>`);
-  });
-
-  app.get('/lobby/:lobbyId/', async (req, http_res) => {
-    http_res.redirect(`osu://mp/${req.params.lobbyId}/`);
-  });
-
-  app.get('/u/:userId/', async (req, http_res) => {
-    const res = await ranks_db.get(SQL`
-      SELECT * FROM user
-      WHERE user_id = ${req.params.userId}`,
-    );
-    if (!res) {
-      http_res.status(404).send(`Profile not found. Have you played a game in a ranked lobby yet?`);
-      return;
-    }
-
-    const scores_res = await ranks_db.all(SQL`
-      SELECT * FROM score
-      WHERE user_id = ${req.params.userId}
-      ORDER BY tms DESC LIMIT 10`,
-    );
-    let last_elo = 1500;
-    let scores = '';
-    for (const score of scores_res) {
-      // Kind of dumb and slow
-      const contest_res = await ranks_db.all(SQL`
-        SELECT *, overall_pp FROM score
-        INNER JOIN user ON user.user_id = score.user_id
-        WHERE contest_id = ${score.contest_id}
-        ORDER BY score DESC`,
-      );
-      let place = 1;
-      for (const contest_score of contest_res) {
-        if (contest_score.user_id == req.params.userId) {
-          break;
-        }
-        place++;
-      }
-
-      const pps = [];
-      for (const contest_score of contest_res) {
-        pps.push(contest_score.overall_pp);
-      }
-
-      let mmr_diff = Math.round(score.logistic_mu - last_elo);
-      if (mmr_diff >= 0) mmr_diff = '+' + mmr_diff;
-
-      last_elo = score.logistic_mu;
-
-      scores += `<tr>
-        <td>${Math.round(median(pps))}pp</td>
-        <td>${place}/${contest_res.length}</td>
-        <td>${mmr_diff}</td>
-        <td>${score.tms}</td>
-      </tr>`;
-    }
-
-    if (res.games_played < 5) {
-      http_res.send('unranked');
-      return;
-    }
-
-    const rank = await get_rank(res.elo);
-    http_res.send(`<html>
-    <head>
-      <meta charset="utf-8">
-      <title>${res.username}'s profile</title>
-    </head>
-    <body>
-      <pre>here is your rank info. (prettier page coming soon™)
-
-        user id: ${res.user_id}
-        username: ${res.username}
-        games played: ${res.games_played}
-        rank: ${rank.text} (#${rank.rank_nb}/${rank.total_nb})
-        pp: ${res.overall_pp}
-      </pre>
-      <h3>last 10 matches</h3>
-      <table>
-        <thead><tr>
-          <th>lobby skill</th>
-          <th>placement</th>
-          <th>mmr diff</th>
-          <th>timestamp</th>
-        </tr></thead>
-        <tbody>
-          ${scores}
-        </tbody>
-      </table>
-      <br>
-      <div>
-        <!-- shameless but i'm still too lazy to design the website so... -->
-        <a href="https://kiwec.net/discord">Join the o!RL discord if you haven't already #ad</a>
-      </div>
     </body>
     </html>`);
   });

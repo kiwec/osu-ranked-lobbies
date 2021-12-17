@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Leaderboard - o!RL</title>
+    <link rel="stylesheet" href="/reset.css?v=1.0">
+    <link rel="stylesheet" href="/stylesheet.css?v=1.0">
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="96x96" href="/favicon-96x96.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+  </head>
+  <body>
+    <div class="sidebar">
+      <a class="logo" href="/">
+        <img src="/images/o!RL-logo.png" />
+      </a>
+      <nav>
+        <a class="leaderboard-link" href="/leaderboard/">
+          <img src="/images/leaderboard.png" />
+          <span>Leaderboard</span>
+        </a>
+        <a class="discord-link" href="https://kiwec.net/discord">
+          <img src="/images/discord.png" />
+          <span>Discord</span>
+        </a>
+      </nav>
+    </div>
+    <main>
+      <h1>Leaderboard</h1>
+      <div class="subheading">{{ nb_ranked_players }} ranked players</div>
+      <div class="leaderboard-section">
+        {{#the_one}}
+        <div class="leaderboard-focus">
+          <p class="ranking">The One</p>
+          <p class="username"><a href="/u/{{ user_id }}">{{ username }}</a></p>
+          <p class="elo-value">{{ elo }}</p>
+          <p class="elo">ELO</p>
+        </div>
+        {{/the_one}}
+        <table class="leaderboard">
+          <tbody>
+            {{#players}}
+            <tr>
+              <td>{{ ranking }}</td>
+              <td><a href="/u/{{ user_id }}">{{ username }}</a></td>
+              <td>{{ elo }}</td>
+              <td>ELO</td>
+            </tr>
+            {{/players}}
+          </tbody>
+        </table>
+        <div class="pagination">
+          <a href="/leaderboard/page-{{ pagination.previous }}/"><span class="left-arrow">‹</span>Previous</a>
+          <div class="number-nav">
+            {{# pagination.pages }}
+            <a {{# is_current }}class="current-page"{{/ is_current }} href="/leaderboard/page-{{ number }}/">{{ number }}</a>
+            {{/ pagination.pages }}
+          </div>
+          <a href="/leaderboard/page-{{ pagination.next }}/">Next<span class="right-arrow">›</span></a>
+        </div>
+      </div>
+    </main>
+
+    <script src="/instantclick.min.js" data-no-instant></script>
+    <script data-no-instant>InstantClick.init(50);</script>
+  </body>
+</html>
