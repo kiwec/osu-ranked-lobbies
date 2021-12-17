@@ -275,7 +275,7 @@ async function on_lobby_invite_button_press(user, interaction) {
   for (const lobby of bancho_client.joined_lobbies) {
     if (lobby.id == lobby_id) {
       const lobby_invite_id = lobby.channel.topic.split('#')[1];
-      await player.sendMessage(`Here's your invite: [http://osump://${lobby_invite_id}/ ${lobby.name}]`);
+      await player.sendMessage(`${player.ircUsername}, here's your invite: [http://osump://${lobby_invite_id}/ ${lobby.name}]`);
       await interaction.editReply({
         content: 'An invite to the lobby has been sent. Check your in-game messages. 😌',
         ephemeral: true,
