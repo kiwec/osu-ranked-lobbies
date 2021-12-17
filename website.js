@@ -170,7 +170,7 @@ async function listen() {
       username: user.username,
       user_id: user.user_id,
       games_played: user.games_played,
-      elo: Math.round(user.logistic_mu),
+      elo: Math.round(user.elo),
       rank: await get_rank(user.elo),
       matches: [],
       pagination: generate_pagination(page_num, 1, nb_pages),
