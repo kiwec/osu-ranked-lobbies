@@ -16,15 +16,6 @@ import {update_discord_role, update_discord_username} from './discord_updates.js
 import SQL from 'sql-template-strings';
 import Config from './util/config.js';
 
-function median(numbers) {
-  if (numbers.length == 0) return 0;
-
-  const middle = Math.floor(numbers.length / 2);
-  if (numbers.length % 2 === 0) {
-    return (numbers[middle - 1] + numbers[middle]) / 2;
-  }
-  return numbers[middle];
-}
 
 function generate_pagination(page_num, min_pages, max_pages) {
   const MAX_PAGINATED_PAGES = Math.min(max_pages, 9);
