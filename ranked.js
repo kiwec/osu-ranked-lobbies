@@ -578,7 +578,9 @@ async function on_lobby_msg(lobby, msg) {
   }
 
   // NOTE: !start needs to be checked before !star (because we allow multiple spelling for !stars)
-  if (msg.message.toLowerCase() == '!start' && lobby.countdown == -1 && !lobby.playing) {
+  if (msg.message.toLowerCase() == '!start') {
+    if (lobby.countdown != -1 || lobby.playing) return;
+
     if (get_nb_players(lobby) < 2) {
       await lobby.startMatch();
       return;
