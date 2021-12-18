@@ -5,9 +5,9 @@ body {
 	display: flex;
 	flex-direction: row;
 	width: 100%;
+  min-height: 100%;
 	font-family: "Segoe UI", sans-serif;
 	font-size: 25px;
-  height: 100%;
   transition: color .3s ease-in-out;
 }
 body.dark-mode {
@@ -17,6 +17,7 @@ body.dark-mode {
 	position: fixed;
 	top: 0;
 	left: 0;
+  z-index: 2;
 	display: flex;
 	flex-direction: column;
 	width: 180px;
@@ -384,7 +385,7 @@ thead tr td {
 
 .switcher-container {
   position: absolute;
-  z-index: 1001;
+  z-index: 2;
   right: 100px;
   top: 25px;
   height: 80px;
