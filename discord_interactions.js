@@ -14,7 +14,6 @@ import Config from './util/config.js';
 let client = null;
 let bancho_client = null;
 let db = null;
-let ranks_db = null;
 
 
 function init(_bancho_client) {
@@ -88,14 +87,28 @@ async function on_interaction(interaction) {
     }
   }
 
+  if (interaction.isContextMenu()) {
+    if (interaction.commandName == 'Display o!RL profile') {
+      const target = await db.get(
+          SQL`SELECT * FROM user WHERE discord_id = ${interaction.targetId}`,
+      );
+
+      if (target) {
+        await interaction.reply(`${Config.website_base_url}/u/${target.osu_id}`);
+      } else {
+        await interaction.reply({
+          content: 'That user hasn\'t linked their osu! account yet.',
+          ephemeral: true,
+        });
+      }
+
+      return;
+    }
+  }
+
   if (interaction.isCommand()) {
     if (interaction.commandName == 'make-lobby') {
       await on_make_ranked_command(user, interaction);
-      return;
-    }
-
-    if (interaction.commandName == 'profile') {
-      await on_profile_command(user, interaction);
       return;
     }
   }
@@ -185,75 +198,6 @@ async function on_make_ranked_command(user, interaction) {
       capture_sentry_exception(err);
     }
   }
-}
-
-async function on_profile_command(user, interaction) {
-  if (!ranks_db) {
-    ranks_db = await open({
-      filename: 'ranks.db',
-      driver: sqlite3.cached.Database,
-    });
-  }
-
-  if (!user) {
-    const welcome = await client.channels.cache.get(Config.discord_welcome_channel_id);
-    await interaction.reply({
-      content: `To check your profile, you first need to click the button in ${welcome} to link your osu! account.`,
-      ephemeral: true,
-    });
-    return;
-  }
-
-  let rank_nb = '-';
-  let rank_text = 'Unranked';
-  const profile = await ranks_db.get(SQL`SELECT * FROM user WHERE user_id = ${user.osu_id}`);
-  console.log(profile);
-  if (profile.elo) {
-    const rank = await get_rank(profile.elo);
-    rank_nb = rank.rank_nb;
-    rank_text = rank.text;
-    console.log(rank);
-  }
-
-  await interaction.reply({
-    embeds: [
-      new MessageEmbed({
-        title: 'Your profile',
-        fields: [
-          {
-            name: 'Rank',
-            value: rank_nb,
-            inline: true,
-          },
-          {
-            name: 'Division',
-            value: rank_text,
-          },
-          {
-            name: 'Aim',
-            value: Math.round(profile.aim_pp) + 'pp',
-            inline: true,
-          },
-          {
-            name: 'Speed',
-            value: Math.round(profile.speed_pp) + 'pp',
-            inline: true,
-          },
-          {
-            name: 'Accuracy',
-            value: Math.round(profile.acc_pp) + 'pp',
-            inline: true,
-          },
-          {
-            name: 'Approach Rate',
-            value: (profile.avg_ar || 0).toFixed(1),
-            inline: true,
-          },
-        ],
-      }),
-    ],
-    ephemeral: true,
-  });
 }
 
 async function on_lobby_invite_button_press(user, interaction) {

@@ -6,11 +6,13 @@ import Config from './config.js';
 const rest = new REST({version: '9'}).setToken(Config.discord_token);
 deploy_commands();
 
+// Docs: https://discord.com/developers/docs/interactions/application-commands
 async function deploy_commands() {
   const commands = [
     {
-      name: 'profile',
-      description: 'Get your profile information.',
+      type: 2,
+      name: 'Display o!RL profile',
+      description: '',
       options: [],
       default_permission: false,
     },
@@ -56,6 +58,7 @@ async function deploy_commands() {
   // Remove global commands
   const res1 = await rest.get(Routes.applicationCommands(Config.discord_bot_id));
   for (const cmd of res1) {
+    console.log('Deleting global command', cmd.id, cmd.name);
     await rest.delete(Routes.applicationCommands(Config.discord_bot_id) + '/' + cmd.id);
   }
 
