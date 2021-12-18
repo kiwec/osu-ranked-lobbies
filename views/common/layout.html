@@ -12,7 +12,23 @@
 
     {{> meta }}
   </head>
-  <body>
+  <body class="{{#darkTheme}}dark-mode{{/darkTheme}}">
+    <div class="switcher-container" title="Switch theme">
+      <svg version="1.1" class="switcher switcher-moon" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px"
+          viewBox="0 0 473.935 473.935" style="enable-background:new 0 0 473.935 473.935;" xml:space="preserve">
+        <circle class="switcher-circle" cx="236.967" cy="236.967" r="236.967"/>
+        <path class="switcher-object" d="M248.443,242.685c0-52.318,28.516-97.945,70.832-122.289c-15.757-6.601-33.055-10.26-51.21-10.26
+          c-73.204,0-132.549,59.341-132.549,132.549c0,73.201,59.341,132.549,132.549,132.549c18.155,0,35.453-3.663,51.21-10.267
+          C276.96,340.63,248.443,294.995,248.443,242.685z"/>
+        <g></g><g></g><g></g><g></g><g></g><g></g><g></g><g></g><g></g><g></g><g></g><g></g><g></g><g></g><g></g>
+      </svg>
+      <svg version="1.1" class="switcher switcher-sun" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px"
+      viewBox="0 0 473.931 473.931" style="enable-background:new 0 0 473.931 473.931;" xml:space="preserve">
+        <circle class="switcher-circle" style="fill:#F2BE3E;" cx="236.966" cy="236.966" r="236.966"/>
+        <circle class="switcher-object" style="fill:#F1EB75;" cx="236.966" cy="236.966" r="117.154"/>
+        <g></g><g></g><g></g><g></g><g></g><g></g><g></g><g></g><g></g><g></g><g></g><g></g><g></g><g></g><g></g>
+      </svg>
+    </div>
     <div class="sidebar">
       <a class="logo" href="/">
         <img src="/images/o!RL-logo.png" />
@@ -35,5 +51,6 @@
 
     <script src="/instantclick.min.js" data-no-instant></script>
     <script data-no-instant>InstantClick.init(50);</script>
+    <script src="/scripts.js" type="module"></script>
   </body>
 </html>

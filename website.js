@@ -4,6 +4,7 @@ import morgan from 'morgan';
 import Sentry from '@sentry/node';
 import {open} from 'sqlite';
 import sqlite3 from 'sqlite3';
+import cookieParser from 'cookie-parser';
 
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime.js';
@@ -73,6 +74,17 @@ async function listen() {
   app.enable('trust proxy');
   app.set('trust proxy', () => true);
   app.use(express.static('public'));
+
+  app.use(cookieParser());
+  
+  app.use(function(req, res, next) {
+    const cookies = req.cookies;
+    Config.theme = 'dark';
+    if (cookies && cookies.theme) {
+      Config.theme = cookies.theme;
+    }
+    next();
+  });
 
   const render_leaderboard = async (page_num) => {
     const PLAYERS_PER_PAGE = 20;
