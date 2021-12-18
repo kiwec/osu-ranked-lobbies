@@ -1,40 +1,83 @@
-import {SlashCommandBuilder} from '@discordjs/builders';
 import {REST} from '@discordjs/rest';
 import {Routes} from 'discord-api-types/v9';
 
 import Config from './config.js';
 
-const commands = [
-  new SlashCommandBuilder()
-      .setName('profile')
-      .setDescription('Get your profile information.'),
-  new SlashCommandBuilder()
-      .setName('make-lobby')
-      .setDescription('Create a new ranked lobby.')
-      .addIntegerOption((option) => option
-          .setName('lobby-id')
-          .setDescription('The lobby ID given by BanchoBot')
-          .setRequired(true))
-      .addNumberOption((option) => option
-          .setName('min-stars')
-          .setDescription('Minimum star level'))
-      .addNumberOption((option) => option
-          .setName('max-stars')
-          .setDescription('Maximum star level'))
-      .addBooleanOption((option) => option
-          .setName('dt')
-          .setDescription('Use double time'))
-      .addBooleanOption((option) => option
-          .setName('scorev2')
-          .setDescription('Use ScoreV2')),
-]
-    .map((command) => command.toJSON());
-
 const rest = new REST({version: '9'}).setToken(Config.discord_token);
+deploy_commands();
 
-rest.put(
-    Routes.applicationCommands(Config.discord_bot_id),
-    {body: commands},
-)
-    .then(() => console.log('Successfully registered application commands.'))
-    .catch(console.error);
+async function deploy_commands() {
+  const commands = [
+    {
+      name: 'profile',
+      description: 'Get your profile information.',
+      options: [],
+      default_permission: false,
+    },
+    {
+      name: 'make-lobby',
+      description: 'Create a new ranked lobby.',
+      options: [
+        {
+          type: 4,
+          name: 'lobby-id',
+          description: 'The lobby ID given by BanchoBot',
+          required: true,
+        },
+        {
+          type: 10,
+          name: 'min-stars',
+          description: 'Minimum star level',
+          required: false,
+        },
+        {
+          type: 10,
+          name: 'max-stars',
+          description: 'Maximum star level',
+          required: false,
+        },
+        {
+          type: 5,
+          name: 'dt',
+          description: 'Use double time',
+          required: false,
+        },
+        {
+          type: 5,
+          name: 'scorev2',
+          description: 'Use ScoreV2',
+          required: false,
+        },
+      ],
+      default_permission: false,
+    },
+  ];
+
+  // Remove global commands
+  const res1 = await rest.get(Routes.applicationCommands(Config.discord_bot_id));
+  for (const cmd of res1) {
+    await rest.delete(Routes.applicationCommands(Config.discord_bot_id) + '/' + cmd.id);
+  }
+
+  // Create/Update guild commands
+  const res2 = await rest.put(
+      Routes.applicationGuildCommands(Config.discord_bot_id, Config.discord_guild_id),
+      {body: commands},
+  );
+  for (const command of res2) {
+    await rest.put(
+        Routes.applicationGuildCommands(Config.discord_bot_id, Config.discord_guild_id) + `/${command.id}/permissions`,
+        {body: {
+          permissions: [
+            {
+              id: Config.discord_linked_account_role_id,
+              type: 1,
+              permission: true,
+            },
+          ],
+        }},
+    );
+  }
+
+  console.log('Successfully registered application commands.');
+}
