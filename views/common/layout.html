@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{ title }}</title>
+    <link rel="stylesheet" href="/reset.css?v=1.0">
+    <link rel="stylesheet" href="/stylesheet.css?v=1.0">
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="96x96" href="/favicon-96x96.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+
+    {{ meta }}
+  </head>
+  <body>
+    <div class="sidebar">
+      <a class="logo" href="/">
+        <img src="/images/o!RL-logo.png" />
+      </a>
+      <nav>
+        <a class="leaderboard-link" href="/leaderboard/">
+          <img src="/images/leaderboard.png" />
+          <span>Leaderboard</span>
+        </a>
+        <a class="discord-link" href="https://kiwec.net/discord">
+          <img src="/images/discord.png" />
+          <span>Discord</span>
+        </a>
+      </nav>
+    </div>
+
+    <main>
+      {{> main }}
+    </main>
+
+    <script src="/instantclick.min.js" data-no-instant></script>
+    <script data-no-instant>InstantClick.init(50);</script>
+  </body>
+</html>

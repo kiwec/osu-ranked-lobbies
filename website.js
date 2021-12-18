@@ -15,6 +15,7 @@ import {get_rank, get_rank_text_from_id} from './elo_mmr.js';
 import {update_discord_role, update_discord_username} from './discord_updates.js';
 import SQL from 'sql-template-strings';
 import Config from './util/config.js';
+import {render_with_layout, render_error} from './util/helpers.js';
 
 
 function generate_pagination(page_num, min_pages, max_pages) {
@@ -49,11 +50,6 @@ function generate_pagination(page_num, min_pages, max_pages) {
 }
 
 async function listen() {
-  const leaderboard = await fs.promises.readFile('views/leaderboard.html', 'utf-8');
-  const userpage = await fs.promises.readFile('views/userpage.html', 'utf-8');
-  Mustache.parse(leaderboard);
-  Mustache.parse(userpage);
-
   const discord_db = await open({
     filename: 'discord.db',
     driver: sqlite3.cached.Database,
@@ -140,7 +136,8 @@ async function listen() {
       ranking++;
     }
 
-    return Mustache.render(leaderboard, data);
+    data.title = 'Leaderboard - o!RL';
+    return render_with_layout('views/leaderboard.html', data);
   };
 
   const render_user = async (user, page_num) => {
@@ -215,7 +212,14 @@ async function listen() {
 
     data.matches.reverse();
 
-    return Mustache.render(userpage, data);
+    data.title = `${data.username}  - Userpage - o!RL`;
+    data.meta = `
+      <meta content="${data.title}" property="og:title" />
+      <meta content="#${data.rank.rank_nb} - ${data.rank.text}" property="og:description" />
+      <meta content="https://osu.kiwec.net/u/${data.user_id}" property="og:url" />
+      <meta content="https://s.ppy.sh/a/${data.user_id}" property="og:image" />
+    `;
+    return render_with_layout('views/userpage.html', data);
   };
 
   app.get('/', async (req, http_res) => {
@@ -237,7 +241,7 @@ async function listen() {
       AND games_played > 0`,
     );
     if (!user) {
-      http_res.status(404).send(`Profile not found. Have you played a game in a ranked lobby yet?`);
+      http_res.status(404).send(await render_error('Profile not found. Have you played a game in a ranked lobby yet?', 404));
       return;
     }
 
@@ -251,7 +255,7 @@ async function listen() {
       AND games_played > 0`,
     );
     if (!user) {
-      http_res.status(404).send(`Profile not found. Have you played a game in a ranked lobby yet?`);
+      http_res.status(404).send(await render_error('Profile not found. Have you played a game in a ranked lobby yet?', 404));
       return;
     }
 
@@ -262,7 +266,7 @@ async function listen() {
     let res;
 
     if (!req.query.code) {
-      http_res.status(403).send('No auth code provided.');
+      http_res.status(403).send(await render_error('No auth code provided.', 403));
       return;
     }
 
@@ -273,7 +277,7 @@ async function listen() {
       WHERE ephemeral_token = ${ephemeral_token}`,
     );
     if (!res) {
-      http_res.status(403).send('Discord token invalid or expired. Please click the "Link account" button once again.');
+      http_res.status(403).send(await render_error('Discord token invalid or expired. Please click the "Link account" button once again.', 403));
       return;
     }
     await discord_db.run(SQL`
@@ -308,7 +312,7 @@ async function listen() {
       },
     });
     if (!res.ok) {
-      http_res.status(403).send('Invalid auth code.');
+      http_res.status(403).send(await render_error('Invalid auth code.', 403));
       console.error(res.status, await res.text());
       return;
     }
@@ -324,7 +328,7 @@ async function listen() {
       },
     });
     if (!res.ok) {
-      http_res.status(503).send('osu!web sent us bogus tokens. Sorry, idk what to do now');
+      http_res.status(503).send(await render_error('osu!web sent us bogus tokens. Sorry, idk what to do now', 503));
       return;
     }
     const user_profile = await res.json();
@@ -358,19 +362,8 @@ async function listen() {
   });
 
   app.get('/success', async (req, http_res) => {
-    // TODO: make this nicer
-    http_res.send(`<html>
-    <head>
-      <meta charset="utf-8">
-      <title>Link successful</title>
-    </head>
-    <body>
-      <pre>Congratulations!
-
-      Your Discord account is now linked to your osu! account.
-      </pre>
-    </body>
-    </html>`);
+    const data = {title: 'Account Linked - o!RL'};
+    http_res.send(await render_with_layout('views/success.html', data));
   });
 
   if (Config.ENABLE_SENTRY) {
