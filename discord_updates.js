@@ -121,7 +121,7 @@ async function update_ranked_lobby_on_discord(lobby) {
             },
             {
               name: 'Creator',
-              value: `<@${lobby.creator}!${lobby.creator_discord_id}>`,
+              value: `<@!${lobby.creator_discord_id}>`,
               inline: true,
             },
           ],
