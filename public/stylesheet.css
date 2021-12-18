@@ -1,19 +1,32 @@
+html {
+  height: 100%;
+}
 body {
 	display: flex;
 	flex-direction: row;
 	width: 100%;
+  min-height: 100%;
 	font-family: "Segoe UI", sans-serif;
 	font-size: 25px;
+  transition: color .3s ease-in-out;
+}
+body.dark-mode {
+  color: rgb(211, 211, 211);
 }
 .sidebar {
 	position: fixed;
 	top: 0;
 	left: 0;
+  z-index: 2;
 	display: flex;
 	flex-direction: column;
 	width: 180px;
 	height: 100%;
 	background-color: #eeeeee;
+  transition: background .3s ease-in-out;
+}
+body.dark-mode .sidebar {
+  background-color: #292727;
 }
 .sidebar .logo {
 	margin-top: 45px;
@@ -90,6 +103,10 @@ nav a span {
     pointer-events: none;
     opacity: 0;
     transition: margin .3s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 150ms;
+    transition: background .3s ease-in-out;
+}
+body.dark-mode nav a span {
+  background-color: #c94580;
 }
 nav a span::before {
     content: "";
@@ -101,6 +118,10 @@ nav a span::before {
     border: 7px solid transparent;
     border-left: none;
     border-right-color: #e3609a;
+    transition: border .3s ease-in-out;
+}
+body.dark-mode nav a span::before {
+  border-right-color: #c94580;
 }
 nav a:hover span {
     margin-left: 0;
@@ -108,8 +129,11 @@ nav a:hover span {
 }
 main {
     width: calc(100% - 420px);
+    transition: background .3s ease-in-out;
 }
-.leaderboard-section {}
+body.dark-mode main {
+  background-color: #383636;
+}
 .leaderboard-section .leaderboard-focus {
     display: flex;
     justify-content: flex-start;
@@ -117,6 +141,10 @@ main {
     padding: 45px 60px;
     border: solid #e3609a 3px;
     border-radius: 10px;
+    transition: border .3s ease-in-out;
+}
+body.dark-mode .leaderboard-section .leaderboard-focus {
+  border-color: #c94580;
 }
 .leaderboard-section .leaderboard-focus p {
     font-size: 1.5em;
@@ -125,9 +153,17 @@ main {
 .leaderboard-section .leaderboard-focus p a {
     color: black;
     text-decoration: none;
+    transition: color .3s ease-in-out;
+}
+body.dark-mode .leaderboard-section .leaderboard-focus p a {
+  color: rgb(211, 211, 211);
 }
 .leaderboard-section .leaderboard-focus p.ranking {
     color: #e3609a;
+    transition: color .3s ease-in-out;
+}
+body.dark-mode .leaderboard-section .leaderboard-focus p.ranking {
+  color: #c94580;
 }
 .leaderboard-section .leaderboard-focus p.username {
     margin-left: 30px;
@@ -143,6 +179,10 @@ main {
     font-variant: small-caps;
     text-transform: lowercase;
     color: #e3609a; 
+    transition: color .3s ease-in-out;
+}
+body.dark-mode .leaderboard-section .leaderboard-focus p.elo {
+  color: #c94580;
 }
 .leaderboard-section .leaderboard {
     display: block;
@@ -169,6 +209,10 @@ tbody tr td {
 tbody tr td a {
     color: black;
     text-decoration: none;
+    transition: color .3s ease-in-out;
+}
+body.dark-mode tbody tr td a {
+  color: rgb(211, 211, 211);
 }
 .leaderboard tbody tr td {
     margin-left: 30px;
@@ -185,6 +229,10 @@ tbody tr td a {
     font-variant: small-caps;
     text-transform: lowercase;
     color: #e3609a;
+    transition: color .3s ease-in-out;
+}
+body.dark-mode .leaderboard tbody tr td:last-of-type {
+  color: #c94580;
 }
 .pagination {
     display: flex;
@@ -196,16 +244,25 @@ tbody tr td a {
     font-weight: 700;
     text-decoration: none;
     color: black;
+    transition: color .3s ease-in-out;
+}
+body.dark-mode .pagination > a {
+  color: rgb(211, 211, 211);
 }
 .pagination .left-arrow {
     margin-right: 15px;
     color: #e3609a;
+    transition: color .3s ease-in-out;
 }
 .pagination .right-arrow {
     margin-left: 15px;
     color: #e3609a;
+    transition: color .3s ease-in-out;
 }
-.pagination .number-nav {}
+body.dark-mode .pagination .left-arrow,
+body.dark-mode .pagination .right-arrow {
+  color: #c94580;
+}
 .pagination .number-nav a {
     display:inline-block;
     padding-bottom: 6px;
@@ -219,6 +276,12 @@ tbody tr td a {
 .pagination .number-nav a.current-page {
     color: black;
     border-bottom: solid #e3609a 3px;
+    transition: color .3s ease-in-out;
+    transition: border .3s ease-in-out;
+}
+body.dark-mode .pagination .number-nav a.current-page {
+  color: rgb(211, 211, 211);
+  border-bottom-color: #c94580;
 }
 .heading {
     display: flex;
@@ -247,7 +310,6 @@ tbody tr td a {
 .heading .heading-right .subheading {
     margin-bottom: 0;
 }
-.user-section {}
 .user-section .user-focus {
     display: flex;
 }
@@ -261,6 +323,10 @@ tbody tr td a {
     border-radius: 10px;
     font-size: 1em;
     font-weight: 700;
+    transition: border .3s ease-in-out;
+}
+body.dark-mode .user-focus .user-focus-block {
+  border-color: #c94580;
 }
 .user-section .user-focus .user-focus-block:nth-of-type(2) {
     margin: 0 60px;
@@ -272,6 +338,10 @@ tbody tr td a {
     margin-bottom: 30px;
     font-size: 2em;
     color: #e3609a;
+    transition: color .3s ease-in-out;
+}
+body.dark-mode .user-focus .user-focus-block span:first-of-type {
+  color: #c94580;
 }
 h2 {
     font-size: 1.5em;
@@ -293,6 +363,10 @@ thead tr {
     padding: 15px 30px;
     border: solid #e3609a 3px;
     border-radius: 10px;
+    transition: color .3s ease-in-out;
+}
+body.dark-mode thead tr {
+  border-color: #c94580;
 }
 thead tr td {
     font-size: 1em;
@@ -306,6 +380,55 @@ thead tr td {
 .match-history .map {
     flex-grow: 2;
 }
+
+/* Theme switcher */
+
+.switcher-container {
+  position: absolute;
+  z-index: 2;
+  right: 100px;
+  top: 25px;
+  height: 80px;
+  width: 80px;
+}
+.switcher {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: 1;
+  opacity: 1;
+  transform: translate(-50%, -50%);
+  transition: opacity .4s ease-in-out;
+  cursor: pointer;
+}
+body:not(.dark-mode) .switcher-moon {
+  z-index: 0;
+  opacity: 0;
+}
+body.dark-mode .switcher-sun {
+  z-index: 0;
+  opacity: 0;
+}
+.switcher-moon .switcher-circle {
+  fill: #344E5D;
+}
+.switcher.fadeout {
+  opacity: 0;
+}
+.switcher.fadein {
+  display: block !important;
+  opacity: 1 !important;
+}
+.switcher-moon .switcher-object {
+  fill: #F1EB75;
+}
+.switcher-sun .switcher-circle {
+  fill: #F2BE3E;
+}
+.switcher-sun .switcher-object {
+  fill: #F1EB75;
+}
+
 @media screen and (max-width:1400px) {
     body {
         font-size: 21px;
@@ -370,6 +493,9 @@ thead tr td {
     }
     .user-section .user-focus .user-focus-block span:first-of-type {
         margin-bottom: 22.5px;
+    }
+    .switcher-container {
+      right: 70px;
     }
 }
 @media screen and (max-width:1200px) {
@@ -483,6 +609,9 @@ thead tr td {
         width: 50px;
         height: 50px;
     }
+    .switcher-container {
+      right: 30px;
+    }
 }
 @media screen and (max-width:820px) {
     .leaderboard tbody tr td:last-of-type {
@@ -548,5 +677,9 @@ thead tr td {
     }
     .match-history td {
         width: 120px;
+    }
+    .switcher-container {
+      top: 130px;
+      right: 5px;
     }
 }

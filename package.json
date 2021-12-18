@@ -11,6 +11,7 @@
     "@sentry/node": "^v6.14.0",
     "@sentry/tracing": "^v6.14.0",
     "bancho.js": "^0.10.0-rc.6",
+    "cookie-parser": "^1.4.6",
     "dayjs": "^1.10.7",
     "discord-api-types": "^0.23.1",
     "discord.js": "^13.1.0",
