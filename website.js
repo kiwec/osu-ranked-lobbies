@@ -76,7 +76,7 @@ async function listen() {
   app.use(express.static('public'));
 
   app.use(cookieParser());
-  
+
   app.use(function(req, res, next) {
     const cookies = req.cookies;
     Config.theme = 'dark';
