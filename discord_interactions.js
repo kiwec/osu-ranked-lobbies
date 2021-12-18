@@ -4,9 +4,8 @@ import Sentry from '@sentry/node';
 import {open} from 'sqlite';
 import sqlite3 from 'sqlite3';
 import SQL from 'sql-template-strings';
-import {Client, Intents, MessageActionRow, MessageButton, MessageEmbed} from 'discord.js';
+import {Client, Intents, MessageActionRow, MessageButton} from 'discord.js';
 
-import {get_rank} from './elo_mmr.js';
 import {join_lobby} from './ranked.js';
 import {capture_sentry_exception} from './util/helpers.js';
 import Config from './util/config.js';
