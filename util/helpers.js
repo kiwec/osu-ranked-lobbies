@@ -20,7 +20,7 @@ export const render_with_layout = async (main_template, data = {}) => {
   partials.main = await fs.promises.readFile(main_template, 'utf-8');
 
   return Mustache.render(layout, data, partials);
-}
+};
 
 export const render_error = async (error, code, data = {}) => {
   data.error = error;
@@ -32,4 +32,4 @@ export const render_error = async (error, code, data = {}) => {
   }
 
   return render_with_layout(error_page, data);
-}
+};

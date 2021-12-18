@@ -1,11 +1,9 @@
 import express from 'express';
-import fs from 'fs';
 import fetch from 'node-fetch';
 import morgan from 'morgan';
 import Sentry from '@sentry/node';
 import {open} from 'sqlite';
 import sqlite3 from 'sqlite3';
-import Mustache from 'mustache';
 
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime.js';
