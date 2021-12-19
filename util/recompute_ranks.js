@@ -1,106 +1,65 @@
 // This script recomputes player ranks based on stored scores.
 //
 // Instructions:
-// - node recompute_ranks.js
+// - Copy the osubot directory to another directory
+// - Keep the bot running in the old osubot directory
+// - Delete 'ranks.db' from the new directory
+// - Run `node util/recompute_ranks.js` in the new directory
+// - After a few runs and once all ranks are updated, kill the bot,
+//   replace the database, update the code, restart the bot. Done!
 
 import {open} from 'sqlite';
 import sqlite3 from 'sqlite3';
 import SQL from 'sql-template-strings';
-import {Client, Intents} from 'discord.js';
 
 import {init_db, update_mmr} from '../elo_mmr.js';
-import Config from './config.js';
 
-const discord_client = new Client({intents: [Intents.FLAGS.GUILDS]});
-
-discord_client.once('ready', () => {
-  console.log('Logged in to discord.');
-  clear_discord_roles();
-});
-
-// uncomment when needed
-// const {discord_token} = JSON.parse(fs.readFileSync('./config.json'));
-// discord_client.login(discord_token);
-
-// uncomment when needed
 recompute_ranks();
 
-async function clear_discord_roles() {
-  const DISCORD_ROLES = {
-    'Cardboard': Config.discord_cardboard_role_id,
-    'Wood': Config.discord_wood_role_id,
-    'Bronze': Config.discord_bronze_role_id,
-    'Silver': Config.discord_silver_role_id,
-    'Gold': Config.discord_gold_role_id,
-    'Platinum': Config.discord_platinum_role_id,
-    'Diamond': Config.discord_diamond_role_id,
-    'Legendary': Config.discord_legendary_role_id,
-    'The One': Config.discord_the_one_role_id,
-  };
+async function recompute_ranks() {
+  const new_db = await init_db();
+  let latest_recomputed_tms = -1;
+  const res = await new_db.get(SQL`SELECT MAX(tms) AS max_tms FROM contest`);
+  if (res && res.max_tms) {
+    latest_recomputed_tms = res.max_tms;
+  }
 
-  const discord_db = await open({
-    filename: 'discord.db',
+  const old_db = await open({
+    filename: '../osubot/ranks.db',
     driver: sqlite3.cached.Database,
   });
-
-  const guild = await discord_client.guilds.fetch(Config.discord_guild_id);
-  const users = await discord_db.all('SELECT discord_id, discord_rank FROM user');
-  for (const user of users) {
-    try {
-      const member = await guild.members.fetch(user.discord_id);
-      console.log('Updating roles for ' + member.displayName);
-
-      // Add 'Linked account' role
-      await member.roles.add(Config.discord_linked_account_role_id);
-
-      // Remove rank role
-      await member.roles.remove(DISCORD_ROLES[user.discord_rank.split('+')[0]]);
-    } catch (err) {
-      console.error(`Failed to fix roles for ${user.discord_id}: ${err}`);
-    }
-  }
-
-  console.log('Done updating roles.');
-
-  // NOTE: run "UPDATE user SET discord_rank = NULL;" manually
-}
-
-async function recompute_ranks() {
-  const db = await init_db();
-
-  // Fetch ALL of the database into memory since we can afford it
-  const contests = await db.all(SQL`
+  const contests = await old_db.all(SQL`
     SELECT rowid, lobby_id, map_id, tms, scoring_system, mods
     FROM contest
+    WHERE tms > ${latest_recomputed_tms}
     ORDER BY tms`,
   );
-  const scores = await db.all(SQL`
-    SELECT DISTINCT score.user_id, score.score, score.mods, score.contest_id, user.username
-    FROM score
-    INNER JOIN user ON user.user_id = score.user_id`,
-  );
-  for (const contest of contests) {
-    contest.scores = scores.filter((score) => score.contest_id == contest.rowid && score.score > 0);
-  }
 
-  // Reset the database
-  await db.run('DROP TABLE contest');
-  await db.run('DROP TABLE score');
-  await db.run('ALTER TABLE user ADD COLUMN last_contest_tms INTEGER');
-  await db.run(SQL`
-    UPDATE user SET
-      approx_mu = 1500,
-      approx_sig = 350,
-      normal_mu = 1500,
-      normal_sig = 350,
-      games_played = 0,
-      last_contest_tms = NULL`,
-  );
-  await init_db(); // recreate dropped tables
+  console.info('Importing players...');
+  const players = await old_db.all(SQL`SELECT user_id, username FROM user`);
+  for (const player of players) {
+    await new_db.run(SQL`
+      INSERT INTO user (
+        user_id, username, approx_mu, approx_sig, normal_mu, normal_sig, games_played,
+        aim_pp, acc_pp, speed_pp, overall_pp, avg_ar, avg_sr
+      )
+      SELECT 
+        ${player.user_id}, ${player.username}, 1500, 350, 1500, 350, 0,
+        10.0, 1.0, 1.0, 1.0, 8.0, 2.0
+      WHERE NOT EXISTS (SELECT 1 FROM user WHERE user_id = ${player.user_id})`,
+    );
+  }
 
   // Recompute all scores
   let computed = 0;
   for (const contest of contests) {
+    const scores = await old_db.all(SQL`
+      SELECT score.user_id, score.score, score.mods, user.username
+      FROM score
+      INNER JOIN user ON user.user_id = score.user_id
+      WHERE score.contest_id = ${contest.rowid}`,
+    );
+
     const lobby = {
       id: contest.lobby_id,
       beatmapId: contest.map_id,
@@ -111,7 +70,7 @@ async function recompute_ranks() {
       confirmed_players: [],
     };
 
-    for (const score of contest.scores) {
+    for (const score of scores) {
       lobby.scores.push({
         player: {
           user: {

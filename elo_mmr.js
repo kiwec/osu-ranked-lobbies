@@ -191,9 +191,6 @@ class Player {
   }
 
   // Fetches ranking data from the database.
-  //
-  // If the user is new -> initialize them in the database
-  // If the user isn't new -> get their rating and logistic factors
   async fetch_from_database() {
     const user = await db.get(SQL`SELECT * FROM user WHERE user_id = ${this.user_id}`);
     if (!user) {
