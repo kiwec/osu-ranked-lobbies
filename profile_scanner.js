@@ -100,7 +100,16 @@ async function load_user_info(bancho_user, lobby) {
     return;
   }
 
-  const recent_scores = await res.json();
+  let recent_scores;
+  try {
+    recent_scores = await res.json();
+  } catch (err) {
+    console.error('status:', res.statusCode, 'has html data in json response:', await res.text());
+    await lobby.channel.sendMessage(`Sorry, ${bancho_user.ircUsername}, I couldn't load your profile. The osu! servers are having issues, please try joining again later.`);
+    capture_sentry_exception(err);
+    return;
+  }
+
   let has_new_score = false;
   for (const score of recent_scores) {
     const score_tms = Date.parse(score.created_at) / 1000;

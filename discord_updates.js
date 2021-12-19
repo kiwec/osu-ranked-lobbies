@@ -300,6 +300,11 @@ async function update_discord_role(osu_user_id, rank_text) {
         WHERE osu_id = ${osu_user_id}`,
       );
     } catch (err) {
+      // User left the server
+      if (err.message == 'Unknown Member') {
+        return;
+      }
+
       console.error(`[Discord] Failed to update role for user ${osu_user_id}: ${err}`);
       capture_sentry_exception(err);
     }

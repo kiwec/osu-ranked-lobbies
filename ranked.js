@@ -721,7 +721,7 @@ async function on_lobby_msg(lobby, msg) {
       lobby.votekicks[bad_player].push(msg.user.ircUsername);
 
       const nb_voted_to_kick = lobby.votekicks[bad_player].length;
-      const nb_required_to_kick = Math.ceil(get_nb_players(lobby) / 2);
+      let nb_required_to_kick = Math.ceil(get_nb_players(lobby) / 2);
       if (nb_required_to_kick == 1) nb_required_to_kick = 2; // don't allow a player to hog the lobby
 
       if (nb_voted_to_kick >= nb_required_to_kick) {

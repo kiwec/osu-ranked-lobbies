@@ -112,14 +112,21 @@ async function on_interaction(interaction) {
     }
   }
 
-  if (interaction.customId && interaction.customId.indexOf('orl_get_lobby_invite_') == 0) {
-    await on_lobby_invite_button_press(user, interaction);
-    return;
-  }
+  try {
+    if (interaction.customId && interaction.customId.indexOf('orl_get_lobby_invite_') == 0) {
+      await on_lobby_invite_button_press(user, interaction);
+      return;
+    }
 
-  if (interaction.customId == 'orl_link_osu_account') {
-    await on_link_osu_account_press(user, interaction);
-    return;
+    if (interaction.customId == 'orl_link_osu_account') {
+      await on_link_osu_account_press(user, interaction);
+      return;
+    }
+  } catch (err) {
+    // Discord API likes to fail.
+    if (err.message != 'Unknown interaction') {
+      capture_sentry_exception(err);
+    }
   }
 }
 
