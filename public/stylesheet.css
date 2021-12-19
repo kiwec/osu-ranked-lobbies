@@ -81,7 +81,7 @@ h1 {
 	font-weight: 700;
 }
 .subheading {
-	margin-top: 45px;
+	margin-top: 30px;
 	margin-bottom: 75px;
 	font-size: 1em;
 	font-weight: 700;
@@ -309,6 +309,8 @@ body.dark-mode .pagination .number-nav a.current-page {
 }
 .heading .heading-right .subheading {
     margin-bottom: 0;
+    display: block;
+    color: unset;
 }
 .user-section .user-focus {
     display: flex;
