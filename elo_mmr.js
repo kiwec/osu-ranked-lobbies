@@ -304,6 +304,57 @@ function solve_newton(f) {
   return guess;
 }
 
+async function apply_rank_decay() {
+  try {
+    console.info('[Decay] Applying rank decay');
+    const excess_beta_sq = (BETA * BETA - SIG_LIMIT * SIG_LIMIT);
+    const discrete_drift = Math.pow(SIG_LIMIT, 4) / excess_beta_sq;
+    const continuous_drift = DRIFT_PER_MILLISECOND * Date.now();
+    const sig_drift = Math.sqrt(discrete_drift + continuous_drift);
+
+    const month_ago_tms = Date.now() - (30 * 24 * 3600 * 1000);
+    let players = await db.all(SQL`
+      SELECT user_id, approx_mu, approx_sig FROM user
+      WHERE games_played > 4 AND last_contest_tms > ${month_ago_tms}`,
+    );
+
+    let i = 1;
+    for (const player of players) {
+      if (i == 1 || i % 1000 == 0) {
+        console.info(`[Decay] Updating player elos (${i}/${players.length})`);
+      }
+
+      const rating = new Rating(player.approx_mu, player.approx_sig);
+      const new_rating = rating.with_noise(sig_drift);
+      const new_elo = new_rating.toFloat();
+      player.new_elo = new_elo;
+      await db.run(SQL`UPDATE user SET elo = ${new_elo} WHERE user_id = ${player.user_id}`);
+      i++;
+    }
+
+    i = 1;
+    players = await db.all(SQL`
+      SELECT user_id FROM user
+      WHERE games_played > 4 AND last_contest_tms > ${month_ago_tms}
+      ORDER BY elo ASC`,
+    );
+    for (const player of players) {
+      if (i == 1 || i % 1000 == 0) {
+        console.info(`[Decay] Updating discord roles (${i}/${players.length})`);
+      }
+
+      const new_rank_text = get_rank_text(i / players.length);
+      await update_discord_role(player.user_id, new_rank_text);
+      i++;
+    }
+
+    console.info('[Decay] Done applying rank decay');
+  } catch (err) {
+    console.error('Failed to apply rank decay:', err);
+    capture_sentry_exception(err);
+  }
+}
+
 async function update_mmr(lobby) {
   if (!db) {
     await init_db();
@@ -590,4 +641,4 @@ async function init_db() {
   return db;
 }
 
-export {init_db, update_mmr, get_rank, get_rank_text_from_id};
+export {init_db, update_mmr, get_rank, get_rank_text_from_id, apply_rank_decay};

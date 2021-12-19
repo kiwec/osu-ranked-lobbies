@@ -5,6 +5,7 @@ import sqlite3 from 'sqlite3';
 import SQL from 'sql-template-strings';
 import Nodesu from 'nodesu';
 
+import {init_db as init_ranking_db, apply_rank_decay} from './elo_mmr.js';
 import {init as init_discord_interactions} from './discord_interactions.js';
 import {init as init_discord_updates, update_discord_username} from './discord_updates.js';
 import {listen as website_listen} from './website.js';
@@ -142,6 +143,14 @@ async function main() {
       setInterval(() => create_lobby_if_needed(client), 10 * 60 * 1000);
       await create_lobby_if_needed(client);
     }
+  }
+
+  if (Config.APPLY_RANK_DECAY) {
+    await init_ranking_db();
+
+    // This is pretty database intensive, so run it hourly
+    setInterval(apply_rank_decay, 3600 * 1000);
+    await apply_rank_decay();
   }
 
   console.log('All ready and fired up!');
