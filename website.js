@@ -229,6 +229,7 @@ async function listen() {
       <meta content="https://osu.kiwec.net/u/${data.user_id}" property="og:url" />
       <meta content="https://s.ppy.sh/a/${data.user_id}" property="og:image" />
     `;
+    data.profile_link = `https://osu.ppy.sh/users/${data.user_id}`;
     return render_with_layout('views/userpage.html', data);
   };
 
