@@ -36,18 +36,34 @@ async function recompute_ranks() {
   );
 
   console.info('Importing players...');
-  const players = await old_db.all(SQL`SELECT user_id, username FROM user`);
+  const players = await old_db.all(SQL`SELECT * FROM user`);
   for (const player of players) {
-    await new_db.run(SQL`
-      INSERT INTO user (
-        user_id, username, approx_mu, approx_sig, normal_mu, normal_sig, games_played,
-        aim_pp, acc_pp, speed_pp, overall_pp, avg_ar, avg_sr
-      )
-      SELECT 
-        ${player.user_id}, ${player.username}, 1500, 350, 1500, 350, 0,
-        10.0, 1.0, 1.0, 1.0, 8.0, 2.0
-      WHERE NOT EXISTS (SELECT 1 FROM user WHERE user_id = ${player.user_id})`,
+    const rows = await new_db.run(SQL`
+      UPDATE user SET
+        rank_text = ${player.rank_text},
+        aim_pp = ${player.aim_pp}, acc_pp = ${player.acc_pp}, speed_pp = ${player.speed_pp},
+        overall_pp = ${player.overall_pp}, avg_ar = ${player.avg_ar}, avg_sr = ${player.avg_sr},
+        last_top_score_tms = ${player.last_top_score_tms}, last_update_tms = ${player.last_update_tms}
+      WHERE user_id = ${player.user_id}`,
     );
+    if (rows.changes == 0) {
+      await new_db.run(SQL`
+        INSERT INTO user (
+          user_id, username, approx_mu, approx_sig, normal_mu, normal_sig, games_played,
+          aim_pp, acc_pp, speed_pp,
+          overall_pp, avg_ar, avg_sr,
+          last_top_score_tms, last_update_tms,
+          rank_text
+        )
+        SELECT
+          ${player.user_id}, ${player.username}, 1500, 350, 1500, 350, 0,
+          ${player.aim_pp}, ${player.acc_pp}, ${player.speed_pp},
+          ${player.overall_pp}, ${player.avg_ar}, ${player.avg_sr},
+          ${player.last_top_score_tms}, ${player.last_update_tms},
+          ${player.rank_text}
+        WHERE NOT EXISTS (SELECT 1 FROM user WHERE user_id = ${player.user_id})`,
+      );
+    }
   }
 
   // Recompute all scores
