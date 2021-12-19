@@ -14,12 +14,15 @@ let db = null;
 
 
 // Squared variation in individual performances
-const BETA = 200.0;
+const BETA = 400.0;
 
 // Each contest participation adds an amount of drift such that, in the
 // absence of much time passing, the limiting skill uncertainty's square
 // approaches this value
 const SIG_LIMIT = 80.0;
+
+// Additional drift
+const DRIFT_PER_MILLISECOND = 0.000000001;
 
 // Maximum number of opponents and recent events to use, as a compute-saving
 // approximation
@@ -27,7 +30,7 @@ const TRANSFER_SPEED = 1.0;
 
 // Limits the maximum number of contests to be included in the rating
 // computation
-const MAX_LOGISTIC_FACTORS = 100;
+const MAX_LOGISTIC_FACTORS = 1000;
 
 const TANH_MULTIPLIER = Math.PI / 1.7320508075688772;
 
@@ -93,7 +96,13 @@ class Contest {
     // would be `lo = 0` and `hi = 2`. The fourth player would then be
     // `lo = 3` and `hi = 3`, and so on.
     this.standings = [];
+    this.player_ids = [];
     for (const score of lobby.scores) {
+      if (this.player_ids.includes(score.player.user.id)) {
+        console.info('Ignoring duplicate score:', score);
+        continue;
+      }
+
       let player_mods = 0;
       for (const mod of score.player.mods) {
         player_mods |= mod.enumValue;
@@ -246,7 +255,7 @@ class Rating {
   }
 
   toFloat() {
-    return this.mu - 3.0 * this.sig;
+    return this.mu - 3.0 * (this.sig - SIG_LIMIT);
   }
 
   toInt() {
@@ -330,14 +339,14 @@ async function update_mmr(lobby) {
   const excess_beta_sq = (BETA * BETA - SIG_LIMIT * SIG_LIMIT);
   const sig_perf = Math.sqrt(SIG_LIMIT * SIG_LIMIT + excess_beta_sq);
   const discrete_drift = Math.pow(SIG_LIMIT, 4) / excess_beta_sq;
+  const continuous_drift = DRIFT_PER_MILLISECOND * contest.tms;
+  const sig_drift = Math.sqrt(discrete_drift + continuous_drift);
 
   // Update ratings due to waiting period between contests, then use it to
   // create Gaussian terms for the Q-function. The rank must also be stored
   // in order to determine if it's a win, loss, or tie term.
   const tanh_terms = [];
   for (const standing of contest.standings) {
-    // TODO: add time drift here?
-    const sig_drift = Math.sqrt(discrete_drift);
     standing.player.add_noise_best(sig_drift);
     tanh_terms.push(new TanhTerm(standing.player.approx_posterior.with_noise(sig_perf)));
   }
