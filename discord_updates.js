@@ -154,11 +154,7 @@ async function update_ranked_lobby_on_discord(lobby) {
     } catch (err) {
       if (err.message == 'Unknown Message') {
         // Message was deleted, try again
-        await db.run(SQL`
-          UPDATE ranked_lobby
-          SET discord_channel_id = NULL, discord_msg_id = NULL
-          WHERE osu_lobby_id = ${lobby.id}
-        `);
+        await db.run(SQL`DELETE FROM ranked_lobby WHERE osu_lobby_id = ${lobby.id}`);
         return await update_ranked_lobby_on_discord(lobby);
       }
 
