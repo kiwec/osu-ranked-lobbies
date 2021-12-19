@@ -214,7 +214,7 @@ async function create_lobby_if_needed(client) {
     console.log(`Created 5-5.99* lobby #mp_${channel.lobby.id}.`);
   }
   if (!lobbies.some((lobby) => lobby.min_stars == 0.0)) {
-    const channel = await client.createLobby(`6-6.99* | o!RL | Auto map select (!about)`);
+    const channel = await client.createLobby(`6-6.99* ScoreV2 | o!RL | Auto map select (!about)`);
     await join_lobby(
         channel.lobby,
         client,
@@ -224,7 +224,7 @@ async function create_lobby_if_needed(client) {
         6.0,
         7.0,
         false,
-        false,
+        true,
     );
     console.log(`Created 6-6.99* lobby #mp_${channel.lobby.id}.`);
   }
