@@ -5,7 +5,7 @@ import SQL from 'sql-template-strings';
 
 import bancho from './bancho.js';
 import BanchoLobby from './lobby.js';
-import {init_db as init_ranking_db, update_mmr, get_rank_text_from_id, get_rank} from './elo_mmr.js';
+import {init_db as init_ranking_db, update_mmr, get_rank} from './elo_mmr.js';
 import {
   update_ranked_lobby_on_discord,
   close_ranked_lobby_on_discord,
