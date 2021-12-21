@@ -43,6 +43,10 @@ body.dark-mode .sidebar {
 	height: 100%;
 	margin: 60px;
 }
+.sidebar nav .other-links {
+  display: flex;
+  flex-direction: column;
+}
 .sidebar nav a {
 	width: 60px;
 	height: 60px;
@@ -660,6 +664,10 @@ body.dark-mode .switcher-sun {
         flex-direction: row;
         margin: 0;
     }
+    .sidebar nav .other-links {
+      flex-direction: row;
+      margin-left: 20px;
+    }
     .sidebar nav a, .sidebar nav a:last-of-type {
         margin-bottom: 15px;
         margin-left: 15px;
@@ -681,6 +689,7 @@ body.dark-mode .switcher-sun {
         width: 120px;
     }
     .switcher-container {
+      display: none;
       top: 130px;
       right: 5px;
     }
