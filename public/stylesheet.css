@@ -393,7 +393,7 @@ thead tr td {
   position: absolute;
   z-index: 2;
   right: 100px;
-  top: 25px;
+  top: 45px;
   height: 80px;
   width: 80px;
 }
@@ -502,6 +502,7 @@ body.dark-mode .switcher-sun {
     }
     .switcher-container {
       right: 70px;
+      top: 25px;
     }
 }
 @media screen and (max-width:1200px) {
@@ -617,6 +618,7 @@ body.dark-mode .switcher-sun {
     }
     .switcher-container {
       right: 30px;
+      top: 10px;
     }
 }
 @media screen and (max-width:820px) {
