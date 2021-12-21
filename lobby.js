@@ -146,8 +146,8 @@ class BanchoLobby extends EventEmitter {
               this.emit('allPlayersReady');
             } else if (m = room_name_regex.exec(message)) {
               this.parsing_settings = true;
-              this.room_name = m[1];
-              this.room_id = parseInt(m[2], 10);
+              this.name = m[1];
+              this.id = parseInt(m[2], 10);
             } else if (m = beatmap_regex.exec(message)) {
               this.beatmap_id = parseInt(m[1], 10);
               this.beatmap_name = m[2];

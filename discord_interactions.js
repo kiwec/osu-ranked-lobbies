@@ -134,11 +134,17 @@ async function on_make_ranked_command(user, interaction) {
   await interaction.deferReply({ephemeral: true});
 
   try {
+    const osu_user = await ranks_db.get(SQL`SELECT * FROM user WHERE user_id = ${user.osu_id}`);
+    if (!osu_user) {
+      await interaction.editReply({content: `Please at least join an o!RL lobby once before attempting to create one.`});
+      return;
+    }
+
     const lobby = await new BanchoLobby('#mp_' + interaction.options.getInteger('lobby-id'));
     await lobby.join();
     await lobby.send('!mp clearhost');
     await init_lobby(lobby, {
-      creator: user.discord_id, // TODO set correct creator username
+      creator: osu_user.username,
       creator_discord_id: user.discord_id,
       created_just_now: true,
       min_stars: min_stars,
@@ -147,7 +153,7 @@ async function on_make_ranked_command(user, interaction) {
       scorev2: interaction.options.getBoolean('scorev2'),
     });
 
-    console.log(`Lobby ${lobby.channel} created by ${host_user.ircUsername}.`);
+    console.log(`Lobby ${lobby.channel} created by ${osu_user.username}.`);
     await interaction.editReply({content: 'Lobby initialized ✅ Enjoy!'});
   } catch (err) {
     if (err.message == 'No such channel') {
