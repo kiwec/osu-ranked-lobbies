@@ -158,6 +158,7 @@ class BanchoLobby extends EventEmitter {
               this.active_mods = m[1];
             } else if (m = players_regex.exec(message)) {
               this.players_to_parse = parseInt(m[1], 10);
+              this.nb_players = this.players_to_parse;
             } else if (m = ref_add_regex.exec(message)) {
               this.emit('refereeAdded', m[1]);
             } else if (m = ref_del_regex.exec(message)) {
@@ -170,7 +171,6 @@ class BanchoLobby extends EventEmitter {
               if (typeof player === 'undefined') {
                 player = await try_get_player(display_username);
                 this.players[display_username] = player;
-                this.nb_players++;
               }
 
               if (!player.id) {
@@ -221,7 +221,6 @@ class BanchoLobby extends EventEmitter {
                   });
                 }
 
-                this.nb_players--;
                 delete this.players[display_username];
               } else {
                 player = {
@@ -229,6 +228,7 @@ class BanchoLobby extends EventEmitter {
                 };
               }
 
+              this.nb_players--;
               this.emit('playerLeft', player);
             }
 
