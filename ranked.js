@@ -571,6 +571,7 @@ async function on_lobby_msg(lobby, msg) {
     const user_id = await bancho.whois(requested_user);
     if (!user_id) {
       await lobby.send(`Player ${requested_user} doesn't exist.`);
+      return;
     }
 
     const res = await ranking_db.get(SQL`
