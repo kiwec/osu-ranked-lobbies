@@ -92,7 +92,7 @@ async function update_ranked_lobby_on_discord(lobby) {
       await db.run(SQL`
         UPDATE ranked_lobby
         SET discord_channel_id = NULL, discord_msg_id = NULL
-        WHERE osu_lobby_id = ${lobby_id}
+        WHERE osu_lobby_id = ${lobby.id}
       `);
     } catch (err) {
       // If it's already deleted, ignore the error. We don't want to
@@ -131,7 +131,7 @@ async function update_ranked_lobby_on_discord(lobby) {
       components: [
         new MessageActionRow().addComponents([
           new MessageButton({
-            custom_id: 'orl_get_lobby_invite_' + lobby_id,
+            custom_id: 'orl_get_lobby_invite_' + lobby.id,
             label: 'Get invite',
             style: 'PRIMARY',
           }),

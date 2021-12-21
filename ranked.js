@@ -320,7 +320,6 @@ async function init_lobby(lobby, settings) {
     set_sentry_context(lobby, 'matchFinished');
 
     try {
-      console.log('finito');
       const rank_updates = await update_mmr(lobby);
       await select_next_map(lobby);
 
