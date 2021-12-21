@@ -580,6 +580,7 @@ body.dark-mode .switcher-sun {
     }
     nav a span {
         position: static;
+        display: inline-block;
         opacity: 1;
         pointer-events: auto;
         margin-left: 0;
