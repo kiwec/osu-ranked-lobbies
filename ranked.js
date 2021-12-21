@@ -24,7 +24,7 @@ function set_sentry_context(lobby, current_task) {
     Sentry.setContext('lobby', {
       id: lobby.id,
       median_pp: lobby.median_overall,
-      nb_players: lobby.players.length,
+      nb_players: lobby.nb_players,
       creator: lobby.creator,
       creator_discord_id: lobby.creator_discord_id,
       min_stars: lobby.min_stars,
@@ -285,7 +285,7 @@ async function init_lobby(lobby, settings) {
     try {
       if (player.user_id) {
         await update_median_pp(lobby);
-        if (lobby.players.length == 1) {
+        if (lobby.nb_players == 1) {
           await select_next_map(lobby);
         } else {
           await update_ranked_lobby_on_discord(lobby);
@@ -303,7 +303,7 @@ async function init_lobby(lobby, settings) {
     try {
       await update_median_pp(lobby);
 
-      if (lobby.players.length == 0) {
+      if (lobby.nb_players == 0) {
         if (!lobby.fixed_star_range) {
           lobby.min_stars = 0.0;
           lobby.max_stars = 11.0;
@@ -358,7 +358,7 @@ async function init_lobby(lobby, settings) {
     set_sentry_context(lobby, 'allPlayersReady');
 
     try {
-      if (lobby.players.length < 2) {
+      if (lobby.nb_players < 2) {
         if (lobby.last_ready_msg && lobby.last_ready_msg + 10 > Date.now()) {
           // We already sent that message recently. Don't send it again, since
           // people can spam the Ready button and we don't want to spam that
@@ -409,7 +409,7 @@ async function on_lobby_msg(lobby, msg) {
   if (msg.message.toLowerCase() == '!start') {
     if (lobby.countdown != -1 || lobby.playing) return;
 
-    if (lobby.players.length < 2) {
+    if (lobby.nb_players < 2) {
       await lobby.send(`!mp start ${Math.random().toString(36).substring(2, 6)}`);
       return;
     }
@@ -518,7 +518,7 @@ async function on_lobby_msg(lobby, msg) {
     if (!lobby.voteaborts.includes(msg.from)) {
       lobby.voteaborts.push(msg.from);
       const nb_voted_to_abort = lobby.voteaborts.length;
-      const nb_required_to_abort = Math.ceil(lobby.players.length / 2);
+      const nb_required_to_abort = Math.ceil(lobby.nb_players / 2);
       if (lobby.voteaborts.length >= nb_required_to_abort) {
         await lobby.send(`!mp abort ${Math.random().toString(36).substring(2, 6)}`);
         lobby.voteaborts = [];
@@ -549,7 +549,7 @@ async function on_lobby_msg(lobby, msg) {
       lobby.votekicks[bad_player].push(msg.from);
 
       const nb_voted_to_kick = lobby.votekicks[bad_player].length;
-      let nb_required_to_kick = Math.ceil(lobby.players.length / 2);
+      let nb_required_to_kick = Math.ceil(lobby.nb_players / 2);
       if (nb_required_to_kick == 1) nb_required_to_kick = 2; // don't allow a player to hog the lobby
 
       if (nb_voted_to_kick >= nb_required_to_kick) {
@@ -580,12 +580,12 @@ async function on_lobby_msg(lobby, msg) {
 
   if (msg.message == '!skip' && !lobby.voteskips.includes(msg.from)) {
     lobby.voteskips.push(msg.from);
-    if (lobby.voteskips.length >= lobby.players.length / 2) {
+    if (lobby.voteskips.length >= lobby.nb_players / 2) {
       clearTimeout(lobby.countdown);
       lobby.countdown = -1;
       await select_next_map(lobby);
     } else {
-      await lobby.send(`${lobby.voteskips.length}/${Math.ceil(lobby.players.length / 2)} players voted to switch to another map.`);
+      await lobby.send(`${lobby.voteskips.length}/${Math.ceil(lobby.nb_players / 2)} players voted to switch to another map.`);
     }
 
     return;

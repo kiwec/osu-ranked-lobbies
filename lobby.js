@@ -67,6 +67,7 @@ class BanchoLobby extends EventEmitter {
     this.players = [];
     this.scores = [];
     this.parsing_settings = false;
+    this.nb_players = 0;
 
     this.playing = false;
     this.match_participants = [];
@@ -169,6 +170,7 @@ class BanchoLobby extends EventEmitter {
               if (typeof player === 'undefined') {
                 player = await try_get_player(display_username);
                 this.players[display_username] = player;
+                this.nb_players++;
               }
 
               if (!player.id) {
@@ -201,6 +203,7 @@ class BanchoLobby extends EventEmitter {
               const display_username = m[1];
               const player = await try_get_player(display_username);
               this.players[display_username] = player;
+              this.nb_players++;
               this.emit('playerJoined', player);
             } else if (m = left_regex.exec(message)) {
               const display_username = m[1];
@@ -218,6 +221,7 @@ class BanchoLobby extends EventEmitter {
                   });
                 }
 
+                this.nb_players--;
                 delete this.players[display_username];
               } else {
                 player = {

@@ -20,7 +20,7 @@ async function init(discord_client_) {
 
 
 function get_pp_color(lobby) {
-  if (!lobby || lobby.players.length == 0) {
+  if (!lobby || lobby.nb_players == 0) {
     return null;
   }
 
@@ -84,7 +84,7 @@ async function update_ranked_lobby_on_discord(lobby) {
   }
 
   // Lobby is full: delete existing #lobbies message
-  if (lobby.players.length == 16) {
+  if (lobby.nb_players == 16) {
     try {
       const discord_channel = discord_client.channels.cache.get(ranked_lobby.discord_channel_id);
       await discord_channel.messages.delete(ranked_lobby.discord_msg_id);
@@ -111,7 +111,7 @@ async function update_ranked_lobby_on_discord(lobby) {
           fields: [
             {
               name: 'Players',
-              value: `${lobby.players.length}/16`,
+              value: `${lobby.nb_players}/16`,
               inline: true,
             },
             {
