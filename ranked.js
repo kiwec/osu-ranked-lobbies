@@ -252,8 +252,8 @@ async function init_lobby(lobby, settings) {
   if (settings.created_just_now) {
     await lobby.send(`!mp settings ${Math.random().toString(36).substring(2, 6)}`);
     await lobby.send('!mp password');
-    await lobby.send(`!mp set 0 ${scorev2 ? '3': '0'} 16`);
-    if (dt) await lobby.send('!mp mods dt freemod');
+    await lobby.send(`!mp set 0 ${settings.scorev2 ? '3': '0'} 16`);
+    if (settings.dt) await lobby.send('!mp mods dt freemod');
     else await lobby.send('!mp mods freemod');
   } else {
     await lobby.send(`!mp settings (restarted) ${Math.random().toString(36).substring(2, 6)}`);
