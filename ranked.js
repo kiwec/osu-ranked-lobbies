@@ -570,7 +570,7 @@ async function on_lobby_msg(lobby, msg) {
 
     const user_id = await bancho.whois(requested_user);
     if (!user_id) {
-      await lobby.send(`Player ${requested_user} doesn't exist.`);
+      await lobby.send(`${msg.from}: Player ${requested_user} doesn't exist.`);
       return;
     }
 
@@ -593,7 +593,7 @@ async function on_lobby_msg(lobby, msg) {
         await lobby.send(`${msg.from}: ${requested_user} is unranked.`);
       }
     } else {
-      await lobby.send(`Stats for [${Config.website_base_url}/u/${user_id}/ ${requested_user}]:`);
+      await lobby.send(`${msg.from}: Stats for [${Config.website_base_url}/u/${user_id}/ ${requested_user}]:`);
       await lobby.send(`Rank: ${rank_info.text} (#${rank_info.rank_nb})`);
       await lobby.send(`Elo: ${rank_info.elo}`);
       await lobby.send(`Games played: ${res.games_played}`);
