@@ -122,57 +122,61 @@ async function create_lobby_if_needed() {
 
   console.log(`Creating ${4 - lobbies.length} missing lobbies...`);
 
-  if (!lobbies.some((lobby) => lobby.min_stars == 3.0)) {
-    const lobby = await create_lobby(`3-3.99* | o!RL | Auto map select (!about)`);
-    await init_lobby(lobby, {
-      creator: Config.osu_username,
-      creator_discord_id: Config.discord_bot_id,
-      created_just_now: true,
-      min_stars: 3,
-      max_stars: 4,
-      dt: false,
-      scorev2: false,
-    });
-    console.log(`Created 3-3.99* lobby ${lobby.channel}.`);
-  }
-  if (!lobbies.some((lobby) => lobby.min_stars == 4.0)) {
-    const lobby = await create_lobby(`4-4.99* | o!RL | Auto map select (!about)`);
-    await init_lobby(lobby, {
-      creator: Config.osu_username,
-      creator_discord_id: Config.discord_bot_id,
-      created_just_now: true,
-      min_stars: 4,
-      max_stars: 5,
-      dt: false,
-      scorev2: false,
-    });
-    console.log(`Created 4-4.99* lobby ${lobby.channel}.`);
-  }
-  if (!lobbies.some((lobby) => lobby.min_stars == 5.0)) {
-    const lobby = await create_lobby(`5-5.99* | o!RL | Auto map select (!about)`);
-    await init_lobby(lobby, {
-      creator: Config.osu_username,
-      creator_discord_id: Config.discord_bot_id,
-      created_just_now: true,
-      min_stars: 5,
-      max_stars: 6,
-      dt: false,
-      scorev2: false,
-    });
-    console.log(`Created 5-5.99* lobby ${lobby.channel}.`);
-  }
-  if (!lobbies.some((lobby) => lobby.min_stars == 0.0)) {
-    const lobby = await create_lobby(`6-6.99* | o!RL | Auto map select (!about)`);
-    await init_lobby(lobby, {
-      creator: Config.osu_username,
-      creator_discord_id: Config.discord_bot_id,
-      created_just_now: true,
-      min_stars: 6,
-      max_stars: 7,
-      dt: false,
-      scorev2: true,
-    });
-    console.log(`Created 6-6.99* lobby ${lobby.channel}.`);
+  try {
+    if (!lobbies.some((lobby) => lobby.min_stars == 3.0)) {
+      const lobby = await create_lobby(`3-3.99* | o!RL | Auto map select (!about)`);
+      await init_lobby(lobby, {
+        creator: Config.osu_username,
+        creator_discord_id: Config.discord_bot_id,
+        created_just_now: true,
+        min_stars: 3,
+        max_stars: 4,
+        dt: false,
+        scorev2: false,
+      });
+      console.log(`Created 3-3.99* lobby ${lobby.channel}.`);
+    }
+    if (!lobbies.some((lobby) => lobby.min_stars == 4.0)) {
+      const lobby = await create_lobby(`4-4.99* | o!RL | Auto map select (!about)`);
+      await init_lobby(lobby, {
+        creator: Config.osu_username,
+        creator_discord_id: Config.discord_bot_id,
+        created_just_now: true,
+        min_stars: 4,
+        max_stars: 5,
+        dt: false,
+        scorev2: false,
+      });
+      console.log(`Created 4-4.99* lobby ${lobby.channel}.`);
+    }
+    if (!lobbies.some((lobby) => lobby.min_stars == 5.0)) {
+      const lobby = await create_lobby(`5-5.99* | o!RL | Auto map select (!about)`);
+      await init_lobby(lobby, {
+        creator: Config.osu_username,
+        creator_discord_id: Config.discord_bot_id,
+        created_just_now: true,
+        min_stars: 5,
+        max_stars: 6,
+        dt: false,
+        scorev2: false,
+      });
+      console.log(`Created 5-5.99* lobby ${lobby.channel}.`);
+    }
+    if (!lobbies.some((lobby) => lobby.min_stars == 0.0)) {
+      const lobby = await create_lobby(`6-6.99* | o!RL | Auto map select (!about)`);
+      await init_lobby(lobby, {
+        creator: Config.osu_username,
+        creator_discord_id: Config.discord_bot_id,
+        created_just_now: true,
+        min_stars: 6,
+        max_stars: 7,
+        dt: false,
+        scorev2: true,
+      });
+      console.log(`Created 6-6.99* lobby ${lobby.channel}.`);
+    }
+  } catch (err) {
+    // Don't care about errors here.
   }
 
   console.log('Done creating missing lobbies.');
