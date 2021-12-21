@@ -7,6 +7,7 @@ import SQL from 'sql-template-strings';
 import {Client, Intents, MessageActionRow, MessageButton} from 'discord.js';
 
 import bancho from './bancho.js';
+import BanchoLobby from './lobby.js';
 import {init_lobby} from './ranked.js';
 import {capture_sentry_exception} from './util/helpers.js';
 import Config from './util/config.js';

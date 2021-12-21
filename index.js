@@ -4,6 +4,7 @@ import sqlite3 from 'sqlite3';
 import SQL from 'sql-template-strings';
 
 import bancho from './bancho.js';
+import BanchoLobby from './lobby.js';
 import {init_databases} from './database.js';
 import {init_db as init_ranking_db, apply_rank_decay} from './elo_mmr.js';
 import {init as init_discord_interactions} from './discord_interactions.js';
