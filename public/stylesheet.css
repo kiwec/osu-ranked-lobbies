@@ -95,7 +95,7 @@ nav a span {
     top: calc(-97.5px/2);
     left: 105px;
     z-index: 999;
-    display: inline-block;
+    display: none;
     padding: 10px 15px;
     margin-left: -10px;
     border: solid 0 transparent;
@@ -105,7 +105,6 @@ nav a span {
     font-weight: 700;
     color: white;
     pointer-events: none;
-    opacity: 0;
     transition: margin .3s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 150ms;
     transition: background .3s ease-in-out;
 }
@@ -129,7 +128,7 @@ body.dark-mode nav a span::before {
 }
 nav a:hover span {
     margin-left: 0;
-    opacity: 1;
+    display: inline-block;
 }
 main {
     width: calc(100% - 420px);
