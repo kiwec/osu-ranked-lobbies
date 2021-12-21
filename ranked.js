@@ -562,9 +562,11 @@ async function on_lobby_msg(lobby, msg) {
     return;
   }
 
-  if (msg.message == '!rank') {
+  const rank_command_reg = /!rank(.*)/g;
+  let rank_command_reg_result;
+  if (rank_command_reg_result = rank_command_reg.exec(msg.message)) {
     let rank_info = {};
-    const requested_user = msg.message.replace('!rank', '').trim() || msg.from;
+    const requested_user = rank_command_reg_result[1].trim() || msg.from;
 
     const user_id = await bancho.whois(requested_user);
     if (!user_id) {
