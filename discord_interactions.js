@@ -6,18 +6,17 @@ import sqlite3 from 'sqlite3';
 import SQL from 'sql-template-strings';
 import {Client, Intents, MessageActionRow, MessageButton} from 'discord.js';
 
-import {join_lobby} from './ranked.js';
+import bancho from './bancho.js';
+import {init_lobby} from './ranked.js';
 import {capture_sentry_exception} from './util/helpers.js';
 import Config from './util/config.js';
 
 let client = null;
-let bancho_client = null;
 let db = null;
+let ranks_db = null;
 
 
-function init(_bancho_client) {
-  bancho_client = _bancho_client;
-
+function init() {
   return new Promise(async (resolve, reject) => {
     try {
       db = await open({
@@ -25,30 +24,10 @@ function init(_bancho_client) {
         driver: sqlite3.cached.Database,
       });
 
-      await db.exec(`CREATE TABLE IF NOT EXISTS ranked_lobby (
-        osu_lobby_id INTEGER,
-        discord_channel_id TEXT,
-        discord_msg_id TEXT,
-        creator TEXT,
-        creator_discord_id TEXT,
-        min_stars REAL,
-        max_stars REAL,
-        dt BOOLEAN NOT NULL,
-        scorev2 BOOLEAN NOT NULL
-      )`);
-
-      await db.exec(`CREATE TABLE IF NOT EXISTS auth_tokens (
-        discord_user_id TEXT,
-        ephemeral_token TEXT
-      )`);
-
-      await db.exec(`CREATE TABLE IF NOT EXISTS user (
-        discord_id TEXT,
-        osu_id INTEGER,
-        osu_access_token TEXT,
-        osu_refresh_token TEXT,
-        discord_rank TEXT
-      )`);
+      ranks_db = await open({
+        filename: 'ranks.db',
+        driver: sqlite3.cached.Database,
+      });
 
       client = new Client({intents: [Intents.FLAGS.GUILDS]});
 
@@ -154,47 +133,20 @@ async function on_make_ranked_command(user, interaction) {
   await interaction.deferReply({ephemeral: true});
 
   try {
-    const channel = await bancho_client.getChannel('#mp_' + interaction.options.getInteger('lobby-id'));
-    await channel.join();
-    await channel.lobby.updateSettings();
-
-    let host_user = null;
-    for (const player of channel.lobby.slots) {
-      if (player == null) continue;
-      if (player.isHost) {
-        await player.user.fetchFromAPI();
-        if (player.user.id == user.osu_id) {
-          host_user = player.user;
-          break;
-        }
-      }
-    }
-    if (host_user == null) {
-      throw new Error('you need to be the lobby host.');
-    }
-
-    channel.lobby.on('refereeRemoved', async (username) => {
-      if (username != Config.osu_username) return;
-
-      await channel.sendMessage('Looks like we\'re done here.');
-      channel.lobby.removeAllListeners();
-      await channel.leave();
+    const lobby = await new BanchoLobby('#mp_' + interaction.options.getInteger('lobby-id'));
+    await lobby.join();
+    await lobby.send('!mp clearhost');
+    await init_lobby(lobby, {
+      creator: user.discord_id, // TODO set correct creator username
+      creator_discord_id: user.discord_id,
+      created_just_now: true,
+      min_stars: min_stars,
+      max_stars: max_stars,
+      dt: interaction.options.getBoolean('dt'),
+      scorev2: interaction.options.getBoolean('scorev2'),
     });
 
-    await channel.lobby.clearHost();
-    await join_lobby(
-        channel.lobby,
-        bancho_client,
-        host_user.ircUsername,
-        user.discord_id,
-        true,
-        min_stars,
-        max_stars,
-        interaction.options.getBoolean('dt'),
-        interaction.options.getBoolean('scorev2'),
-    );
-    console.log(`Lobby #mp_${channel.lobby.id} created by ${host_user.ircUsername}.`);
-
+    console.log(`Lobby ${lobby.channel} created by ${host_user.ircUsername}.`);
     await interaction.editReply({content: 'Lobby initialized ✅ Enjoy!'});
   } catch (err) {
     if (err.message == 'No such channel') {
@@ -221,11 +173,18 @@ async function on_lobby_invite_button_press(user, interaction) {
 
   await interaction.deferReply({ephemeral: true});
 
-  const player = await bancho_client.getUserById(user.osu_id);
-  for (const lobby of bancho_client.joined_lobbies) {
-    if (lobby.id == lobby_id) {
-      const lobby_invite_id = lobby.channel.topic.split('#')[1];
-      await player.sendMessage(`${player.ircUsername}, here's your invite: [http://osump://${lobby_invite_id}/ ${lobby.name}]`);
+  const player = await ranks_db.get(SQL`SELECT username FROM user WHERE user_id = ${user.osu_id}`);
+  if (!player) {
+    await interaction.editReply({
+      content: 'Sorry, but you need to join your first lobby from in-game. Search for "o!RL".',
+      ephemeral: true,
+    });
+    return;
+  }
+
+  for (const lobby of bancho.joined_lobbies) {
+    if (lobby.channel == '#mp_' + lobby_id) {
+      await player.sendMessage(`${player.username}, here's your invite: [http://osump://${lobby.invite_id}/ ${lobby.name}]`);
       await interaction.editReply({
         content: 'An invite to the lobby has been sent. Check your in-game messages. 😌',
         ephemeral: true,

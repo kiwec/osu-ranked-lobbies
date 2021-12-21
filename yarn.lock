@@ -355,14 +355,6 @@ balanced-match@^1.0.0:
   resolved "https://registry.yarnpkg.com/balanced-match/-/balanced-match-1.0.2.tgz#e83e3a7e3f300b34cb9d87f615fa0cbf357690ee"
   integrity sha512-3oSeUO0TMV67hN1AmbXsK4yaqU7tjiHlbxRDZOpH0KW9+CeX4bRAaX0Anxt0tx2MrpRpWwQaPwIlISEJhYU5Pw==
 
-bancho.js@^0.10.0-rc.6:
-  version "0.10.0-rc.6"
-  resolved "https://registry.yarnpkg.com/bancho.js/-/bancho.js-0.10.0-rc.6.tgz#79b20235d5299b2c0a94ad65704f7b4122260df9"
-  integrity sha512-USv+F3ZD4gS+iA4hLa/FUDeq11h+d+e+DcqV9EHDkS+xwwFlx4mwuU/8EJMIiPyegdbM5QCRrD4kbfXPzsOjRA==
-  dependencies:
-    limiter "^2.1.0"
-    nodesu "^0.7.2"
-
 basic-auth@~2.0.1:
   version "2.0.1"
   resolved "https://registry.yarnpkg.com/basic-auth/-/basic-auth-2.0.1.tgz#b998279bf47ce38344b4f3cf916d4679bbf51e3a"
@@ -1287,11 +1279,6 @@ jsprim@^1.2.2:
     json-schema "0.2.3"
     verror "1.10.0"
 
-just-performance@4.3.0:
-  version "4.3.0"
-  resolved "https://registry.yarnpkg.com/just-performance/-/just-performance-4.3.0.tgz#cc2bc8c9227f09e97b6b1df4cd0de2df7ae16db1"
-  integrity sha512-L7RjvtJsL0QO8xFs5wEoDDzzJwoiowRw6Rn/GnvldlchS2JQr9wFYPiwZcDfrbbujEKqKN0tvENdbjXdYhDp5Q==
-
 levn@^0.4.1:
   version "0.4.1"
   resolved "https://registry.yarnpkg.com/levn/-/levn-0.4.1.tgz#ae4562c007473b932a6200d403268dd2fffc6ade"
@@ -1299,18 +1286,6 @@ levn@^0.4.1:
   dependencies:
     prelude-ls "^1.2.1"
     type-check "~0.4.0"
-
-limiter@^1.1.0:
-  version "1.1.5"
-  resolved "https://registry.yarnpkg.com/limiter/-/limiter-1.1.5.tgz#8f92a25b3b16c6131293a0cc834b4a838a2aa7c2"
-  integrity sha512-FWWMIEOxz3GwUI4Ts/IvgVy6LPvoMPgjMdQ185nN6psJyBJ4yOpzqm695/h5umdLJg2vW3GR5iG11MAkR2AzJA==
-
-limiter@^2.1.0:
-  version "2.1.0"
-  resolved "https://registry.yarnpkg.com/limiter/-/limiter-2.1.0.tgz#d38d7c5b63729bb84fb0c4d8594b7e955a5182a2"
-  integrity sha512-361TYz6iay6n+9KvUUImqdLuFigK+K79qrUtBsXhJTLdH4rIt/r1y8r1iozwh8KbZNpujbFTSh74mJ7bwbAMOw==
-  dependencies:
-    just-performance "4.3.0"
 
 lodash.clonedeep@^4.5.0:
   version "4.5.0"
@@ -1518,13 +1493,6 @@ node-pre-gyp@^0.11.0:
     rimraf "^2.6.1"
     semver "^5.3.0"
     tar "^4"
-
-nodesu@^0.7.2:
-  version "0.7.2"
-  resolved "https://registry.yarnpkg.com/nodesu/-/nodesu-0.7.2.tgz#c0b0de7585e662a83bef5197cb7cbd0a4458f1ef"
-  integrity sha512-RF7jzM51vyd8ocArfmnnqqlCz/XS7EujSrdL+N/685XWwSN1nhUZxrgxLZ260CMrX03ThoAaMAH2pqQZOt1EbA==
-  dependencies:
-    limiter "^1.1.0"
 
 "nopt@2 || 3":
   version "3.0.6"

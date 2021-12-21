@@ -26,6 +26,8 @@ During development, you might not want to run the entire bot. You can disable th
 
 * `CONNECT_TO_BANCHO`: connects to the osu! servers, rejoins lobbies, replies to in-game commands, etc.
 
+* `APPLY_RANK_DECAY`: applies rank decay when the bot is started, and then every hour after that. Leave it off unless you're testing ranking changes.
+
 * `CREATE_LOBBIES`: creates 4 lobbies automatically. Highly recommended to disable this (or edit the lobby creation code in index.js) during development.
 
 * `CONNECT_TO_DISCORD`: connects to the discord api, reacts to interactions, changes user roles, etc.

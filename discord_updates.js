@@ -20,7 +20,7 @@ async function init(discord_client_) {
 
 
 function get_pp_color(lobby) {
-  if (!lobby || lobby.nb_players == 0) {
+  if (!lobby || lobby.players.length == 0) {
     return null;
   }
 
@@ -84,7 +84,7 @@ async function update_ranked_lobby_on_discord(lobby) {
   }
 
   // Lobby is full: delete existing #lobbies message
-  if (lobby.nb_players == lobby.size) {
+  if (lobby.players.length == 16) {
     try {
       const discord_channel = discord_client.channels.cache.get(ranked_lobby.discord_channel_id);
       await discord_channel.messages.delete(ranked_lobby.discord_msg_id);
@@ -92,7 +92,7 @@ async function update_ranked_lobby_on_discord(lobby) {
       await db.run(SQL`
         UPDATE ranked_lobby
         SET discord_channel_id = NULL, discord_msg_id = NULL
-        WHERE osu_lobby_id = ${lobby.id}
+        WHERE osu_lobby_id = ${lobby_id}
       `);
     } catch (err) {
       // If it's already deleted, ignore the error. We don't want to
@@ -111,12 +111,12 @@ async function update_ranked_lobby_on_discord(lobby) {
           fields: [
             {
               name: 'Players',
-              value: lobby.nb_players + '/' + lobby.size,
+              value: `${lobby.players.length}/16`,
               inline: true,
             },
             {
               name: 'Status',
-              value: lobby.playing ? 'Playing' : 'Waiting',
+              value: lobby.game_started ? 'Playing' : 'Waiting',
               inline: true,
             },
             {
@@ -131,7 +131,7 @@ async function update_ranked_lobby_on_discord(lobby) {
       components: [
         new MessageActionRow().addComponents([
           new MessageButton({
-            custom_id: 'orl_get_lobby_invite_' + lobby.id,
+            custom_id: 'orl_get_lobby_invite_' + lobby_id,
             label: 'Get invite',
             style: 'PRIMARY',
           }),
@@ -139,7 +139,7 @@ async function update_ranked_lobby_on_discord(lobby) {
       ],
     };
   } catch (err) {
-    console.error(`#mp_${lobby.id} Failed to generate Discord message: ${err}`);
+    console.error(`${lobby.channel} Failed to generate Discord message: ${err}`);
     capture_sentry_exception(err);
     return;
   }
@@ -158,7 +158,7 @@ async function update_ranked_lobby_on_discord(lobby) {
         return await update_ranked_lobby_on_discord(lobby);
       }
 
-      console.error(`#mp_${lobby.id} Failed to update Discord message: ${err}`);
+      console.error(`${lobby.channel} Failed to update Discord message: ${err}`);
       capture_sentry_exception(err);
       return;
     }
@@ -175,7 +175,7 @@ async function update_ranked_lobby_on_discord(lobby) {
       WHERE osu_lobby_id = ${lobby.id}`,
     );
   } catch (err) {
-    console.error(`#mp_${lobby.id} Failed to create Discord message: ${err}`);
+    console.error(`${lobby.channel} Failed to create Discord message: ${err}`);
     capture_sentry_exception(err);
   }
 }
@@ -195,7 +195,7 @@ async function close_ranked_lobby_on_discord(lobby) {
       await discord_channel.messages.delete(ranked_lobby.discord_msg_id);
     }
   } catch (err) {
-    console.error(`#mp_${lobby.id} Failed to remove Discord message: ${err}`);
+    console.error(`${lobby.channel} Failed to remove Discord message: ${err}`);
   }
 }
 

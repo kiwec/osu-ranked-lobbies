@@ -82,8 +82,7 @@ async function recompute_ranks() {
       scores: [],
       mock_tms: contest.tms,
       mods: [{enumValue: contest.mods}],
-      winCondition: contest.scoring_system,
-      confirmed_players: [],
+      win_condition: contest.scoring_system,
     };
 
     for (const score of scores) {

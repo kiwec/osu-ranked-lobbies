@@ -54,8 +54,8 @@ async function osu_fetch(url, options) {
   }
 }
 
-// We assume bancho_user.id is already set.
-async function load_user_info(bancho_user, lobby) {
+// We assume user.user_id is already set.
+async function scan_user_profile(user) {
   if (!maps_db) {
     maps_db = await open({
       filename: 'maps.db',
@@ -69,21 +69,35 @@ async function load_user_info(bancho_user, lobby) {
     });
   }
 
-  // Try to fetch user info from database
-  const user = await ranks_db.get(SQL`SELECT * FROM user WHERE user_id = ${bancho_user.id}`);
-  if (!user) {
-    throw new Error('osu! user not found in database');
+  // Check if the user exists in the database
+  const exists = await ranks_db.get(SQL`SELECT * FROM user WHERE user_id = ${user.user_id}`);
+  if (!exists) {
+    await ranks_db.run(SQL`
+      INSERT INTO user (
+        user_id, username, approx_mu, approx_sig, normal_mu, normal_sig, games_played,
+        aim_pp, acc_pp, speed_pp, overall_pp, avg_ar, avg_sr
+      )
+      VALUES (
+        ${user.user_id}, ${user.username}, 1500, 350, 1500, 350, 0,
+        10.0, 1.0, 1.0, 1.0, 8.0, 2.0
+      )`,
+    );
+
+    return await scan_user_profile(user);
   }
 
-  bancho_user.games_played = user.games_played;
-  bancho_user.pp = {
-    aim: user.aim_pp,
-    acc: user.acc_pp,
-    speed: user.speed_pp,
-    overall: user.overall_pp,
-    ar: user.avg_ar,
-    sr: user.avg_sr,
-  };
+  if (user.username != exists.username) {
+    await ranks_db.run(SQL`
+      UPDATE user
+      SET username = ${user.username}
+      WHERE user_id = ${user.user_id}`,
+    );
+
+    console.info(`[API] ${exists.username} is now known as ${user.username}`);
+    await update_discord_username(
+        user.user_id, user.username, 'osu! username change',
+    );
+  }
 
   // Already updated their profile recently enough
   if (user.avg_sr != null && user.last_update_tms + (3600 * 24 * 1000) > Date.now()) {
@@ -92,11 +106,10 @@ async function load_user_info(bancho_user, lobby) {
 
   // Fetch top user scores from osu!api
   const res = await osu_fetch(
-      `https://osu.ppy.sh/api/v2/users/${bancho_user.id}/scores/best?key=id&mode=osu&limit=100&include_fails=0`,
+      `https://osu.ppy.sh/api/v2/users/${user.user_id}/scores/best?key=id&mode=osu&limit=100&include_fails=0`,
       {method: 'get'},
   );
   if (res.statusCode >= 500) {
-    await lobby.channel.sendMessage(`Sorry, ${bancho_user.ircUsername}, I couldn't load your profile. The osu! servers are having issues, please try joining again later.`);
     return;
   }
 
@@ -105,7 +118,6 @@ async function load_user_info(bancho_user, lobby) {
     recent_scores = await res.json();
   } catch (err) {
     console.error('status:', res.statusCode, 'has html data in json response:', await res.text());
-    await lobby.channel.sendMessage(`Sorry, ${bancho_user.ircUsername}, I couldn't load your profile. The osu! servers are having issues, please try joining again later.`);
     capture_sentry_exception(err);
     return;
   }
@@ -128,13 +140,11 @@ async function load_user_info(bancho_user, lobby) {
   let total_weight = 0;
   let current_weight = 1.0;
   let last_top_score_tms = 0;
-  const pp = {
-    aim: 0,
-    acc: 0,
-    speed: 0,
-    overall: 0,
-    ar: 0,
-  };
+  let aim_pp = 0;
+  let acc_pp = 0;
+  let speed_pp = 0;
+  let overall_pp = 0;
+  let avg_ar = 0;
   for (const score of recent_scores) {
     const score_tms = Date.parse(score.created_at) / 1000;
     if (score_tms > last_top_score_tms) {
@@ -167,10 +177,10 @@ async function load_user_info(bancho_user, lobby) {
         n300: score.statistics.count_300,
         combo: score.max_combo,
       });
-      pp.aim += map_pp.aim * current_weight;
-      pp.acc += map_pp.acc * current_weight;
-      pp.speed += map_pp.speed * current_weight;
-      pp.overall += map_pp.total * current_weight;
+      aim_pp += map_pp.aim * current_weight;
+      acc_pp += map_pp.acc * current_weight;
+      speed_pp += map_pp.speed * current_weight;
+      overall_pp += map_pp.total * current_weight;
 
       let approach_rate = score.beatmap.ar;
       if (score.mods.includes('HR')) {
@@ -205,7 +215,7 @@ async function load_user_info(bancho_user, lobby) {
         }
       }
       approach_rate *= current_weight;
-      pp.ar += approach_rate;
+      avg_ar += approach_rate;
     } catch (err) {
       console.error('Failed to compute pp for map', score.beatmap.id, ':', err);
       continue;
@@ -216,65 +226,69 @@ async function load_user_info(bancho_user, lobby) {
   }
 
   if (total_weight > 0) {
-    pp.aim /= total_weight;
-    pp.acc /= total_weight;
-    pp.speed /= total_weight;
-    pp.overall /= total_weight;
-    pp.ar /= total_weight;
+    aim_pp /= total_weight;
+    acc_pp /= total_weight;
+    speed_pp /= total_weight;
+    overall_pp /= total_weight;
+    avg_ar /= total_weight;
   }
 
   // Three digit players mostly farm, so their top 100 scores are not
   // representative of what they usually achieve. Limit max pp to 600.
-  if (pp.overall > 600.0) {
-    const ratio = pp.overall / 600.0;
-    pp.aim /= ratio;
-    pp.acc /= ratio;
-    pp.speed /= ratio;
-    pp.overall /= ratio;
+  if (overall_pp > 600.0) {
+    const ratio = overall_pp / 600.0;
+    aim_pp /= ratio;
+    acc_pp /= ratio;
+    speed_pp /= ratio;
+    overall_pp /= ratio;
   }
 
   // Get average SR for those pp values
   const meta = await maps_db.get(SQL`
     SELECT AVG(pp_stars) AS avg_sr FROM (
       SELECT pp.stars AS pp_stars, (
-        ABS(${pp.aim} - aim_pp)
-        + ABS(${pp.speed} - speed_pp)
-        + ABS(${pp.acc} - acc_pp)
-        + 10*ABS(${pp.ar} - pp.ar)
+        ABS(${aim_pp} - aim_pp)
+        + ABS(${speed_pp} - speed_pp)
+        + ABS(${acc_pp} - acc_pp)
+        + 10*ABS(${avg_ar} - pp.ar)
       ) AS match_accuracy FROM map
       INNER JOIN pp ON map.id = pp.map_id
       WHERE mods = (1<<16) AND length > 60 AND ranked IN (4, 5, 7) AND match_accuracy IS NOT NULL
       ORDER BY match_accuracy LIMIT 1000
     )`,
   );
-  pp.sr = meta.avg_sr;
 
-  bancho_user.pp = pp;
+  user.aim_pp = aim_pp;
+  user.acc_pp = acc_pp;
+  user.speed_pp = speed_pp;
+  user.overall_pp = overall_pp;
+  user.avg_ar = avg_ar;
+  user.avg_sr = meta.avg_sr;
 
   await ranks_db.run(SQL`
     UPDATE user
     SET
-      aim_pp = ${pp.aim},
-      acc_pp = ${pp.acc},
-      speed_pp = ${pp.speed},
-      overall_pp = ${pp.overall},
-      avg_ar = ${pp.ar},
-      avg_sr = ${pp.sr},
+      aim_pp = ${aim_pp},
+      acc_pp = ${acc_pp},
+      speed_pp = ${speed_pp},
+      overall_pp = ${overall_pp},
+      avg_ar = ${avg_ar},
+      avg_sr = ${meta.avg_sr},
       last_top_score_tms = ${last_top_score_tms},
       last_update_tms = ${Date.now()}
-    WHERE user_id = ${bancho_user.id}`,
+    WHERE user_id = ${user.user_id}`,
   );
 
   // User never got their discord nickname set
   if (recent_scores.length > 0 && user.last_update_tms < 1638722217000) {
     await update_discord_username(
-        bancho_user.id,
+        user.user_id,
         recent_scores[0].user.username,
         'Fixed nickname for existing user',
     );
   }
 
-  console.log('Finished recalculating pp for ' + bancho_user.ircUsername);
+  console.log('[API] Finished recalculating pp for ' + user.username);
 }
 
-export {load_user_info};
+export {scan_user_profile};

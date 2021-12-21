@@ -60,26 +60,14 @@ const RANK_DIVISIONS = [
 assert(BETA > SIG_LIMIT, 'beta must exceed sig_limit');
 
 
-// To avoid re-fetching players from the database after the end of each
-// contest, we store all of them in memory. It should be fine for now, but in
-// the future, we should use a cache instead.
-const players = [];
-
-
 class Contest {
   constructor(lobby) {
     this.lobby_id = lobby.id;
     this.lobby_creator = lobby.creator;
-    this.map_id = lobby.beatmapId;
+    this.map_id = lobby.beatmap_id;
     this.tms = lobby.mock_tms || Date.now();
-    this.winCondition = lobby.winCondition;
-
-    this.mods = 0;
-    if (lobby.mods) {
-      for (const mod of lobby.mods) {
-        this.mods |= mod.enumValue;
-      }
-    }
+    this.win_condition = lobby.win_condition;
+    this.mods = lobby.is_dt ? 64 : 0;
 
     // `standings` is an array of objects of the following type:
     // {
@@ -96,41 +84,15 @@ class Contest {
     // would be `lo = 0` and `hi = 2`. The fourth player would then be
     // `lo = 3` and `hi = 3`, and so on.
     this.standings = [];
-    this.player_ids = [];
-    for (const score of lobby.scores) {
-      if (this.player_ids.includes(score.player.user.id)) {
-        console.info('Ignoring duplicate score:', score);
-        continue;
+    for (const username in lobby.scores) {
+      if (lobby.scores.hasOwnProperty(username)) {
+        this.standings.push({
+          player: lobby.match_participants[username],
+          score: lobby.scores[username],
+          mods: lobby.is_dt ? 64 : 0,
+        });
       }
-
-      let player_mods = 0;
-      for (const mod of score.player.mods) {
-        player_mods |= mod.enumValue;
-      }
-
-      this.standings.push({
-        player_id: score.player.user.id,
-        bancho_user: score.player.user,
-        score: score.score,
-        mods: player_mods,
-      });
     }
-
-    // NOTE: due to lobby desync issues, dodge detection was not working as intended.
-    //       it is disabled until the desync issue is fixed.
-
-    // // Dodgers share last place, with 0 score.
-    // for (const player of lobby.confirmed_players) {
-    //   if (this.standings.every((standing) => standing.player_id != player.id)) {
-    //     console.log(player.ircUsername + ' tried dodging, but no.');
-    //     this.standings.push({
-    //       player_id: player.id,
-    //       bancho_user: player,
-    //       score: 0,
-    //       mods: 0,
-    //     });
-    //   }
-    // }
 
     this.standings.sort((a, b) => a.score - b.score);
     this.standings.reverse();
@@ -159,87 +121,34 @@ class Contest {
     });
   }
 
-  // Fills the missing values from `this.standings`
-  // Fetches players from database if they're not already loaded - expensive operation.
   async init() {
     const res = await db.run(SQL`
       INSERT INTO contest (lobby_id, map_id, scoring_system, mods, tms, lobby_creator, weight)
-      VALUES (${this.lobby_id}, ${this.map_id}, ${this.winCondition}, ${this.mods}, ${this.tms}, ${this.lobby_creator}, ${this.weight})`,
+      VALUES (${this.lobby_id}, ${this.map_id}, ${this.win_condition}, ${this.mods}, ${this.tms}, ${this.lobby_creator}, ${this.weight})`,
     );
     this.id = res.lastID;
 
     for (const standing of this.standings) {
-      if (!(standing.player_id in players)) {
-        players[standing.player_id] = new Player(standing.bancho_user);
-        await players[standing.player_id].fetch_from_database();
+      standing.player.approx_posterior = new Rating(standing.player.approx_mu, standing.player.approx_sig);
+      standing.player.normal_factor = new Rating(standing.player.normal_mu, standing.player.normal_sig);
+      standing.player.logistic_factors = [];
+
+      const scores = await db.all(SQL`
+        SELECT logistic_mu, logistic_sig FROM score
+        WHERE user_id = ${standing.player.user_id}
+        ORDER BY tms DESC LIMIT ${MAX_LOGISTIC_FACTORS}`,
+      );
+      for (const score of scores) {
+        standing.player.logistic_factors.push(new TanhTerm(new Rating(score.logistic_mu, score.logistic_sig)));
       }
-      standing.player = players[standing.player_id];
+
+      // Not used for computing new rank - but for knowing when the display text changed
+      const rank = await get_rank(standing.player.approx_posterior.toFloat());
+      standing.player.rank_float = rank.ratio;
     }
   }
 }
 
-
-class Player {
-  constructor(bancho_user) {
-    this.user_id = bancho_user.id;
-    this.username = bancho_user.ircUsername;
-    this.games_played = 0;
-    this.rank_text = 'Unranked';
-    this.approx_posterior = new Rating(1500.0, 350.0);
-    this.normal_factor = new Rating(1500.0, 350.0);
-    this.logistic_factors = [];
-  }
-
-  // Fetches ranking data from the database.
-  async fetch_from_database() {
-    const user = await db.get(SQL`SELECT * FROM user WHERE user_id = ${this.user_id}`);
-    if (!user) {
-      console.error('Did not find osu! user with id', this.user_id);
-      throw new Error('osu! user not found in database');
-    }
-
-    this.rank_text = user.rank_text;
-    this.games_played = user.games_played;
-    this.approx_posterior = new Rating(user.approx_mu, user.approx_sig);
-    this.normal_factor = new Rating(user.normal_mu, user.normal_sig);
-
-    const scores = await db.all(SQL`
-      SELECT logistic_mu, logistic_sig FROM score
-      WHERE user_id = ${this.user_id}
-      ORDER BY tms DESC LIMIT ${MAX_LOGISTIC_FACTORS}`,
-    );
-    for (const score of scores) {
-      this.logistic_factors.push(new TanhTerm(new Rating(score.logistic_mu, score.logistic_sig)));
-    }
-
-    // Not used for computing new rank - but for knowing when the display text changed
-    const rank = await get_rank(this.approx_posterior.toFloat());
-    this.rank_float = rank.ratio;
-  }
-
-  // Modifies the player object. Returns nothing.
-  add_noise_best(sig_noise) {
-    const new_rating = this.approx_posterior.with_noise(sig_noise);
-    const decay = Math.pow(this.approx_posterior.sig / new_rating.sig, 2);
-    const transfer = Math.pow(decay, TRANSFER_SPEED);
-    this.approx_posterior = new_rating;
-
-    const wt_norm_old = Math.pow(this.normal_factor.sig, -2);
-    const wt_from_norm_old = transfer * wt_norm_old;
-    let bruh_sum = 0.0;
-    for (const term of this.logistic_factors) {
-      bruh_sum += term.get_weight();
-    }
-    const wt_from_transfers = (1.0 - transfer) * (wt_norm_old + bruh_sum);
-    const wt_total = wt_from_norm_old + wt_from_transfers;
-
-    this.normal_factor.mu = (wt_from_norm_old * this.normal_factor.mu + wt_from_transfers * this.approx_posterior.mu) / wt_total;
-    this.normal_factor.sig = Math.sqrt(1.0 / (decay * wt_total));
-    for (const r of this.logistic_factors) {
-      r.w_out *= transfer * decay;
-    }
-  }
-};
 
 class Rating {
   constructor(mu, sig) {
@@ -378,11 +287,6 @@ async function update_mmr(lobby) {
   // contest.weight = 1.0 - Math.pow(1.0 - contest.weight, 4.0);
   await contest.init();
 
-  const scores_flat = [];
-  for (const score of lobby.scores) {
-    scores_flat.push(score.score);
-  }
-
   // Compute sig_perf and discrete_drift
   const excess_beta_sq = (BETA * BETA - SIG_LIMIT * SIG_LIMIT);
   const sig_perf = Math.sqrt(SIG_LIMIT * SIG_LIMIT + excess_beta_sq);
@@ -395,7 +299,26 @@ async function update_mmr(lobby) {
   // in order to determine if it's a win, loss, or tie term.
   const tanh_terms = [];
   for (const standing of contest.standings) {
-    standing.player.add_noise_best(sig_drift);
+    const new_rating = standing.player.approx_posterior.with_noise(sig_drift);
+    const decay = Math.pow(standing.player.approx_posterior.sig / new_rating.sig, 2);
+    const transfer = Math.pow(decay, TRANSFER_SPEED);
+    standing.player.approx_posterior = new_rating;
+
+    const wt_norm_old = Math.pow(standing.player.normal_factor.sig, -2);
+    const wt_from_norm_old = transfer * wt_norm_old;
+    let bruh_sum = 0.0;
+    for (const term of standing.player.logistic_factors) {
+      bruh_sum += term.get_weight();
+    }
+    const wt_from_transfers = (1.0 - transfer) * (wt_norm_old + bruh_sum);
+    const wt_total = wt_from_norm_old + wt_from_transfers;
+
+    standing.player.normal_factor.mu = (wt_from_norm_old * standing.player.normal_factor.mu + wt_from_transfers * standing.player.approx_posterior.mu) / wt_total;
+    standing.player.normal_factor.sig = Math.sqrt(1.0 / (decay * wt_total));
+    for (const r of standing.player.logistic_factors) {
+      r.w_out *= transfer * decay;
+    }
+
     tanh_terms.push(new TanhTerm(standing.player.approx_posterior.with_noise(sig_perf)));
   }
 
@@ -593,47 +516,6 @@ async function init_db() {
   //   filename: 'maps.db',
   //   driver: sqlite3.cached.Database,
   // });
-
-  await db.exec(`CREATE TABLE IF NOT EXISTS user (
-    user_id INTEGER PRIMARY KEY,
-    username TEXT,
-    elo REAL,
-    approx_mu REAL,
-    approx_sig REAL,
-    normal_mu REAL,
-    normal_sig REAL,
-    aim_pp REAL,
-    acc_pp REAL,
-    speed_pp REAL,
-    overall_pp REAL,
-    avg_ar REAL,
-    avg_sr REAL,
-    last_top_score_tms INTEGER,
-    last_update_tms INTEGER,
-    games_played INTEGER NOT NULL,
-    last_contest_tms INTEGER,
-    rank_text TEXT
-  )`);
-
-  await db.exec(`CREATE TABLE IF NOT EXISTS contest (
-    lobby_id INTEGER,
-    map_id INTEGER,
-    scoring_system INTEGER,
-    mods INTEGER,
-    tms INTEGER,
-    lobby_creator TEXT,
-    weight REAL
-  )`);
-
-  await db.exec(`CREATE TABLE IF NOT EXISTS score (
-    user_id INTEGER,
-    contest_id INTEGER,
-    score INTEGER,
-    logistic_mu REAL,
-    logistic_sig REAL,
-    mods INTEGER,
-    tms INTEGER
-  )`);
 
   return db;
 }
