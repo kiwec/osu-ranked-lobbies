@@ -116,6 +116,9 @@ async function scan_user_profile(user) {
   let recent_scores;
   try {
     recent_scores = await res.json();
+    if (!recent_scores) {
+      recent_scores = [];
+    }
   } catch (err) {
     console.error('status:', res.statusCode, 'has html data in json response:', await res.text());
     capture_sentry_exception(err);
