@@ -82,11 +82,14 @@ async function main() {
 function create_lobby(title) {
   return new Promise((resolve, reject) => {
     const room_created_listener = async (msg) => {
-      // TODO: handle the case when too many lobbies have been created
-      setTimeout(10000, () => reject(new Error('Could not create lobby')));
-
       const room_created_regex = /Created the tournament match https:\/\/osu\.ppy\.sh\/mp\/(\d+) (.+)/;
       if (msg.from == 'BanchoBot') {
+        if (msg.message == 'You cannot create any more tournament matches. Please close any previous tournament matches you have open.') {
+          bancho.off('pm', room_created_listener);
+          reject(new Error('Cannot create any more matches.'));
+          return;
+        }
+
         const m = room_created_regex.exec(msg.message);
         if (m && m[2] == title) {
           bancho.off('pm', room_created_listener);

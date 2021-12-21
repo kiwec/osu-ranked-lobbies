@@ -570,7 +570,8 @@ async function on_lobby_msg(lobby, msg) {
         SELECT games_played FROM user
         WHERE user_id = ${user_id}`,
       );
-      await lobby.send(`${msg.from}: You are unranked. Play ${5 - res.games_played} more games to get a rank!`);
+      const games_played = res ? res.games_played : 0;
+      await lobby.send(`${msg.from}: You are unranked. Play ${5 - games_played} more games to get a rank!`);
     } else {
       await lobby.send(`${msg.from}: You are [${Config.website_base_url}/u/${user_id}/ ${rank_text}].`);
     }
