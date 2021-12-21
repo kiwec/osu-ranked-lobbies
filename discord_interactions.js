@@ -184,7 +184,7 @@ async function on_lobby_invite_button_press(user, interaction) {
 
   for (const lobby of bancho.joined_lobbies) {
     if (lobby.channel == '#mp_' + lobby_id) {
-      await player.sendMessage(`${player.username}, here's your invite: [http://osump://${lobby.invite_id}/ ${lobby.name}]`);
+      await bancho.privmsg(player.username, `${player.username}, here's your invite: [http://osump://${lobby.invite_id}/ ${lobby.name}]`);
       await interaction.editReply({
         content: 'An invite to the lobby has been sent. Check your in-game messages. 😌',
         ephemeral: true,

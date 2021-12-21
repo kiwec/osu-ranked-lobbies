@@ -55,7 +55,7 @@ async function set_new_title(lobby) {
     fancy_max_stars = lobby.max_stars.toFixed(1);
   }
 
-  const new_title = `${fancy_min_stars}-${fancy_max_stars}*${title_modifiers} testing do not enter`;
+  const new_title = `${fancy_min_stars}-${fancy_max_stars}*${title_modifiers} | o!RL | Auto map select (!about)`;
   if (lobby.name != new_title) {
     await lobby.send(`!mp name ${new_title}`);
     lobby.name = new_title;
@@ -627,18 +627,6 @@ async function start_ranked(_map_db) {
   for (const lobby of lobbies) {
     promises.push(rejoin_lobby(lobby));
   }
-
-  // TODO DEBUG
-  // promises.push(rejoin_lobby({
-  //   osu_lobby_id: 95500652,
-  //   min_stars: 5,
-  //   max_stars: 6,
-  //   dt: 0,
-  //   scorev2: 0,
-  //   creator: 'kiwec',
-  //   creator_discord_id: '1234',
-  // }));
-
   await Promise.all(promises);
 }
 
