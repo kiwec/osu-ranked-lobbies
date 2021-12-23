@@ -593,10 +593,7 @@ async function on_lobby_msg(lobby, msg) {
         await lobby.send(`${msg.from}: ${requested_user} is unranked.`);
       }
     } else {
-      await lobby.send(`${msg.from}: Stats for [${Config.website_base_url}/u/${user_id}/ ${requested_user}]:`);
-      await lobby.send(`Rank: ${rank_info.text} (#${rank_info.rank_nb})`);
-      await lobby.send(`Elo: ${rank_info.elo}`);
-      await lobby.send(`Games played: ${res.games_played}`);
+      await lobby.send(`[${Config.website_base_url}/u/${user_id}/ ${requested_user}] | Rank: ${rank_info.text} (#${rank_info.rank_nb}) | Elo: ${rank_info.elo} | Games played: ${res.games_played}`);
     }
 
     return;
