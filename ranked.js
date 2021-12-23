@@ -490,7 +490,7 @@ async function on_lobby_msg(lobby, msg) {
 
     const min_stars = parseFloat(args[1]);
     const max_stars = parseFloat(args[2]);
-    if (!isFinite(min_stars) || !isFinite(max_stars)) {
+    if (isNaN(min_stars) || isNaN(max_stars) || min_stars >= max_stars || min_stars < 0 || max_stars > 99) {
       await lobby.send(msg.from + ': Please use valid star values.');
       return;
     }
