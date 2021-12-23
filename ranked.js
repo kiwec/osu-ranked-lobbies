@@ -7,7 +7,6 @@ import bancho from './bancho.js';
 import BanchoLobby from './lobby.js';
 import {init_db as init_ranking_db, update_mmr, get_rank_text_from_id} from './elo_mmr.js';
 import {
-  update_ranked_lobby_on_discord,
   close_ranked_lobby_on_discord,
 } from './discord_updates.js';
 
@@ -59,7 +58,6 @@ async function set_new_title(lobby) {
   if (lobby.name != new_title) {
     await lobby.send(`!mp name ${new_title}`);
     lobby.name = new_title;
-    await update_ranked_lobby_on_discord(lobby);
   }
 }
 
@@ -195,8 +193,6 @@ async function select_next_map(lobby) {
   } catch (e) {
     console.error(`${lobby.channel} Failed to switch to map ${new_map.id} ${new_map.name}:`, e);
   }
-
-  await update_ranked_lobby_on_discord(lobby);
 }
 
 
@@ -287,8 +283,6 @@ async function init_lobby(lobby, settings) {
         await update_median_pp(lobby);
         if (lobby.nb_players == 1) {
           await select_next_map(lobby);
-        } else {
-          await update_ranked_lobby_on_discord(lobby);
         }
       }
     } catch (err) {
@@ -385,8 +379,6 @@ async function init_lobby(lobby, settings) {
       lobby.voteskips = [];
       clearTimeout(lobby.countdown);
       lobby.countdown = -1;
-
-      await update_ranked_lobby_on_discord(lobby);
     } catch (err) {
       capture_sentry_exception(err);
     }

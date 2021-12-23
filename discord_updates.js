@@ -3,11 +3,15 @@ import sqlite3 from 'sqlite3';
 import SQL from 'sql-template-strings';
 import {MessageActionRow, MessageButton, MessageEmbed} from 'discord.js';
 
+import bancho from './bancho.js';
 import {capture_sentry_exception} from './util/helpers.js';
 import Config from './util/config.js';
 
 let discord_client = null;
 let db = null;
+
+// Array of lobby info as displayed on discord
+const discord_lobbies = [];
 
 async function init(discord_client_) {
   discord_client = discord_client_;
@@ -16,6 +20,8 @@ async function init(discord_client_) {
     filename: 'discord.db',
     driver: sqlite3.cached.Database,
   });
+
+  discord_update_loop();
 }
 
 
@@ -45,6 +51,19 @@ function get_pp_color(lobby) {
       }
     }
   }
+}
+
+// Dumb loop to update discord lobbies when their info changes.
+async function discord_update_loop() {
+  for (const lobby of bancho.joined_lobbies) {
+    const new_val = lobby.name + lobby.nb_players + lobby.playing;
+    if (discord_lobbies[lobby.id] != new_val) {
+      await update_ranked_lobby_on_discord(lobby);
+      discord_lobbies[lobby.id] = new_val;
+    }
+  }
+
+  setTimeout(discord_update_loop, 1000);
 }
 
 // Updates the lobby information on Discord.
@@ -116,7 +135,7 @@ async function update_ranked_lobby_on_discord(lobby) {
             },
             {
               name: 'Status',
-              value: lobby.game_started ? 'Playing' : 'Waiting',
+              value: lobby.playing ? 'Playing' : 'Waiting',
               inline: true,
             },
             {
@@ -150,7 +169,6 @@ async function update_ranked_lobby_on_discord(lobby) {
       const discord_channel = discord_client.channels.cache.get(ranked_lobby.discord_channel_id);
       const discord_msg = await discord_channel.messages.fetch(ranked_lobby.discord_msg_id + '');
       await discord_msg.edit(msg);
-      return;
     } catch (err) {
       if (err.message == 'Unknown Message') {
         // Message was deleted, try again
@@ -160,8 +178,9 @@ async function update_ranked_lobby_on_discord(lobby) {
 
       console.error(`${lobby.channel} Failed to update Discord message: ${err}`);
       capture_sentry_exception(err);
-      return;
     }
+
+    return;
   }
 
   // Try to create new message
@@ -309,7 +328,6 @@ async function update_discord_role(osu_user_id, rank_text) {
 
 export {
   init,
-  update_ranked_lobby_on_discord,
   close_ranked_lobby_on_discord,
   update_discord_role,
   update_discord_username,

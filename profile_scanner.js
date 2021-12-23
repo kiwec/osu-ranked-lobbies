@@ -116,8 +116,8 @@ async function scan_user_profile(user) {
   let recent_scores;
   try {
     recent_scores = await res.json();
-    if (!recent_scores) {
-      recent_scores = [];
+    if (!(Symbol.iterator in Object(recent_scores))) {
+      throw new Error('recent_scores is not iterable:', recent_scores);
     }
   } catch (err) {
     console.error('status:', res.statusCode, 'has html data in json response:', await res.text());

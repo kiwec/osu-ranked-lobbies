@@ -156,7 +156,7 @@ async function on_make_ranked_command(user, interaction) {
     console.log(`Lobby ${lobby.channel} created by ${osu_user.username}.`);
     await interaction.editReply({content: 'Lobby initialized ✅ Enjoy!'});
   } catch (err) {
-    if (err.message == 'No such channel') {
+    if (err.message.indexOf('No such channel') == 0) {
       await interaction.editReply({content: `Failed to join lobby. Are you sure you ran **!mp addref ${Config.osu_username}**, and that the lobby id is correct?`});
     } else {
       await interaction.editReply({content: 'Failed to join lobby: ' + err});
