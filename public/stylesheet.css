@@ -649,6 +649,9 @@ body.dark-mode .switcher-sun {
     .match-history td:last-of-type {
         display: none;
     }
+    .switcher-container {
+        display: none;
+    }
 }
 @media screen and (max-width:600px) {
     .sidebar {
@@ -689,10 +692,5 @@ body.dark-mode .switcher-sun {
     }
     .match-history td {
         width: 120px;
-    }
-    .switcher-container {
-      display: none;
-      top: 130px;
-      right: 5px;
     }
 }
