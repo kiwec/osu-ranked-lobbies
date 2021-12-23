@@ -562,7 +562,7 @@ async function on_lobby_msg(lobby, msg) {
     return;
   }
 
-  const rank_command_reg = /!rank(.*)/g;
+  const rank_command_reg = /^!rank(.*)/g;
   let rank_command_reg_result;
   if (rank_command_reg_result = rank_command_reg.exec(msg.message)) {
     let rank_info = {};
