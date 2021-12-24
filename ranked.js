@@ -592,7 +592,7 @@ async function on_lobby_msg(lobby, msg) {
       if (!user) {
         try {
           user_id = await bancho.whois(requested_username);
-          
+
           user = await ranking_db.get(SQL`
             SELECT games_played, elo, user_id FROM user
             WHERE user_id = ${user_id}
