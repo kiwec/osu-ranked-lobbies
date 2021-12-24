@@ -31,6 +31,13 @@ let ranks_db = null;
 // Try to get a player object from a username, and return a placeholder player
 // object if we didn't succeed.
 async function try_get_player(display_username) {
+  if (!ranks_db) {
+    ranks_db = await open({
+      filename: 'ranks.db',
+      driver: sqlite3.cached.Database,
+    });
+  }
+
   let player = await ranks_db.get(SQL`
     SELECT * FROM user WHERE username = ${display_username}`,
   );
@@ -79,6 +86,10 @@ class BanchoClient extends EventEmitter {
     this._writer = null;
     this._whoare = [];
 
+    // Lobbies that we JOIN'd, not necessarily fully initialized
+    this._lobbies = [];
+
+    // Fully initialized lobbies where the bot is running actual logic
     this.joined_lobbies = [];
   }
 
@@ -160,7 +171,6 @@ class BanchoClient extends EventEmitter {
             }
           }
 
-          this.emit('irc', lines[i]);
           const parts = lines[i].split(' ');
           if (parts[1] != 'QUIT') {
             console.debug('[IRC] < ' + lines[i]);
@@ -206,7 +216,7 @@ class BanchoClient extends EventEmitter {
           if (parts[1] == 'JOIN') {
             const channel = parts[2].substring(1);
             const lobby = new BanchoLobby(channel);
-            lobby.listen();
+            this._lobbies.push(lobby);
             continue;
           }
 
@@ -225,6 +235,11 @@ class BanchoClient extends EventEmitter {
             });
 
             continue;
+          }
+
+          // Unhandled line: pass it to all JOIN'd lobbies
+          for (const lobby of this._lobbies) {
+            lobby.handle_line(lines[i]);
           }
         }
 
@@ -269,7 +284,7 @@ class BanchoClient extends EventEmitter {
           if (m && m[2] == lobby_title) {
             this.off('pm', room_created_listener);
 
-            for (const lobby of this.joined_lobbies) {
+            for (const lobby of this._lobbies) {
               if (lobby.id == m[1]) {
                 return resolve(lobby);
               }
@@ -289,7 +304,7 @@ class BanchoClient extends EventEmitter {
 
   join(channel) {
     return new Promise((resolve, reject) => {
-      for (const lobby of this.joined_lobbies) {
+      for (const lobby of this._lobbies) {
         if (lobby.channel == channel) {
           return resolve(lobby);
         }
@@ -360,175 +375,165 @@ class BanchoLobby extends EventEmitter {
     this.match_participants = [];
   }
 
-  async listen() {
-    if (!ranks_db) {
-      ranks_db = await open({
-        filename: 'ranks.db',
-        driver: sqlite3.cached.Database,
-      });
+  async handle_line(line) {
+    const parts = line.split(' ');
+
+    if (line == `:${Config.osu_username}!cho@ppy.sh PART :${this.channel}`) {
+      this.joined = false;
+      this.emit('close');
+      bancho._lobbies.splice(bancho._lobbies.indexOf(this), 1);
+      return;
     }
 
-    const irc_listener = async (line) => {
-      const parts = line.split(' ');
+    if (parts[1] == '332' && parts[3] == this.channel) {
+      this.joined = true;
+      this.invite_id = parseInt(parts[6].substring(1), 10);
+      bancho.emit('lobbyJoined', this);
+      return;
+    }
 
-      if (line == `:${Config.osu_username}!cho@ppy.sh PART :${this.channel}`) {
-        this.joined = false;
-        this.emit('close');
-        return;
+    const error_codes = ['461', '403', '405', '475', '474', '471', '473'];
+    if (error_codes.includes(parts[1]) && parts[3] == this.channel) {
+      parts.splice(0, 4);
+      bancho.emit('lobbyJoined', this, new Error(parts.join(' ').substring(1)));
+      return;
+    }
+
+    if (parts[1] == 'PRIVMSG' && parts[2] == this.channel) {
+      const full_source = parts.shift();
+      parts.splice(0, 2);
+      let source = null;
+      if (full_source.indexOf('!') != -1) {
+        source = full_source.substring(1, full_source.indexOf('!'));
       }
+      const message = parts.join(' ').substring(1);
 
-      if (parts[1] == '332' && parts[3] == this.channel) {
-        this.joined = true;
-        this.invite_id = parseInt(parts[6].substring(1), 10);
-        bancho.emit('lobbyJoined', this);
-      }
+      if (source == 'BanchoBot') {
+        let m;
+        const joined_regex = /(.+) joined in slot \d+\./;
+        const left_regex = /(.+) left the game\./;
+        const room_name_regex = /Room name: (.+), History: https:\/\/osu\.ppy\.sh\/mp\/(\d+)/;
+        const beatmap_regex = /Beatmap: https:\/\/osu\.ppy\.sh\/b\/(\d+) (.+)/;
+        const mode_regex = /Team mode: (.+), Win condition: (.+)/;
+        const mods_regex = /Active mods: (.+)/;
+        const players_regex = /Players: (\d+)/;
+        const slot_regex = /Slot (\d+) +(.+?) +https:\/\/osu\.ppy\.sh\/u\/(\d+) (.+)/;
+        const score_regex = /(.+) finished playing \(Score: (\d+), (.+)\)\./;
+        const ref_add_regex = /Added (.+) to the match referees/;
+        const ref_del_regex = /Removed (.+) from the match referees/;
 
-      const error_codes = ['461', '403', '405', '475', '474', '471', '473'];
-      if (error_codes.includes(parts[1]) && parts[3] == this.channel) {
-        bancho.off('irc', irc_listener);
-        parts.splice(0, 4);
-        bancho.emit('lobbyJoined', this, new Error(parts.join(' ').substring(1)));
-      }
+        if (message == 'The match has started!') {
+          this.scores = [];
+          this.match_participants = [];
+          this.playing = true;
+          this.emit('matchStarted');
+          this.send(`!mp settings ${Math.random().toString(36).substring(2, 6)}`);
+        } else if (message == 'The match has finished!') {
+          this.playing = false;
+          this.emit('matchFinished');
+        } else if (message == 'Aborted the match') {
+          this.playing = false;
+          this.emit('matchAborted');
+        } else if (message == 'All players are ready') {
+          this.emit('allPlayersReady');
+        } else if (m = room_name_regex.exec(message)) {
+          this.parsing_settings = true;
+          this.name = m[1];
+          this.id = parseInt(m[2], 10);
+        } else if (m = beatmap_regex.exec(message)) {
+          this.beatmap_id = parseInt(m[1], 10);
+          this.beatmap_name = m[2];
+        } else if (m = mode_regex.exec(message)) {
+          this.team_mode = m[1];
+          this.win_condition = m[2];
+        } else if (m = mods_regex.exec(message)) {
+          this.active_mods = m[1];
+        } else if (m = players_regex.exec(message)) {
+          this.players_to_parse = parseInt(m[1], 10);
+          this.nb_players = this.players_to_parse;
+        } else if (m = ref_add_regex.exec(message)) {
+          this.emit('refereeAdded', m[1]);
+        } else if (m = ref_del_regex.exec(message)) {
+          this.emit('refereeRemoved', m[1]);
+        } else if (m = slot_regex.exec(message)) {
+          const display_username = m[4].substring(0, 15).trimEnd();
+          // NOTE: we could parse host/mods but it's a pain and unused right now
 
-      if (parts[1] == 'PRIVMSG' && parts[2] == this.channel) {
-        const full_source = parts.shift();
-        parts.splice(0, 2);
-        let source = null;
-        if (full_source.indexOf('!') != -1) {
-          source = full_source.substring(1, full_source.indexOf('!'));
-        }
-        const message = parts.join(' ').substring(1);
-
-        if (source == 'BanchoBot') {
-          let m;
-          const joined_regex = /(.+) joined in slot \d+\./;
-          const left_regex = /(.+) left the game\./;
-          const room_name_regex = /Room name: (.+), History: https:\/\/osu\.ppy\.sh\/mp\/(\d+)/;
-          const beatmap_regex = /Beatmap: https:\/\/osu\.ppy\.sh\/b\/(\d+) (.+)/;
-          const mode_regex = /Team mode: (.+), Win condition: (.+)/;
-          const mods_regex = /Active mods: (.+)/;
-          const players_regex = /Players: (\d+)/;
-          const slot_regex = /Slot (\d+) +(.+?) +https:\/\/osu\.ppy\.sh\/u\/(\d+) (.+)/;
-          const score_regex = /(.+) finished playing \(Score: (\d+), (.+)\)\./;
-          const ref_add_regex = /Added (.+) to the match referees/;
-          const ref_del_regex = /Removed (.+) from the match referees/;
-
-          if (message == 'The match has started!') {
-            this.scores = [];
-            this.match_participants = [];
-            this.playing = true;
-            this.emit('matchStarted');
-            this.send(`!mp settings ${Math.random().toString(36).substring(2, 6)}`);
-          } else if (message == 'The match has finished!') {
-            this.playing = false;
-            this.emit('matchFinished');
-          } else if (message == 'Aborted the match') {
-            this.playing = false;
-            this.emit('matchAborted');
-          } else if (message == 'All players are ready') {
-            this.emit('allPlayersReady');
-          } else if (m = room_name_regex.exec(message)) {
-            this.parsing_settings = true;
-            this.name = m[1];
-            this.id = parseInt(m[2], 10);
-          } else if (m = beatmap_regex.exec(message)) {
-            this.beatmap_id = parseInt(m[1], 10);
-            this.beatmap_name = m[2];
-          } else if (m = mode_regex.exec(message)) {
-            this.team_mode = m[1];
-            this.win_condition = m[2];
-          } else if (m = mods_regex.exec(message)) {
-            this.active_mods = m[1];
-          } else if (m = players_regex.exec(message)) {
-            this.players_to_parse = parseInt(m[1], 10);
-            this.nb_players = this.players_to_parse;
-          } else if (m = ref_add_regex.exec(message)) {
-            this.emit('refereeAdded', m[1]);
-          } else if (m = ref_del_regex.exec(message)) {
-            this.emit('refereeRemoved', m[1]);
-          } else if (m = slot_regex.exec(message)) {
-            const display_username = m[4].substring(0, 15).trimEnd();
-            // NOTE: we could parse host/mods but it's a pain and unused right now
-
-            let player = this.players[display_username];
-            if (typeof player === 'undefined') {
-              player = await try_get_player(display_username);
-              this.players[display_username] = player;
-            }
-
-            if (!player.id) {
-              player.id = parseInt(m[3], 10);
-              player.user_id = player.id;
-              await scan_user_profile(player);
-            }
-
-            // Ready/Not Ready/No Map
-            player.state = m[2];
-            if (player.state != 'No Map') {
-              this.match_participants[display_username] = player;
-            }
-
-            this.players_to_parse--;
-            if (this.players_to_parse == 0) {
-              this.emit('settings');
-            }
-          } else if (m = score_regex.exec(message)) {
-            // We only handle the score if we have properly fetched the user.
-            if (this.match_participants.hasOwnProperty(m[1])) {
-              this.scores[m[1]] = parseInt(m[2], 10);
-              this.emit('score', {
-                username: m[1],
-                score: m[2],
-                state: m[3], // PASSED/FAILED
-              });
-            }
-          } else if (m = joined_regex.exec(message)) {
-            const display_username = m[1];
-            const player = await try_get_player(display_username);
+          let player = this.players[display_username];
+          if (typeof player === 'undefined') {
+            player = await try_get_player(display_username);
             this.players[display_username] = player;
-            this.nb_players++;
-            this.emit('playerJoined', player);
-          } else if (m = left_regex.exec(message)) {
-            const display_username = m[1];
-
-            let player = this.players[display_username];
-            if (typeof player !== 'undefined') {
-              // Dodgers get 0 score
-              if (this.playing && player.user_id && player.state != 'No Map') {
-                this.match_participants[display_username] = player;
-                this.scores[display_username] = 0;
-                this.emit('score', {
-                  username: display_username,
-                  score: 0,
-                  state: 'FAILED',
-                });
-              }
-
-              delete this.players[display_username];
-            } else {
-              player = {
-                username: display_username,
-              };
-            }
-
-            this.nb_players--;
-            this.emit('playerLeft', player);
           }
 
-          return;
-        }
+          if (!player.id) {
+            player.id = parseInt(m[3], 10);
+            player.user_id = player.id;
+            await scan_user_profile(player);
+          }
 
-        this.emit('message', {
-          from: source,
-          message: message,
-        });
+          // Ready/Not Ready/No Map
+          player.state = m[2];
+          if (player.state != 'No Map') {
+            this.match_participants[display_username] = player;
+          }
+
+          this.players_to_parse--;
+          if (this.players_to_parse == 0) {
+            this.emit('settings');
+          }
+        } else if (m = score_regex.exec(message)) {
+          // We only handle the score if we have properly fetched the user.
+          if (this.match_participants.hasOwnProperty(m[1])) {
+            this.scores[m[1]] = parseInt(m[2], 10);
+            this.emit('score', {
+              username: m[1],
+              score: m[2],
+              state: m[3], // PASSED/FAILED
+            });
+          }
+        } else if (m = joined_regex.exec(message)) {
+          const display_username = m[1];
+          const player = await try_get_player(display_username);
+          this.players[display_username] = player;
+          this.nb_players++;
+          this.emit('playerJoined', player);
+        } else if (m = left_regex.exec(message)) {
+          const display_username = m[1];
+
+          let player = this.players[display_username];
+          if (typeof player !== 'undefined') {
+            // Dodgers get 0 score
+            if (this.playing && player.user_id && player.state != 'No Map') {
+              this.match_participants[display_username] = player;
+              this.scores[display_username] = 0;
+              this.emit('score', {
+                username: display_username,
+                score: 0,
+                state: 'FAILED',
+              });
+            }
+
+            delete this.players[display_username];
+          } else {
+            player = {
+              username: display_username,
+            };
+          }
+
+          this.nb_players--;
+          this.emit('playerLeft', player);
+        }
 
         return;
       }
-    };
 
-    bancho.on('irc', irc_listener);
-    bancho.on('disconnect', () => bancho.off('irc', irc_listener));
+      this.emit('message', {
+        from: source,
+        message: message,
+      });
+
+      return;
+    }
   }
 
   leave() {
