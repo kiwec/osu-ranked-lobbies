@@ -575,22 +575,28 @@ async function on_lobby_msg(lobby, msg) {
     const requested_username = rank_command_reg_result[1].trim() || msg.from;
 
     let user;
+    let user_id;
     if (requested_username === msg.from) {
-      const user_id = await bancho.whois(requested_username);
+      user_id = await bancho.whois(requested_username);
 
       user = await ranking_db.get(SQL`
         SELECT games_played, elo, user_id FROM user
         WHERE user_id = ${user_id}
       `);
     } else {
-      user = ranking_db.get(SQL`
+      user = await ranking_db.get(SQL`
         SELECT games_played, elo, user_id FROM user
         WHERE username = ${requested_username}
       `);
 
       if (!user) {
         try {
-          await bancho.whois(requested_username);
+          user_id = await bancho.whois(requested_username);
+          
+          user = await ranking_db.get(SQL`
+            SELECT games_played, elo, user_id FROM user
+            WHERE user_id = ${user_id}
+          `);
         } catch (err) {
           await lobby.send(`${msg.from}: Player ${requested_username} not found. Are they online?`);
           return;
