@@ -9,7 +9,7 @@ import {init_db as init_ranking_db, apply_rank_decay} from './elo_mmr.js';
 import {init as init_discord_interactions} from './discord_interactions.js';
 import {init as init_discord_updates} from './discord_updates.js';
 import {listen as website_listen} from './website.js';
-import {start_ranked} from './ranked.js';
+import {init_lobby, start_ranked} from './ranked.js';
 import Config from './util/config.js';
 
 
