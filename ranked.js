@@ -268,6 +268,12 @@ async function init_lobby(lobby, settings) {
 
     try {
       await update_median_pp(lobby);
+
+      // Cannot select a map until we fetched the player IDs via !mp settings.
+      if (settings.created_just_now) {
+        await select_next_map(lobby);
+        settings.created_just_now = false;
+      }
     } catch (err) {
       capture_sentry_exception(err);
     }
@@ -384,9 +390,6 @@ async function init_lobby(lobby, settings) {
   });
 
   bancho.joined_lobbies.push(lobby);
-  if (settings.created_just_now) {
-    await select_next_map(lobby);
-  }
 }
 
 async function on_lobby_msg(lobby, msg) {
@@ -395,6 +398,18 @@ async function on_lobby_msg(lobby, msg) {
     username: msg.from,
   });
   console.info(`${lobby.channel} ${msg.from}: ${msg.message}`);
+
+  // lobby.creator is the display username of the creator, which is not the
+  // same as the IRC username of the creator. So, with this we get the
+  // display username from the IRC username to check if the user if the
+  // creator of the lobby.
+  // It would be smarter to store the creator's user ID directly. But alas.
+  const is_creator = async (irc_username) => {
+    const user_id = await bancho.whois(irc_username);
+    const user = await ranking_db.get(SQL`SELECT username FROM user WHERE user_id = ${user_id}`);
+    if (!user) return false;
+    return user.username == lobby.creator;
+  };
 
   // NOTE: !start needs to be checked before !star (because we allow multiple spelling for !stars)
   if (msg.message.toLowerCase() == '!start') {
@@ -441,7 +456,7 @@ async function on_lobby_msg(lobby, msg) {
   }
 
   if (msg.message.indexOf('!dt') == 0) {
-    if (lobby.creator != msg.from) {
+    if (!(await is_creator(msg.from))) {
       await lobby.send(msg.from + ': You need to be the lobby creator to use this command.');
       return;
     }
@@ -454,7 +469,7 @@ async function on_lobby_msg(lobby, msg) {
   }
 
   if (msg.message.indexOf('!scorev') == 0) {
-    if (lobby.creator != msg.from) {
+    if (!(await is_creator(msg.from))) {
       await lobby.send(msg.from + ': You need to be the lobby creator to use this command.');
       return;
     }
@@ -466,7 +481,7 @@ async function on_lobby_msg(lobby, msg) {
   }
 
   if (msg.message.indexOf('!star') == 0 || msg.message.indexOf('!setstar') == 0) {
-    if (lobby.creator != msg.from) {
+    if (!(await is_creator(msg.from))) {
       await lobby.send(msg.from + ': You need to be the lobby creator to use this command.');
       return;
     }
