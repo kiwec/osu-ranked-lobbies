@@ -572,36 +572,47 @@ async function on_lobby_msg(lobby, msg) {
   let rank_command_reg_result;
   if (rank_command_reg_result = rank_command_reg.exec(msg.message)) {
     let rank_info = {};
-    const requested_user = rank_command_reg_result[1].trim() || msg.from;
+    const requested_username = rank_command_reg_result[1].trim() || msg.from;
 
-    let user_id;
-    try {
-      user_id = await bancho.whois(requested_user);
-    } catch (err) {
-      await lobby.send(`${msg.from}: Player ${requested_user} not found. Are they online?`);
-      return;
+    let user;
+    if (requested_username === msg.from) {
+      const user_id = await bancho.whois(requested_username);
+
+      user = await ranking_db.get(SQL`
+        SELECT games_played, elo FROM user
+        WHERE user_id = ${user_id}
+      `);
+    } else {
+      user = ranking_db.get(SQL`
+        SELECT games_played, elo, username FROM user
+        WHERE username = ${requested_username}
+      `);
+
+      if (!user) {
+        try {
+          await bancho.whois(requested_username);
+        } catch (err) {
+          await lobby.send(`${msg.from}: Player ${requested_username} not found. Are they online?`);
+          return;
+        }
+      }
     }
 
-    const res = await ranking_db.get(SQL`
-      SELECT games_played, elo FROM user
-      WHERE user_id = ${user_id}
-    `);
-
-    if (!res || res.games_played < 5) {
+    if (!user || user.games_played < 5) {
       rank_info.text = 'Unranked';
     } else {
-      rank_info = await get_rank(res.elo);
+      rank_info = await get_rank(user.elo);
     }
 
     if (rank_info.text == 'Unranked') {
-      if (requested_user === msg.from) {
-        const games_played = res ? res.games_played : 0;
+      if (requested_username === msg.from) {
+        const games_played = user ? user.games_played : 0;
         await lobby.send(`${msg.from}: You are unranked. Play ${5 - games_played} more games to get a rank!`);
       } else {
-        await lobby.send(`${msg.from}: ${requested_user} is unranked.`);
+        await lobby.send(`${msg.from}: ${requested_username} is unranked.`);
       }
     } else {
-      await lobby.send(`[${Config.website_base_url}/u/${user_id}/ ${requested_user}] | Rank: ${rank_info.text} (#${rank_info.rank_nb}) | Elo: ${rank_info.elo} | Games played: ${res.games_played}`);
+      await lobby.send(`[${Config.website_base_url}/u/${user.user_id}/ ${requested_username}] | Rank: ${rank_info.text} (#${rank_info.rank_nb}) | Elo: ${rank_info.elo} | Games played: ${user.games_played}`);
     }
 
     return;
