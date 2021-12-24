@@ -10,10 +10,6 @@ import Config from './util/config.js';
 import {capture_sentry_exception} from './util/helpers.js';
 
 
-const bancho = new BanchoClient();
-let ranks_db = null;
-
-
 // IMPORTANT NOTE:
 //
 //   We do not keep track of IRC usernames, but only of user IDs
@@ -27,6 +23,9 @@ let ranks_db = null;
 //   need to query the osu!api to get the user ID or display username.
 //   See: https://github.com/ppy/osu-api/issues/320
 //
+
+
+let ranks_db = null;
 
 
 // Try to get a player object from a username, and return a placeholder player
@@ -183,8 +182,16 @@ class BanchoClient extends EventEmitter {
             // parts[3]: target username
             // parts[4]: user profile url
             const user_id = parseInt(parts[4].substring(parts[4].lastIndexOf('/') + 1), 10);
-            this._whois_requests[parts[3]](user_id);
+            this._whois_requests[parts[3]].resolve(user_id);
             delete this._whois_requests[parts[3]];
+            continue;
+          }
+
+          if (parts[1] == '401') {
+            const target = parts[3];
+            parts.splice(0, 4);
+            this._whois_requests[target].reject(parts.join(' ').substring(1));
+            delete this._whois_requests[target];
             continue;
           }
 
@@ -328,13 +335,14 @@ class BanchoClient extends EventEmitter {
         return resolve(this._whoare[irc_username]);
       }
 
-      this._whois_requests[irc_username] = resolve;
+      this._whois_requests[irc_username] = {resolve, reject};
       this._send('WHOIS ' + irc_username);
     });
   }
 }
 
 
+const bancho = new BanchoClient();
 class BanchoLobby extends EventEmitter {
   constructor(channel) {
     super();

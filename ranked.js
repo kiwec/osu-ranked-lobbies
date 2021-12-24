@@ -574,9 +574,11 @@ async function on_lobby_msg(lobby, msg) {
     let rank_info = {};
     const requested_user = rank_command_reg_result[1].trim() || msg.from;
 
-    const user_id = await bancho.whois(requested_user);
-    if (!user_id) {
-      await lobby.send(`${msg.from}: Player ${requested_user} doesn't exist.`);
+    let user_id;
+    try {
+      user_id = await bancho.whois(requested_user);
+    } catch (err) {
+      await lobby.send(`${msg.from}: Player ${requested_user} not found. Are they online?`);
       return;
     }
 
