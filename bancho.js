@@ -192,16 +192,22 @@ class BanchoClient extends EventEmitter {
             // parts[3]: target username
             // parts[4]: user profile url
             const user_id = parseInt(parts[4].substring(parts[4].lastIndexOf('/') + 1), 10);
-            this._whois_requests[parts[3]].resolve(user_id);
-            delete this._whois_requests[parts[3]];
+            if (parts[3] in this._whois_requests) {
+              this._whois_requests[parts[3]].resolve(user_id);
+              delete this._whois_requests[parts[3]];
+            }
+
             continue;
           }
 
           if (parts[1] == '401') {
             const target = parts[3];
             parts.splice(0, 4);
-            this._whois_requests[target].reject(parts.join(' ').substring(1));
-            delete this._whois_requests[target];
+            if (target in this._whois_requests) {
+              this._whois_requests[target].reject(parts.join(' ').substring(1));
+              delete this._whois_requests[target];
+            }
+
             continue;
           }
 
