@@ -7,7 +7,6 @@ import SQL from 'sql-template-strings';
 import {Client, Intents, MessageActionRow, MessageButton} from 'discord.js';
 
 import bancho from './bancho.js';
-import BanchoLobby from './lobby.js';
 import {init_lobby} from './ranked.js';
 import {capture_sentry_exception} from './util/helpers.js';
 import Config from './util/config.js';
@@ -140,8 +139,7 @@ async function on_make_ranked_command(user, interaction) {
       return;
     }
 
-    const lobby = await new BanchoLobby('#mp_' + interaction.options.getInteger('lobby-id'));
-    await lobby.join();
+    const lobby = await bancho.join('#mp_' + interaction.options.getInteger('lobby-id'));
     await lobby.send('!mp clearhost');
     await init_lobby(lobby, {
       creator: osu_user.username,

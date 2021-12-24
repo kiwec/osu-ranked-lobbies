@@ -4,7 +4,6 @@ import sqlite3 from 'sqlite3';
 import SQL from 'sql-template-strings';
 
 import bancho from './bancho.js';
-import BanchoLobby from './lobby.js';
 import {init_databases} from './database.js';
 import {init_db as init_ranking_db, apply_rank_decay} from './elo_mmr.js';
 import {init as init_discord_interactions} from './discord_interactions.js';
@@ -24,8 +23,6 @@ async function main() {
   }
 
   await init_databases();
-
-  bancho.joined_lobbies = [];
 
   bancho.on('pm', async (msg) => {
     if (msg.message.indexOf('!') == 0) {
@@ -80,38 +77,6 @@ async function main() {
 }
 
 
-function create_lobby(title) {
-  return new Promise((resolve, reject) => {
-    const room_created_listener = async (msg) => {
-      const room_created_regex = /Created the tournament match https:\/\/osu\.ppy\.sh\/mp\/(\d+) (.+)/;
-      if (msg.from == 'BanchoBot') {
-        if (msg.message == 'You cannot create any more tournament matches. Please close any previous tournament matches you have open.') {
-          bancho.off('pm', room_created_listener);
-          reject(new Error('Cannot create any more matches.'));
-          return;
-        }
-
-        const m = room_created_regex.exec(msg.message);
-        if (m && m[2] == title) {
-          bancho.off('pm', room_created_listener);
-
-          try {
-            const lobby = new BanchoLobby(`#mp_${m[1]}`);
-            await lobby.join();
-            resolve(lobby);
-          } catch (err) {
-            reject(err);
-          }
-        }
-      }
-    };
-
-    bancho.on('pm', room_created_listener);
-    bancho.privmsg('BanchoBot', `!mp make ${title}`);
-  });
-}
-
-
 async function create_lobby_if_needed() {
   const db = await open({
     filename: 'discord.db',
@@ -125,7 +90,7 @@ async function create_lobby_if_needed() {
 
   try {
     if (!lobbies.some((lobby) => lobby.min_stars == 3.0)) {
-      const lobby = await create_lobby(`3-3.99* | o!RL | Auto map select (!about)`);
+      const lobby = await bancho.make(`3-3.99* | o!RL | Auto map select (!about)`);
       await init_lobby(lobby, {
         creator: Config.osu_username,
         creator_discord_id: Config.discord_bot_id,
@@ -138,7 +103,7 @@ async function create_lobby_if_needed() {
       console.log(`Created 3-3.99* lobby ${lobby.channel}.`);
     }
     if (!lobbies.some((lobby) => lobby.min_stars == 4.0)) {
-      const lobby = await create_lobby(`4-4.99* | o!RL | Auto map select (!about)`);
+      const lobby = await bancho.make(`4-4.99* | o!RL | Auto map select (!about)`);
       await init_lobby(lobby, {
         creator: Config.osu_username,
         creator_discord_id: Config.discord_bot_id,
@@ -151,7 +116,7 @@ async function create_lobby_if_needed() {
       console.log(`Created 4-4.99* lobby ${lobby.channel}.`);
     }
     if (!lobbies.some((lobby) => lobby.min_stars == 5.0)) {
-      const lobby = await create_lobby(`5-5.99* | o!RL | Auto map select (!about)`);
+      const lobby = await bancho.make(`5-5.99* | o!RL | Auto map select (!about)`);
       await init_lobby(lobby, {
         creator: Config.osu_username,
         creator_discord_id: Config.discord_bot_id,
@@ -164,7 +129,7 @@ async function create_lobby_if_needed() {
       console.log(`Created 5-5.99* lobby ${lobby.channel}.`);
     }
     if (!lobbies.some((lobby) => lobby.min_stars == 0.0)) {
-      const lobby = await create_lobby(`6-6.99* | o!RL | Auto map select (!about)`);
+      const lobby = await bancho.make(`6-6.99* | o!RL | Auto map select (!about)`);
       await init_lobby(lobby, {
         creator: Config.osu_username,
         creator_discord_id: Config.discord_bot_id,
@@ -178,6 +143,7 @@ async function create_lobby_if_needed() {
     }
   } catch (err) {
     // Don't care about errors here.
+    console.error(err);
   }
 
   console.log('Done creating missing lobbies.');

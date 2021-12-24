@@ -4,7 +4,6 @@ import sqlite3 from 'sqlite3';
 import SQL from 'sql-template-strings';
 
 import bancho from './bancho.js';
-import BanchoLobby from './lobby.js';
 import {init_db as init_ranking_db, update_mmr, get_rank} from './elo_mmr.js';
 import {
   close_ranked_lobby_on_discord,
@@ -613,8 +612,7 @@ async function start_ranked(_map_db) {
     console.info('[Ranked] Rejoining lobby #' + lobby.osu_lobby_id);
 
     try {
-      const bancho_lobby = new BanchoLobby('#mp_' + lobby.osu_lobby_id);
-      await bancho_lobby.join();
+      const bancho_lobby = await bancho.join('#mp_' + lobby.osu_lobby_id);
       await init_lobby(bancho_lobby, {
         creator: lobby.creator,
         creator_discord_id: lobby.creator_discord_id,
