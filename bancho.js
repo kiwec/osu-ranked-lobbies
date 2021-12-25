@@ -442,6 +442,8 @@ class BanchoLobby extends EventEmitter {
           this.emit('matchAborted');
         } else if (message == 'All players are ready') {
           this.emit('allPlayersReady');
+        } else if (message == 'Changed the match password') {
+          this.send('!mp password');
         } else if (m = room_name_regex.exec(message)) {
           this.parsing_settings = true;
           this.name = m[1];
