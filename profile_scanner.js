@@ -54,6 +54,16 @@ async function osu_fetch(url, options) {
   }
 }
 
+async function get_map_data(map_id) {
+  console.info(`[API] Fetching map data for map ID ${map_id}`);
+  const res = await osu_fetch(
+      `https://osu.ppy.sh/api/v2/beatmaps/lookup?id=${map_id}`,
+      {method: 'get'},
+  );
+
+  return await res.json();
+}
+
 // We assume user.user_id is already set.
 async function scan_user_profile(user) {
   if (!maps_db) {
@@ -294,4 +304,4 @@ async function scan_user_profile(user) {
   console.log('[API] Finished recalculating pp for ' + user.username);
 }
 
-export {scan_user_profile};
+export {scan_user_profile, get_map_data};

@@ -8,6 +8,7 @@ import {init_db as init_ranking_db, update_mmr, get_rank} from './elo_mmr.js';
 import {
   close_ranked_lobby_on_discord,
 } from './discord_updates.js';
+import {get_map_data} from './profile_scanner.js';
 
 import {capture_sentry_exception} from './util/helpers.js';
 import Config from './util/config.js';
@@ -106,7 +107,7 @@ async function select_next_map(lobby) {
             + 10*ABS(${lobby.median_ar} - pp.ar)
           ) AS match_accuracy FROM map
           INNER JOIN pp ON map.id = pp.map_id
-          WHERE mods = 65600 AND length > 60 AND ranked IN (4, 5, 7) AND match_accuracy IS NOT NULL
+          WHERE mods = 65600 AND length > 60 AND ranked IN (4, 5, 7) AND match_accuracy IS NOT NULL AND dmca = 0
           ORDER BY match_accuracy LIMIT 1000
         )`,
       );
@@ -120,7 +121,7 @@ async function select_next_map(lobby) {
             + 10*ABS(${lobby.median_ar} - pp.ar)
           ) AS match_accuracy FROM map
           INNER JOIN pp ON map.id = pp.map_id
-          WHERE mods = (1<<16) AND length > 60 AND ranked IN (4, 5, 7) AND match_accuracy IS NOT NULL
+          WHERE mods = (1<<16) AND length > 60 AND ranked IN (4, 5, 7) AND match_accuracy IS NOT NULL AND dmca = 0
           ORDER BY match_accuracy LIMIT 1000
         )`,
       );
@@ -146,6 +147,7 @@ async function select_next_map(lobby) {
             AND length > 60
             AND ranked IN (4, 5, 7)
             AND match_accuracy IS NOT NULL
+            AND dmca = 0
           ORDER BY match_accuracy LIMIT 1000
         ) ORDER BY RANDOM() LIMIT 1`,
       );
@@ -164,6 +166,7 @@ async function select_next_map(lobby) {
             AND length > 60
             AND ranked IN (4, 5, 7)
             AND match_accuracy IS NOT NULL
+            AND dmca = 0
           ORDER BY match_accuracy LIMIT 1000
         ) ORDER BY RANDOM() LIMIT 1`,
       );
@@ -181,6 +184,7 @@ async function select_next_map(lobby) {
   lobby.current_map_pp = new_map.pp;
 
   try {
+    lobby.map_data = null;
     const flavor = `${MAP_TYPES[new_map.ranked]} ${new_map.pp_stars.toFixed(2)}*, ${Math.round(new_map.pp)}pp`;
     const map_name = `[https://osu.ppy.sh/beatmapsets/${new_map.set_id}#osu/${new_map.id} ${new_map.name}]`;
     const beatconnect_link = `[https://beatconnect.io/b/${new_map.set_id} [1]]`;
@@ -620,6 +624,18 @@ async function on_lobby_msg(lobby, msg) {
   }
 
   if (msg.message == '!skip' && !lobby.voteskips.includes(msg.from)) {
+    if (!lobby.map_data) {
+      lobby.map_data = await get_map_data(lobby.beatmap_id);
+      if (lobby.map_data.beatmapset.availability.download_disabled) {
+        clearTimeout(lobby.countdown);
+        lobby.countdown = -1;
+        await lobby.send(`Skipping map because download is unavailable [${lobby.map_data.beatmapset.availability.more_information} (more info)].`);
+        await map_db.run(SQL`UPDATE map SET dmca = 1 WHERE id = ${lobby.beatmap_id}`);
+        await select_next_map(lobby);
+        return;
+      }
+    }
+
     lobby.voteskips.push(msg.from);
     if (lobby.voteskips.length >= lobby.nb_players / 2) {
       clearTimeout(lobby.countdown);

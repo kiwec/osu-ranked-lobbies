@@ -427,6 +427,7 @@ class BanchoLobby extends EventEmitter {
         const score_regex = /(.+) finished playing \(Score: (\d+), (.+)\)\./;
         const ref_add_regex = /Added (.+) to the match referees/;
         const ref_del_regex = /Removed (.+) from the match referees/;
+        const beatmap_change_regex = /Changed beatmap to https:\/\/osu\.ppy\.sh\/b\/(\d+) (.+)/;
 
         if (message == 'The match has started!') {
           this.scores = [];
@@ -449,6 +450,9 @@ class BanchoLobby extends EventEmitter {
           this.name = m[1];
           this.id = parseInt(m[2], 10);
         } else if (m = beatmap_regex.exec(message)) {
+          this.beatmap_id = parseInt(m[1], 10);
+          this.beatmap_name = m[2];
+        } else if (m = beatmap_change_regex.exec(message)) {
           this.beatmap_id = parseInt(m[1], 10);
           this.beatmap_name = m[2];
         } else if (m = mode_regex.exec(message)) {
