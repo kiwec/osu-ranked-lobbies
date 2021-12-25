@@ -254,7 +254,13 @@ async function init_lobby(lobby, settings) {
     await lobby.send(`!mp settings (restarted) ${Math.random().toString(36).substring(2, 6)}`);
   }
 
-  lobby.on('message', (msg) => on_lobby_msg(lobby, msg).catch(capture_sentry_exception));
+  lobby.on('message', (msg) => on_lobby_msg(lobby, msg).catch((err) => {
+    set_sentry_context(lobby, 'on_lobby_msg');
+    Sentry.setUser({
+      username: msg.from,
+    });
+    capture_sentry_exception(err);
+  }));
 
   lobby.on('refereeRemoved', async (username) => {
     if (username != Config.osu_username) return;
@@ -264,8 +270,6 @@ async function init_lobby(lobby, settings) {
   });
 
   lobby.on('settings', async () => {
-    set_sentry_context(lobby, 'settings');
-
     try {
       await update_median_pp(lobby);
 
@@ -275,14 +279,12 @@ async function init_lobby(lobby, settings) {
         settings.created_just_now = false;
       }
     } catch (err) {
+      set_sentry_context(lobby, 'settings');
       capture_sentry_exception(err);
     }
   });
 
   lobby.on('playerJoined', async (player) => {
-    set_sentry_context(lobby, 'playerJoined');
-    Sentry.setUser(player);
-
     try {
       if (player.user_id) {
         await update_median_pp(lobby);
@@ -291,14 +293,13 @@ async function init_lobby(lobby, settings) {
         }
       }
     } catch (err) {
+      set_sentry_context(lobby, 'playerJoined');
+      Sentry.setUser(player);
       capture_sentry_exception(err);
     }
   });
 
   lobby.on('playerLeft', async (player) => {
-    set_sentry_context(lobby, 'playerLeft');
-    Sentry.setUser(player);
-
     try {
       await update_median_pp(lobby);
 
@@ -311,13 +312,13 @@ async function init_lobby(lobby, settings) {
         return;
       }
     } catch (err) {
+      set_sentry_context(lobby, 'playerLeft');
+      Sentry.setUser(player);
       capture_sentry_exception(err);
     }
   });
 
   lobby.on('matchFinished', async (scores) => {
-    set_sentry_context(lobby, 'matchFinished');
-
     try {
       const rank_updates = await update_mmr(lobby);
       await select_next_map(lobby);
@@ -336,26 +337,24 @@ async function init_lobby(lobby, settings) {
         }
       }
     } catch (err) {
+      set_sentry_context(lobby, 'matchFinished');
       capture_sentry_exception(err);
     }
   });
 
   lobby.on('close', async () => {
-    set_sentry_context(lobby, 'channel_part');
-
     try {
       // Lobby closed (intentionally or not), clean up
       bancho.joined_lobbies.splice(bancho.joined_lobbies.indexOf(lobby), 1);
       await close_ranked_lobby_on_discord(lobby);
       console.info(`${lobby.channel} Closed.`);
     } catch (err) {
+      set_sentry_context(lobby, 'channel_part');
       capture_sentry_exception(err);
     }
   });
 
   lobby.on('allPlayersReady', async () => {
-    set_sentry_context(lobby, 'allPlayersReady');
-
     try {
       if (lobby.nb_players < 2) {
         if (lobby.last_ready_msg && lobby.last_ready_msg + 10 > Date.now()) {
@@ -372,19 +371,19 @@ async function init_lobby(lobby, settings) {
 
       await lobby.send(`!mp start ${Math.random().toString(36).substring(2, 6)}`);
     } catch (err) {
+      set_sentry_context(lobby, 'allPlayersReady');
       capture_sentry_exception(err);
     }
   });
 
   lobby.on('matchStarted', async () => {
-    set_sentry_context(lobby, 'matchStarted');
-
     try {
       lobby.voteaborts = [];
       lobby.voteskips = [];
       clearTimeout(lobby.countdown);
       lobby.countdown = -1;
     } catch (err) {
+      set_sentry_context(lobby, 'matchStarted');
       capture_sentry_exception(err);
     }
   });
@@ -393,10 +392,6 @@ async function init_lobby(lobby, settings) {
 }
 
 async function on_lobby_msg(lobby, msg) {
-  set_sentry_context(lobby, 'on_lobby_msg');
-  Sentry.setUser({
-    username: msg.from,
-  });
   console.info(`${lobby.channel} ${msg.from}: ${msg.message}`);
 
   // lobby.creator is the display username of the creator, which is not the

@@ -312,7 +312,7 @@ class BanchoClient extends EventEmitter {
     return new Promise((resolve, reject) => {
       for (const lobby of this._lobbies) {
         if (lobby.channel == channel) {
-          return resolve(lobby);
+          return reject(new Error('Lobby already joined'));
         }
       }
 
@@ -558,7 +558,7 @@ class BanchoLobby extends EventEmitter {
 
   async send(message) {
     if (!this.joined) {
-      await this.join();
+      return;
     }
 
     return await bancho.privmsg(this.channel, message);

@@ -157,8 +157,8 @@ async function on_make_ranked_command(user, interaction) {
     if (err.message.indexOf('No such channel') == 0) {
       await interaction.editReply({content: `Failed to join lobby. Are you sure you ran **!mp addref ${Config.osu_username}**, and that the lobby id is correct?`});
     } else {
-      await interaction.editReply({content: 'Failed to join lobby: ' + err});
       capture_sentry_exception(err);
+      await interaction.editReply({content: 'Failed to join lobby: ' + err});
     }
   }
 }
