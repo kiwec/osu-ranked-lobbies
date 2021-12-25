@@ -13,6 +13,7 @@ async function init_databases() {
     discord_channel_id TEXT,
     discord_msg_id TEXT,
     creator TEXT,
+    creator_osu_id INTEGER,
     creator_discord_id TEXT,
     min_stars REAL,
     max_stars REAL,

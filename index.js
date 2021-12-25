@@ -93,6 +93,7 @@ async function create_lobby_if_needed() {
       const lobby = await bancho.make(`3-3.99* | o!RL | Auto map select (!about)`);
       await init_lobby(lobby, {
         creator: Config.osu_username,
+        creator_osu_id: Config.osu_id,
         creator_discord_id: Config.discord_bot_id,
         created_just_now: true,
         min_stars: 3,
@@ -106,6 +107,7 @@ async function create_lobby_if_needed() {
       const lobby = await bancho.make(`4-4.99* | o!RL | Auto map select (!about)`);
       await init_lobby(lobby, {
         creator: Config.osu_username,
+        creator_osu_id: Config.osu_id,
         creator_discord_id: Config.discord_bot_id,
         created_just_now: true,
         min_stars: 4,
@@ -119,6 +121,7 @@ async function create_lobby_if_needed() {
       const lobby = await bancho.make(`5-5.99* | o!RL | Auto map select (!about)`);
       await init_lobby(lobby, {
         creator: Config.osu_username,
+        creator_osu_id: Config.osu_id,
         creator_discord_id: Config.discord_bot_id,
         created_just_now: true,
         min_stars: 5,
@@ -132,6 +135,7 @@ async function create_lobby_if_needed() {
       const lobby = await bancho.make(`6-6.99* | o!RL | Auto map select (!about)`);
       await init_lobby(lobby, {
         creator: Config.osu_username,
+        creator_osu_id: Config.osu_id,
         creator_discord_id: Config.discord_bot_id,
         created_just_now: true,
         min_stars: 6,

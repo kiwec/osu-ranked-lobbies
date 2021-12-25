@@ -25,6 +25,7 @@ function set_sentry_context(lobby, current_task) {
       median_pp: lobby.median_overall,
       nb_players: lobby.nb_players,
       creator: lobby.creator,
+      creator_osu_id: lobby.osu_id,
       creator_discord_id: lobby.creator_discord_id,
       min_stars: lobby.min_stars,
       max_stars: lobby.max_stars,
@@ -241,6 +242,7 @@ async function init_lobby(lobby, settings) {
   lobby.median_overall = 0;
   lobby.last_ready_msg = 0;
   lobby.creator = settings.creator || Config.osu_username;
+  lobby.creator_osu_id = settings.creator_osu_id || Config.osu_id;
   lobby.creator_discord_id = settings.creator_discord_id || Config.discord_bot_id;
   lobby.min_stars = settings.min_stars || 0.0;
   lobby.max_stars = settings.max_stars || 11.0;
@@ -398,18 +400,6 @@ async function init_lobby(lobby, settings) {
 async function on_lobby_msg(lobby, msg) {
   console.info(`${lobby.channel} ${msg.from}: ${msg.message}`);
 
-  // lobby.creator is the display username of the creator, which is not the
-  // same as the IRC username of the creator. So, with this we get the
-  // display username from the IRC username to check if the user if the
-  // creator of the lobby.
-  // It would be smarter to store the creator's user ID directly. But alas.
-  const is_creator = async (irc_username) => {
-    const user_id = await bancho.whois(irc_username);
-    const user = await ranking_db.get(SQL`SELECT username FROM user WHERE user_id = ${user_id}`);
-    if (!user) return false;
-    return user.username == lobby.creator;
-  };
-
   // NOTE: !start needs to be checked before !star (because we allow multiple spelling for !stars)
   if (msg.message.toLowerCase() == '!start') {
     if (lobby.countdown != -1 || lobby.playing) return;
@@ -455,7 +445,7 @@ async function on_lobby_msg(lobby, msg) {
   }
 
   if (msg.message.indexOf('!dt') == 0) {
-    if (!(await is_creator(msg.from))) {
+    if (lobby.creator_osu_id != await bancho.whois(msg.from)) {
       await lobby.send(msg.from + ': You need to be the lobby creator to use this command.');
       return;
     }
@@ -468,7 +458,7 @@ async function on_lobby_msg(lobby, msg) {
   }
 
   if (msg.message.indexOf('!scorev') == 0) {
-    if (!(await is_creator(msg.from))) {
+    if (lobby.creator_osu_id != await bancho.whois(msg.from)) {
       await lobby.send(msg.from + ': You need to be the lobby creator to use this command.');
       return;
     }
@@ -480,7 +470,7 @@ async function on_lobby_msg(lobby, msg) {
   }
 
   if (msg.message.indexOf('!star') == 0 || msg.message.indexOf('!setstar') == 0) {
-    if (!(await is_creator(msg.from))) {
+    if (lobby.creator_osu_id != await bancho.whois(msg.from)) {
       await lobby.send(msg.from + ': You need to be the lobby creator to use this command.');
       return;
     }
@@ -660,6 +650,7 @@ async function start_ranked(_map_db) {
       const bancho_lobby = await bancho.join('#mp_' + lobby.osu_lobby_id);
       await init_lobby(bancho_lobby, {
         creator: lobby.creator,
+        creator: lobby.creator_osu_id,
         creator_discord_id: lobby.creator_discord_id,
         created_just_now: false,
         min_stars: lobby.min_stars,

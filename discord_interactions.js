@@ -143,6 +143,7 @@ async function on_make_ranked_command(user, interaction) {
     await lobby.send('!mp clearhost');
     await init_lobby(lobby, {
       creator: osu_user.username,
+      creator_osu_id: osu_user.user_id,
       creator_discord_id: user.discord_id,
       created_just_now: true,
       min_stars: min_stars,

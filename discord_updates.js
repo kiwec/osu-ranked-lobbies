@@ -85,11 +85,11 @@ async function update_ranked_lobby_on_discord(lobby) {
 
     await db.run(SQL`
       INSERT INTO ranked_lobby (
-        osu_lobby_id, creator, creator_discord_id,
+        osu_lobby_id, creator, creator_osu_id, creator_discord_id,
         min_stars, max_stars, dt, scorev2
       )
       VALUES (
-        ${lobby.id}, ${lobby.creator}, ${lobby.creator_discord_id},
+        ${lobby.id}, ${lobby.creator}, ${lobby.creator_osu_id}, ${lobby.creator_discord_id},
         ${min_stars}, ${max_stars}, ${lobby.is_dt ? 1 : 0}, ${lobby.is_scorev2 ? 1 : 0}
       )`,
     );
@@ -140,7 +140,7 @@ async function update_ranked_lobby_on_discord(lobby) {
             },
             {
               name: 'Creator',
-              value: `<@!${lobby.creator_discord_id}>`,
+              value: `[${lobby.creator}](${Config.website_base_url}/u/${lobby.creator_osu_id})`,
               inline: true,
             },
           ],

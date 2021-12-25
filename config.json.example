@@ -2,6 +2,7 @@
     "CONNECT_TO_BANCHO": true,
     "CREATE_LOBBIES": false,
     "APPLY_RANK_DECAY": false,
+    "osu_id": "your osu! id here",
     "osu_username": "your osu! username here",
     "osu_irc_password": "get it here: https://osu.ppy.sh/p/irc",
     "osu_v1api_key": "get it here: https://osu.ppy.sh/p/api",
