@@ -76,7 +76,8 @@ async function init_databases() {
     logistic_mu REAL,
     logistic_sig REAL,
     mods INTEGER,
-    tms INTEGER
+    tms INTEGER,
+    ignored INTEGER NOT NULL DEFAULT 0
   )`);
 }
 

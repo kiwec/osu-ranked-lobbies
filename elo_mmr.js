@@ -133,9 +133,11 @@ class Contest {
       standing.player.normal_factor = new Rating(standing.player.normal_mu, standing.player.normal_sig);
       standing.player.logistic_factors = [];
 
+      // NOTE: Re-fetching this at every MMR change is intentional.
+      // Try to remember why with this: https://github.com/kiwec/osu-ranked-lobbies/issues/22
       const scores = await db.all(SQL`
         SELECT logistic_mu, logistic_sig FROM score
-        WHERE user_id = ${standing.player.user_id}
+        WHERE user_id = ${standing.player.user_id} AND ignored = 0
         ORDER BY tms DESC LIMIT ${MAX_LOGISTIC_FACTORS}`,
       );
       for (const score of scores) {
@@ -323,77 +325,151 @@ async function update_mmr(lobby) {
   }
 
   // The computational bottleneck: update ratings based on contest performance
-  for (const standing of contest.standings) {
-    const player = standing.player;
+  const update_ratings = () => {
+    for (const standing of contest.standings) {
+      const player = standing.player;
+      if (player.old_approx_posterior) {
+        // Reset old values
+        player.approx_posterior = new Rating(player.old_approx_posterior.mu, player.old_approx_posterior.sig);
+        player.normal_factor = new Rating(player.old_normal_factor.mu, player.old_normal_factor.sig);
+        player.logistic_factors = JSON.parse(JSON.stringify(player.old_logistic_factors));
+      } else {
+        // Save current values
+        player.old_approx_posterior = new Rating(player.approx_posterior.mu, player.approx_posterior.sig);
+        player.old_normal_factor = new Rating(player.normal_factor.mu, player.normal_factor.sig);
+        player.old_logistic_factors = JSON.parse(JSON.stringify(player.logistic_factors));
+      }
 
-    const mu_perf = solve_newton((x) => {
-      let sum = 0.0;
-      let sum_prime = 0.0;
-      for (let i = 0; i < tanh_terms.length; i++) {
-        const [val, val_prime] = tanh_terms[i].base_values(x);
-        if (i < standing.lo) {
-          sum += val - tanh_terms[i].w_out;
-          sum_prime += val_prime;
-        } else if (i <= standing.hi) {
-          sum += 2.0 * val;
-          sum_prime += 2.0 * val_prime;
-        } else {
-          sum += val + tanh_terms[i].w_out;
-          sum_prime += val_prime;
+      const mu_perf = solve_newton((x) => {
+        let sum = 0.0;
+        let sum_prime = 0.0;
+        for (let i = 0; i < tanh_terms.length; i++) {
+          const [val, val_prime] = tanh_terms[i].base_values(x);
+          if (i < standing.lo) {
+            sum += val - tanh_terms[i].w_out;
+            sum_prime += val_prime;
+          } else if (i <= standing.hi) {
+            sum += 2.0 * val;
+            sum_prime += 2.0 * val_prime;
+          } else {
+            sum += val + tanh_terms[i].w_out;
+            sum_prime += val_prime;
+          }
         }
+
+        return [sum, sum_prime];
+      });
+
+      player.performance = new Rating(mu_perf, sig_perf);
+
+      if (player.logistic_factors.length >= MAX_LOGISTIC_FACTORS) {
+        // wl can be chosen so as to preserve total weight or rating; we choose the former.
+        // Either way, the deleted element should be small enough not to matter.
+        const logistic = player.logistic_factors.shift();
+        const wn = Math.pow(player.normal_factor.sig, -2);
+        const wl = logistic.get_weight();
+        player.normal_factor.mu = (wn * player.normal_factor.mu + wl * logistic.mu) / (wn + wl);
+        player.normal_factor.sig = Math.sqrt(1.0 / (wn + wl));
       }
+      player.logistic_factors.push(new TanhTerm(player.performance));
 
-      return [sum, sum_prime];
-    });
-
-    const performance = new Rating(mu_perf, sig_perf);
-
-    if (player.logistic_factors.length >= MAX_LOGISTIC_FACTORS) {
-      // wl can be chosen so as to preserve total weight or rating; we choose the former.
-      // Either way, the deleted element should be small enough not to matter.
-      const logistic = player.logistic_factors.shift();
-      const wn = Math.pow(player.normal_factor.sig, -2);
-      const wl = logistic.get_weight();
-      player.normal_factor.mu = (wn * player.normal_factor.mu + wl * logistic.mu) / (wn + wl);
-      player.normal_factor.sig = Math.sqrt(1.0 / (wn + wl));
+      const normal_weight = Math.pow(player.normal_factor.sig, -2);
+      const mu = solve_newton((x) => {
+        let sum = -player.normal_factor.mu * normal_weight + normal_weight * x;
+        let sum_prime = normal_weight;
+        for (const term of player.logistic_factors) {
+          const tanh_z = Math.tanh((x - term.mu) * term.w_arg);
+          sum += tanh_z * term.w_out;
+          sum_prime += (1. - tanh_z * tanh_z) * term.w_arg * term.w_out;
+        }
+        return [sum, sum_prime];
+      });
+      const sig = Math.sqrt(1.0 / (Math.pow(player.approx_posterior.sig, -2) + Math.pow(player.performance.sig, -2)));
+      player.approx_posterior = new Rating(mu, sig);
     }
-    player.logistic_factors.push(new TanhTerm(performance));
+  };
 
-    const normal_weight = Math.pow(player.normal_factor.sig, -2);
-    const mu = solve_newton((x) => {
-      let sum = -player.normal_factor.mu * normal_weight + normal_weight * x;
-      let sum_prime = normal_weight;
-      for (const term of player.logistic_factors) {
-        const tanh_z = Math.tanh((x - term.mu) * term.w_arg);
-        sum += tanh_z * term.w_out;
-        sum_prime += (1. - tanh_z * tanh_z) * term.w_arg * term.w_out;
-      }
-      return [sum, sum_prime];
-    });
-    const sig = Math.sqrt(1.0 / (Math.pow(player.approx_posterior.sig, -2) + Math.pow(performance.sig, -2)));
-    player.approx_posterior = new Rating(mu, sig);
+  while (contest.standings.length > 1) {
+    update_ratings();
 
+    const best_player = contest.standings[0];
+    if (best_player.old_approx_posterior.mu > best_player.approx_posterior.mu) {
+      // Add "ignored" score to the database for website display
+      await db.run(SQL`
+        INSERT INTO score (
+          user_id, contest_id, score, mods,
+          logistic_mu, logistic_sig, tms, ignored
+        )
+        VALUES (
+          ${player.user_id}, ${contest.id}, ${standing.score}, ${standing.mods},
+          ${player.performance.mu}, ${player.performance.sig}, ${contest.tms}, 1
+        )`,
+      );
+      await db.run(SQL`
+        UPDATE user
+        SET
+          games_played = (SELECT COUNT(*) FROM score WHERE user_id = ${player.user_id}),
+          last_contest_tms = ${contest.tms}
+        WHERE user_id = ${player.user_id}`,
+      );
+      player.games_played++;
+
+      // Remove player from standings and recomute lo/hi
+      contest.standings.shift();
+      let last_score = -1;
+      let last_tie = 0;
+      contest.standings.forEach((elm, i) => {
+        if (elm.score == last_score) {
+          // Tie: set `lo` to `last_tie`
+          elm.lo = last_tie;
+          elm.hi = i;
+
+          // Update `hi` of tied players
+          const ties = contest.standings.filter((s) => s.lo == last_tie);
+          for (const tie of ties) {
+            tie.hi = i;
+          }
+        } else {
+          // No tie
+          elm.lo = i;
+          elm.hi = i;
+          last_tie = i;
+        }
+
+        last_score = elm.score;
+      });
+    } else {
+      break;
+    }
+  }
+
+  // Edge case: if too many players rank first and still lose elo, there can
+  // be a situation where not enough players are in the contest for it to
+  // matter.
+  if (contest.standings.length < 2) return [];
+
+  for (const standing of contest.standings) {
     await db.run(SQL`
       INSERT INTO score (
         user_id, contest_id, score, mods,
-        logistic_mu, logistic_sig, tms
+        logistic_mu, logistic_sig, tms, ignored
       )
       VALUES (
-        ${player.user_id}, ${contest.id}, ${standing.score}, ${standing.mods},
-        ${performance.mu}, ${performance.sig}, ${contest.tms}
+        ${standing.player.user_id}, ${contest.id}, ${standing.score}, ${standing.mods},
+        ${standing.player.performance.mu}, ${standing.player.performance.sig}, ${contest.tms}, 0
       )`,
     );
     await db.run(SQL`
       UPDATE user
       SET
-        elo = ${player.approx_posterior.toFloat()}, approx_mu = ${mu}, approx_sig = ${sig},
-        normal_mu = ${player.normal_factor.mu}, normal_sig = ${player.normal_factor.sig},
-        games_played = (SELECT COUNT(*) FROM score WHERE user_id = ${player.user_id}),
+        elo = ${standing.player.approx_posterior.toFloat()}, approx_mu = ${mu}, approx_sig = ${sig},
+        normal_mu = ${standing.player.normal_factor.mu}, normal_sig = ${standing.player.normal_factor.sig},
+        games_played = (SELECT COUNT(*) FROM score WHERE user_id = ${standing.player.user_id}),
         last_contest_tms = ${contest.tms}
-      WHERE user_id = ${player.user_id}`,
+      WHERE user_id = ${standing.player.user_id}`,
     );
 
-    player.games_played++;
+    standing.player.games_played++;
   }
 
   const division_to_index = (text) => {
