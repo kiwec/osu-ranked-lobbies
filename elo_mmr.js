@@ -69,6 +69,10 @@ class Contest {
     this.win_condition = lobby.win_condition;
     this.mods = lobby.is_dt ? 64 : 0;
 
+    // Reduce database calls when recomputing all ranks in simulated lobbies.
+    // (mostly related to in-lobby rank change display)
+    this.fast_recompute = (typeof lobby.mock_tms !== 'undefined');
+
     // `standings` is an array of objects of the following type:
     // {
     //   player: <Player object>,
@@ -129,24 +133,27 @@ class Contest {
     this.id = res.lastID;
 
     for (const standing of this.standings) {
-      standing.player.approx_posterior = new Rating(standing.player.approx_mu, standing.player.approx_sig);
-      standing.player.normal_factor = new Rating(standing.player.normal_mu, standing.player.normal_sig);
-      standing.player.logistic_factors = [];
+      // Initialize player data, if not already done
+      if (typeof standing.player.logistic_factors === 'undefined') {
+        standing.player.approx_posterior = new Rating(standing.player.approx_mu, standing.player.approx_sig);
+        standing.player.normal_factor = new Rating(standing.player.normal_mu, standing.player.normal_sig);
+        standing.player.logistic_factors = [];
 
-      // NOTE: Re-fetching this at every MMR change is intentional.
-      // Try to remember why with this: https://github.com/kiwec/osu-ranked-lobbies/issues/22
-      const scores = await db.all(SQL`
-        SELECT logistic_mu, logistic_sig FROM score
-        WHERE user_id = ${standing.player.user_id} AND ignored = 0
-        ORDER BY tms DESC LIMIT ${MAX_LOGISTIC_FACTORS}`,
-      );
-      for (const score of scores) {
-        standing.player.logistic_factors.push(new TanhTerm(new Rating(score.logistic_mu, score.logistic_sig)));
+        const scores = await db.all(SQL`
+          SELECT logistic_mu, logistic_sig FROM score
+          WHERE user_id = ${standing.player.user_id} AND ignored = 0
+          ORDER BY tms DESC LIMIT ${MAX_LOGISTIC_FACTORS}`,
+        );
+        for (const score of scores) {
+          standing.player.logistic_factors.push(new TanhTerm(new Rating(score.logistic_mu, score.logistic_sig)));
+        }
+
+        if (!this.fast_recompute) {
+        // Not used for computing new rank - but for knowing when the display text changed
+          const rank = await get_rank(standing.player.approx_posterior.toFloat());
+          standing.player.rank_float = rank.ratio;
+        }
       }
-
-      // Not used for computing new rank - but for knowing when the display text changed
-      const rank = await get_rank(standing.player.approx_posterior.toFloat());
-      standing.player.rank_float = rank.ratio;
     }
   }
 }
@@ -328,7 +335,7 @@ async function update_mmr(lobby) {
   const update_ratings = () => {
     for (const standing of contest.standings) {
       const player = standing.player;
-      if (player.old_approx_posterior) {
+      if (typeof player.old_approx_posterior !== 'undefined') {
         // Reset old values
         player.approx_posterior = new Rating(player.old_approx_posterior.mu, player.old_approx_posterior.sig);
         player.normal_factor = new Rating(player.old_normal_factor.mu, player.old_normal_factor.sig);
@@ -389,55 +396,63 @@ async function update_mmr(lobby) {
     }
   };
 
+  const ignore_standing = async (standing) => {
+    standing.player.approx_posterior = new Rating(standing.player.old_approx_posterior.mu, standing.player.old_approx_posterior.sig);
+    standing.player.normal_factor = new Rating(standing.player.old_normal_factor.mu, standing.player.old_normal_factor.sig);
+    standing.player.logistic_factors = JSON.parse(JSON.stringify(standing.player.old_logistic_factors));
+
+    // Add "ignored" score to the database for website display
+    await db.run(SQL`
+      INSERT INTO score (
+        user_id, contest_id, score, mods,
+        logistic_mu, logistic_sig, tms, ignored
+      )
+      VALUES (
+        ${standing.player.user_id}, ${contest.id}, ${standing.score}, ${standing.mods},
+        ${standing.player.performance.mu}, ${standing.player.performance.sig}, ${contest.tms}, 1
+      )`,
+    );
+    await db.run(SQL`
+      UPDATE user
+      SET
+        games_played = (SELECT COUNT(*) FROM score WHERE user_id = ${standing.player.user_id}),
+        last_contest_tms = ${contest.tms}
+      WHERE user_id = ${standing.player.user_id}`,
+    );
+    standing.player.games_played++;
+
+    // Remove player from standings and recomute lo/hi
+    contest.standings.shift();
+    let last_score = -1;
+    let last_tie = 0;
+    contest.standings.forEach((elm, i) => {
+      if (elm.score == last_score) {
+        // Tie: set `lo` to `last_tie`
+        elm.lo = last_tie;
+        elm.hi = i;
+
+        // Update `hi` of tied players
+        const ties = contest.standings.filter((s) => s.lo == last_tie);
+        for (const tie of ties) {
+          tie.hi = i;
+        }
+      } else {
+        // No tie
+        elm.lo = i;
+        elm.hi = i;
+        last_tie = i;
+      }
+
+      last_score = elm.score;
+    });
+  };
+
   while (contest.standings.length > 1) {
     update_ratings();
 
-    const best_player = contest.standings[0];
-    if (best_player.old_approx_posterior.mu > best_player.approx_posterior.mu) {
-      // Add "ignored" score to the database for website display
-      await db.run(SQL`
-        INSERT INTO score (
-          user_id, contest_id, score, mods,
-          logistic_mu, logistic_sig, tms, ignored
-        )
-        VALUES (
-          ${player.user_id}, ${contest.id}, ${standing.score}, ${standing.mods},
-          ${player.performance.mu}, ${player.performance.sig}, ${contest.tms}, 1
-        )`,
-      );
-      await db.run(SQL`
-        UPDATE user
-        SET
-          games_played = (SELECT COUNT(*) FROM score WHERE user_id = ${player.user_id}),
-          last_contest_tms = ${contest.tms}
-        WHERE user_id = ${player.user_id}`,
-      );
-      player.games_played++;
-
-      // Remove player from standings and recomute lo/hi
-      contest.standings.shift();
-      let last_score = -1;
-      let last_tie = 0;
-      contest.standings.forEach((elm, i) => {
-        if (elm.score == last_score) {
-          // Tie: set `lo` to `last_tie`
-          elm.lo = last_tie;
-          elm.hi = i;
-
-          // Update `hi` of tied players
-          const ties = contest.standings.filter((s) => s.lo == last_tie);
-          for (const tie of ties) {
-            tie.hi = i;
-          }
-        } else {
-          // No tie
-          elm.lo = i;
-          elm.hi = i;
-          last_tie = i;
-        }
-
-        last_score = elm.score;
-      });
+    const best_standing = contest.standings[0];
+    if (best_standing.player.old_approx_posterior.mu > best_standing.player.approx_posterior.mu) {
+      await ignore_standing(best_standing);
     } else {
       break;
     }
@@ -446,7 +461,13 @@ async function update_mmr(lobby) {
   // Edge case: if too many players rank first and still lose elo, there can
   // be a situation where not enough players are in the contest for it to
   // matter.
-  if (contest.standings.length < 2) return [];
+  if (contest.standings.length < 2) {
+    if (contest.standings.length == 1) {
+      await ignore_standing(contest.standings[0]);
+    }
+
+    return [];
+  }
 
   for (const standing of contest.standings) {
     await db.run(SQL`
@@ -462,8 +483,11 @@ async function update_mmr(lobby) {
     await db.run(SQL`
       UPDATE user
       SET
-        elo = ${standing.player.approx_posterior.toFloat()}, approx_mu = ${mu}, approx_sig = ${sig},
-        normal_mu = ${standing.player.normal_factor.mu}, normal_sig = ${standing.player.normal_factor.sig},
+        elo = ${standing.player.approx_posterior.toFloat()},
+        approx_mu = ${standing.player.approx_posterior.mu},
+        approx_sig = ${standing.player.approx_posterior.sig},
+        normal_mu = ${standing.player.normal_factor.mu},
+        normal_sig = ${standing.player.normal_factor.sig},
         games_played = (SELECT COUNT(*) FROM score WHERE user_id = ${standing.player.user_id}),
         last_contest_tms = ${contest.tms}
       WHERE user_id = ${standing.player.user_id}`,
@@ -471,6 +495,8 @@ async function update_mmr(lobby) {
 
     standing.player.games_played++;
   }
+
+  if (contest.fast_recompute) return [];
 
   const division_to_index = (text) => {
     if (text == 'Unranked') {
