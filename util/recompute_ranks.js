@@ -88,7 +88,7 @@ async function recompute_ranks() {
       SELECT score.user_id, score.score, score.mods, user.username
       FROM score
       INNER JOIN user ON user.user_id = score.user_id
-      WHERE score.contest_id = ${contest.rowid}`,
+      WHERE score.contest_id = ${contest.rowid} AND score > 0`,
     );
 
     const lobby = {

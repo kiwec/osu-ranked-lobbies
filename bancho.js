@@ -486,7 +486,7 @@ class BanchoLobby extends EventEmitter {
 
           // Ready/Not Ready/No Map
           player.state = m[2];
-          if (player.state != 'No Map') {
+          if (this.playing && player.state != 'No Map') {
             this.match_participants[display_username] = player;
           }
 
@@ -516,8 +516,7 @@ class BanchoLobby extends EventEmitter {
           let player = this.players[display_username];
           if (typeof player !== 'undefined') {
             // Dodgers get 0 score
-            if (this.playing && player.user_id && player.state != 'No Map') {
-              this.match_participants[display_username] = player;
+            if (display_username in match_participants) {
               this.scores[display_username] = 0;
               this.emit('score', {
                 username: display_username,
