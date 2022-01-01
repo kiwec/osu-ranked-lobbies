@@ -10,6 +10,7 @@
 
 import {open} from 'sqlite';
 import sqlite3 from 'sqlite3';
+import ProgressBar from 'progress';
 import SQL from 'sql-template-strings';
 
 import {init_databases} from '../database.js';
@@ -50,8 +51,13 @@ async function recompute_ranks() {
     }
   });
 
-  console.info('Importing players...');
   const players = await old_db.all(SQL`SELECT * FROM user`);
+  let bar = new ProgressBar('importing players [:bar] :rate/s | :etas remaining', {
+    complete: '=',
+    incomplete: ' ',
+    width: 20,
+    total: players.length,
+  });
   for (const player of players) {
     const rows = await new_db.run(SQL`
       UPDATE user SET
@@ -79,10 +85,17 @@ async function recompute_ranks() {
         WHERE NOT EXISTS (SELECT 1 FROM user WHERE user_id = ${player.user_id})`,
       );
     }
+
+    bar.tick(1);
   }
 
   // Recompute all scores
-  let computed = 0;
+  bar = new ProgressBar('recomputing scores [:bar] :rate/s | :etas remaining', {
+    complete: '=',
+    incomplete: ' ',
+    width: 20,
+    total: contests.length,
+  });
   for (const contest of contests) {
     const scores = await old_db.all(SQL`
       SELECT score.user_id, score.score, score.mods, user.username
@@ -121,6 +134,6 @@ async function recompute_ranks() {
     // Recompute MMR using fake lobby object
     await update_mmr(lobby);
 
-    console.log(`Recomputed ${computed++}/${contests.length} contests.`);
+    bar.tick(1);
   }
 }
