@@ -292,6 +292,7 @@ class BanchoClient extends EventEmitter {
 
             for (const lobby of this._lobbies) {
               if (lobby.id == m[1]) {
+                console.log(`Created lobby "${lobby_title}".`);
                 return resolve(lobby);
               }
             }
