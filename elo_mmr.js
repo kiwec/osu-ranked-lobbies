@@ -166,7 +166,7 @@ class Rating {
   }
 
   with_noise(sig_noise) {
-    return new Rating(this.mu, Math.hypot(this.sig, sig_noise));
+    return new Rating(this.mu, Math.min(350.0, Math.hypot(this.sig, sig_noise)));
   }
 
   toFloat() {
