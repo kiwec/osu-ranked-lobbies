@@ -517,7 +517,7 @@ class BanchoLobby extends EventEmitter {
           let player = this.players[display_username];
           if (typeof player !== 'undefined') {
             // Dodgers get 0 score
-            if (display_username in match_participants) {
+            if (display_username in this.match_participants) {
               this.scores[display_username] = 0;
               this.emit('score', {
                 username: display_username,
