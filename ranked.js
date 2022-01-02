@@ -375,7 +375,7 @@ async function init_lobby(lobby, settings) {
         return;
       }
 
-      await lobby.send(`!mp start ${Math.random().toString(36).substring(2, 6)}`);
+      await lobby.send(`!mp start .${Math.random().toString(36).substring(2, 6)}`);
     } catch (err) {
       set_sentry_context(lobby, 'allPlayersReady');
       capture_sentry_exception(err);
@@ -405,7 +405,7 @@ async function on_lobby_msg(lobby, msg) {
     if (lobby.countdown != -1 || lobby.playing) return;
 
     if (lobby.nb_players < 2) {
-      await lobby.send(`!mp start ${Math.random().toString(36).substring(2, 6)}`);
+      await lobby.send(`!mp start .${Math.random().toString(36).substring(2, 6)}`);
       return;
     }
 
@@ -418,7 +418,7 @@ async function on_lobby_msg(lobby, msg) {
       lobby.countdown = setTimeout(async () => {
         lobby.countdown = -1;
         if (!lobby.playing) {
-          await lobby.send(`!mp start ${Math.random().toString(36).substring(2, 6)}`);
+          await lobby.send(`!mp start .${Math.random().toString(36).substring(2, 6)}`);
         }
       }, 10000);
       await lobby.send('Starting the match in 10 seconds... Ready up to start sooner.');
