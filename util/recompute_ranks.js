@@ -14,25 +14,31 @@ import ProgressBar from 'progress';
 import SQL from 'sql-template-strings';
 
 import {init_databases} from '../database.js';
-import {init_db, update_mmr} from '../elo_mmr.js';
+import {init_db, update_mmr, Rating} from '../elo_mmr.js';
 
 recompute_ranks();
 
 async function recompute_ranks() {
+  const usernames = [];
   const player_cache = [];
 
-  await init_databases();
-  const new_db = await init_db();
+  const databases = await init_databases(true);
   let latest_recomputed_tms = -1;
-  const res = await new_db.get(SQL`SELECT MAX(tms) AS max_tms FROM contest`);
+  const res = await databases.ranks.get(SQL`SELECT MAX(tms) AS max_tms FROM contest`);
   if (res && res.max_tms) {
     latest_recomputed_tms = res.max_tms;
   }
 
   const old_db = await open({
-    filename: '../osubot/ranks.db',
+    filename: 'ranks.db',
     driver: sqlite3.cached.Database,
   });
+
+  await old_db.run('PRAGMA TEMP_STORE=MEMORY');
+  await old_db.run('PRAGMA JOURNAL_MODE=OFF');
+  await old_db.run('PRAGMA SYNCHRONOUS=OFF');
+  await old_db.run('PRAGMA LOCKING_MODE=EXCLUSIVE');
+
   let contests = await old_db.all(SQL`
     SELECT rowid, lobby_id, map_id, tms, scoring_system, lobby_creator, mods
     FROM contest
@@ -41,15 +47,16 @@ async function recompute_ranks() {
   );
   let prev = null;
   contests = contests.filter((contest) => {
-    const niou = contest.map_id + ':' + contest.tms;
-    if (prev == niou) {
-      console.log('ignoring contest', contest.rowid, '(duplicate)');
+    if (prev == contest.map_id) {
       return false;
     } else {
-      prev = niou;
+      prev = contest.map_id;
       return true;
     }
   });
+  const all_scores = await old_db.all(SQL`
+    SELECT score.user_id, score.score, score.mods FROM score WHERE score > 0`,
+  );
 
   const players = await old_db.all(SQL`SELECT * FROM user`);
   let bar = new ProgressBar('importing players [:bar] :rate/s | :etas remaining', {
@@ -59,7 +66,9 @@ async function recompute_ranks() {
     total: players.length,
   });
   for (const player of players) {
-    const rows = await new_db.run(SQL`
+    usernames[player.user_id] = player.username;
+
+    const rows = await databases.ranks.run(SQL`
       UPDATE user SET
         rank_text = ${player.rank_text},
         aim_pp = ${player.aim_pp}, acc_pp = ${player.acc_pp}, speed_pp = ${player.speed_pp},
@@ -68,7 +77,7 @@ async function recompute_ranks() {
       WHERE user_id = ${player.user_id}`,
     );
     if (rows.changes == 0) {
-      await new_db.run(SQL`
+      await databases.ranks.run(SQL`
         INSERT INTO user (
           user_id, username, approx_mu, approx_sig, normal_mu, normal_sig, games_played,
           aim_pp, acc_pp, speed_pp,
@@ -98,9 +107,7 @@ async function recompute_ranks() {
   });
   for (const contest of contests) {
     const scores = await old_db.all(SQL`
-      SELECT score.user_id, score.score, score.mods, user.username
-      FROM score
-      INNER JOIN user ON user.user_id = score.user_id
+      SELECT score.user_id, score.score, score.mods FROM score
       WHERE score.contest_id = ${contest.rowid} AND score > 0`,
     );
 
@@ -116,11 +123,17 @@ async function recompute_ranks() {
     };
 
     for (const score of scores) {
+      score.username = usernames[score.user_id];
+
       if (!(score.username in player_cache)) {
         player_cache[score.username] = {
           id: score.user_id,
           user_id: score.user_id,
           username: score.username,
+          approx_posterior: new Rating(1500, 350),
+          normal_factor: new Rating(1500, 350),
+          logistic_factors: [],
+          elo: 690, // new Rating(1500, 350).toFloat(), hardcoded
           approx_mu: 1500, approx_sig: 350,
           normal_mu: 1500, normal_sig: 350,
           games_played: 0, rank_text: 'Unranked',

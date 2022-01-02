@@ -52,6 +52,7 @@ async function try_get_player(display_username) {
     // their id; leave them uninitialized for now.
     player = {
       username: display_username,
+      elo: 690, // new Rating(1500, 350).toFloat(), hardcoded
       approx_mu: 1500, approx_sig: 350,
       normal_mu: 1500, normal_sig: 350,
       aim_pp: 10.0, acc_pp: 1.0, speed_pp: 1.0, overall_pp: 1.0,

@@ -178,25 +178,19 @@ async function listen() {
     const scores = await ranks_db.all(SQL`
       SELECT * FROM score
       WHERE user_id = ${user.user_id}
-      ORDER BY tms DESC LIMIT ${MATCHES_PER_PAGE + 1} OFFSET ${offset}`,
+      ORDER BY tms DESC LIMIT ${MATCHES_PER_PAGE} OFFSET ${offset}`,
     );
 
-    let last_elo = scores[scores.length - 1].logistic_mu;
-    if (scores.length == MATCHES_PER_PAGE + 1) {
-      // We only used that score for setting last_elo.
-      scores.pop();
-    }
-
-    for (let i = scores.length - 1; i >= 0; i--) {
-      const elo_change = Math.round(scores[i].logistic_mu - last_elo);
+    for (const score of scores) {
+      const elo_change = Math.round(score.difference);
 
       let placement = 0;
       const contest = await ranks_db.get(SQL`
-        SELECT * FROM contest WHERE rowid = ${scores[i].contest_id}`,
+        SELECT * FROM contest WHERE rowid = ${score.contest_id}`,
       );
       const contest_scores = await ranks_db.all(SQL`
         SELECT user_id FROM score
-        WHERE contest_id = ${scores[i].contest_id}
+        WHERE contest_id = ${score.contest_id}
         ORDER BY score DESC`,
       );
       for (const contest_score of contest_scores) {
@@ -213,14 +207,10 @@ async function listen() {
         elo_change: elo_change,
         positive: elo_change > 0,
         negative: elo_change < 0,
-        time: dayjs(scores[i].tms).fromNow(),
-        tms: Math.round(scores[i].tms / 1000),
+        time: dayjs(score.tms).fromNow(),
+        tms: Math.round(score.tms / 1000),
       });
-
-      last_elo = scores[i].logistic_mu;
     }
-
-    data.matches.reverse();
 
     data.title = `${data.username}  - Userpage - o!RL`;
     data.meta = `

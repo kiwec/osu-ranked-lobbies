@@ -6,6 +6,7 @@ import {open} from 'sqlite';
 import sqlite3 from 'sqlite3';
 import SQL from 'sql-template-strings';
 
+import {init_databases} from './database.js';
 import {update_discord_role} from './discord_updates.js';
 import Config from './util/config.js';
 
@@ -135,6 +136,10 @@ class Contest {
     for (const standing of this.standings) {
       // Initialize player data, if not already done
       if (typeof standing.player.logistic_factors === 'undefined') {
+        if (this.fast_recompute) {
+          throw new Error('Player data should already be set for ' + standing.player.username);
+        }
+
         standing.player.approx_posterior = new Rating(standing.player.approx_mu, standing.player.approx_sig);
         standing.player.normal_factor = new Rating(standing.player.normal_mu, standing.player.normal_sig);
         standing.player.logistic_factors = [];
@@ -148,11 +153,9 @@ class Contest {
           standing.player.logistic_factors.push(new TanhTerm(new Rating(score.logistic_mu, score.logistic_sig)));
         }
 
-        if (!this.fast_recompute) {
         // Not used for computing new rank - but for knowing when the display text changed
-          const rank = await get_rank(standing.player.approx_posterior.toFloat());
-          standing.player.rank_float = rank.ratio;
-        }
+        const rank = await get_rank(standing.player.approx_posterior.toFloat());
+        standing.player.rank_float = rank.ratio;
       }
     }
   }
@@ -306,8 +309,11 @@ async function update_mmr(lobby) {
   // Update ratings due to waiting period between contests, then use it to
   // create Gaussian terms for the Q-function. The rank must also be stored
   // in order to determine if it's a win, loss, or tie term.
-  const tanh_terms = [];
   for (const standing of contest.standings) {
+    // Save old values, in case the standing gets cancelled later
+    standing.player.old_approx_posterior = new Rating(standing.player.approx_posterior.mu, standing.player.approx_posterior.sig);
+    standing.player.old_normal_factor = new Rating(standing.player.normal_factor.mu, standing.player.normal_factor.sig);
+
     const new_rating = standing.player.approx_posterior.with_noise(sig_drift);
     const decay = Math.pow(standing.player.approx_posterior.sig / new_rating.sig, 2);
     const transfer = Math.pow(decay, TRANSFER_SPEED);
@@ -322,30 +328,28 @@ async function update_mmr(lobby) {
     const wt_from_transfers = (1.0 - transfer) * (wt_norm_old + bruh_sum);
     const wt_total = wt_from_norm_old + wt_from_transfers;
 
-    standing.player.normal_factor.mu = (wt_from_norm_old * standing.player.normal_factor.mu + wt_from_transfers * standing.player.approx_posterior.mu) / wt_total;
-    standing.player.normal_factor.sig = Math.sqrt(1.0 / (decay * wt_total));
+    standing.player.base_normal_factor = new Rating(
+        (wt_from_norm_old * standing.player.normal_factor.mu + wt_from_transfers * standing.player.approx_posterior.mu) / wt_total,
+        Math.sqrt(1.0 / (decay * wt_total)),
+    );
     for (const r of standing.player.logistic_factors) {
       r.w_out *= transfer * decay;
     }
-
-    tanh_terms.push(new TanhTerm(standing.player.approx_posterior.with_noise(sig_perf)));
   }
 
   // The computational bottleneck: update ratings based on contest performance
   const update_ratings = () => {
+    const tanh_terms = [];
+    for (const standing of contest.standings) {
+      tanh_terms.push(new TanhTerm(standing.player.approx_posterior.with_noise(sig_perf)));
+    }
+
     for (const standing of contest.standings) {
       const player = standing.player;
-      if (typeof player.old_approx_posterior !== 'undefined') {
-        // Reset old values
-        player.approx_posterior = new Rating(player.old_approx_posterior.mu, player.old_approx_posterior.sig);
-        player.normal_factor = new Rating(player.old_normal_factor.mu, player.old_normal_factor.sig);
-        player.logistic_factors = JSON.parse(JSON.stringify(player.old_logistic_factors));
-      } else {
-        // Save current values
-        player.old_approx_posterior = new Rating(player.approx_posterior.mu, player.approx_posterior.sig);
-        player.old_normal_factor = new Rating(player.normal_factor.mu, player.normal_factor.sig);
-        player.old_logistic_factors = JSON.parse(JSON.stringify(player.logistic_factors));
-      }
+
+      // Reset to known good values before recomputing elo
+      player.approx_posterior = new Rating(player.old_approx_posterior.mu, player.old_approx_posterior.sig);
+      player.normal_factor = new Rating(player.base_normal_factor.mu, player.base_normal_factor.sig);
 
       const mu_perf = solve_newton((x) => {
         let sum = 0.0;
@@ -399,17 +403,20 @@ async function update_mmr(lobby) {
   const ignore_standing = async (standing) => {
     standing.player.approx_posterior = new Rating(standing.player.old_approx_posterior.mu, standing.player.old_approx_posterior.sig);
     standing.player.normal_factor = new Rating(standing.player.old_normal_factor.mu, standing.player.old_normal_factor.sig);
-    standing.player.logistic_factors = JSON.parse(JSON.stringify(standing.player.old_logistic_factors));
+    for (const term of standing.player.logistic_factors) {
+      // reset w_out to w (knowing that w_arg = w / 2)
+      term.w_out = term.w_arg * 2;
+    }
 
     // Add "ignored" score to the database for website display
     await db.run(SQL`
       INSERT INTO score (
         user_id, contest_id, score, mods,
-        logistic_mu, logistic_sig, tms, ignored
+        logistic_mu, logistic_sig, tms, ignored, difference
       )
       VALUES (
         ${standing.player.user_id}, ${contest.id}, ${standing.score}, ${standing.mods},
-        ${standing.player.performance.mu}, ${standing.player.performance.sig}, ${contest.tms}, 1
+        ${standing.player.approx_posterior.mu}, ${standing.player.approx_posterior.sig}, ${contest.tms}, 1, 0.0
       )`,
     );
     await db.run(SQL`
@@ -451,7 +458,12 @@ async function update_mmr(lobby) {
     update_ratings();
 
     const best_standing = contest.standings[0];
-    if (best_standing.player.old_approx_posterior.mu > best_standing.player.approx_posterior.mu) {
+    if (best_standing.player.elo > best_standing.player.approx_posterior.toFloat()) {
+      for (const standing of contest.standings) {
+        standing.player.logistic_factors.pop();
+      }
+
+      console.info(`Ignoring ${best_standing.player.username}'s standing for contest #${contest.id} (${best_standing.player.elo} > ${best_standing.player.approx_posterior.toFloat()})`);
       await ignore_standing(best_standing);
     } else {
       break;
@@ -470,20 +482,25 @@ async function update_mmr(lobby) {
   }
 
   for (const standing of contest.standings) {
+    const old_elo = standing.player.elo;
+    const new_elo = standing.player.approx_posterior.toFloat();
+    standing.player.elo = new_elo;
+    standing.player.games_played++;
+
     await db.run(SQL`
       INSERT INTO score (
         user_id, contest_id, score, mods,
-        logistic_mu, logistic_sig, tms, ignored
+        logistic_mu, logistic_sig, tms, ignored, difference
       )
       VALUES (
         ${standing.player.user_id}, ${contest.id}, ${standing.score}, ${standing.mods},
-        ${standing.player.performance.mu}, ${standing.player.performance.sig}, ${contest.tms}, 0
+        ${standing.player.performance.mu}, ${standing.player.performance.sig}, ${contest.tms}, 0, ${new_elo - old_elo}
       )`,
     );
     await db.run(SQL`
       UPDATE user
       SET
-        elo = ${standing.player.approx_posterior.toFloat()},
+        elo = ${new_elo},
         approx_mu = ${standing.player.approx_posterior.mu},
         approx_sig = ${standing.player.approx_posterior.sig},
         normal_mu = ${standing.player.normal_factor.mu},
@@ -492,8 +509,6 @@ async function update_mmr(lobby) {
         last_contest_tms = ${contest.tms}
       WHERE user_id = ${standing.player.user_id}`,
     );
-
-    standing.player.games_played++;
   }
 
   if (contest.fast_recompute) return [];
@@ -609,17 +624,11 @@ async function get_rank_text_from_id(osu_user_id) {
 }
 
 async function init_db() {
-  db = await open({
-    filename: 'ranks.db',
-    driver: sqlite3.cached.Database,
-  });
-
-  // maps_db = await open({
-  //   filename: 'maps.db',
-  //   driver: sqlite3.cached.Database,
-  // });
+  const databases = await init_databases();
+  db = databases.ranks;
+  // maps_db = databases.maps;
 
   return db;
 }
 
-export {init_db, update_mmr, get_rank, get_rank_text_from_id, apply_rank_decay};
+export {init_db, update_mmr, get_rank, get_rank_text_from_id, apply_rank_decay, Rating};
