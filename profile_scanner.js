@@ -10,6 +10,7 @@ import {update_discord_username} from './discord_updates.js';
 
 import {constants} from 'fs';
 import Config from './util/config.js';
+import {capture_sentry_exception} from './util/helpers.js';
 
 let oauth_token = null;
 let maps_db = null;

@@ -9,6 +9,7 @@ import SQL from 'sql-template-strings';
 import {init_databases} from './database.js';
 import {update_discord_role} from './discord_updates.js';
 import Config from './util/config.js';
+import {capture_sentry_exception} from './util/helpers.js';
 
 let db = null;
 // let maps_db = null;
