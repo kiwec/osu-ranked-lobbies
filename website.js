@@ -298,20 +298,26 @@ async function listen() {
     }
 
     // Get oauth tokens from osu!api
-    res = await fetch('https://osu.ppy.sh/oauth/token', {
-      method: 'post',
-      body: JSON.stringify({
-        client_id: Config.osu_v2api_client_id,
-        client_secret: Config.osu_v2api_client_secret,
-        code: req.query.code,
-        grant_type: 'authorization_code',
-        redirect_uri: Config.website_base_url + '/auth',
-      }),
-      headers: {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json',
-      },
-    });
+    try {
+      res = await fetch('https://osu.ppy.sh/oauth/token', {
+        method: 'post',
+        body: JSON.stringify({
+          client_id: Config.osu_v2api_client_id,
+          client_secret: Config.osu_v2api_client_secret,
+          code: req.query.code,
+          grant_type: 'authorization_code',
+          redirect_uri: Config.website_base_url + '/auth',
+        }),
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+        },
+      });
+    } catch (err) {
+      http_res.status(503).send(await render_error('Internal server error, try again later.', 503));
+      console.error(res.status, await res.text());
+      return;
+    }
     if (!res.ok) {
       http_res.status(403).send(await render_error('Invalid auth code.', 403));
       console.error(res.status, await res.text());
@@ -320,18 +326,25 @@ async function listen() {
 
     // Get osu user id from the received oauth tokens
     const tokens = await res.json();
-    res = await fetch('https://osu.ppy.sh/api/v2/me/osu', {
-      method: 'get',
-      headers: {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${tokens.access_token}`,
-      },
-    });
+    try {
+      res = await fetch('https://osu.ppy.sh/api/v2/me/osu', {
+        method: 'get',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${tokens.access_token}`,
+        },
+      });
+    } catch (err) {
+      http_res.status(503).send(await render_error('Internal server error, try again later.', 503));
+      console.error(res.status, await res.text());
+      return;
+    }
     if (!res.ok) {
       http_res.status(503).send(await render_error('osu!web sent us bogus tokens. Sorry, idk what to do now', 503));
       return;
     }
+
     const user_profile = await res.json();
 
     // Link accounts! Finally.

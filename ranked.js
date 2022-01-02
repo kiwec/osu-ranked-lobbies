@@ -615,14 +615,18 @@ async function on_lobby_msg(lobby, msg) {
 
   if (msg.message == '!skip' && !lobby.voteskips.includes(msg.from)) {
     if (!lobby.map_data) {
-      lobby.map_data = await get_map_data(lobby.beatmap_id);
-      if (lobby.map_data.beatmapset.availability.download_disabled) {
-        clearTimeout(lobby.countdown);
-        lobby.countdown = -1;
-        await lobby.send(`Skipping map because download is unavailable [${lobby.map_data.beatmapset.availability.more_information} (more info)].`);
-        await map_db.run(SQL`UPDATE map SET dmca = 1 WHERE id = ${lobby.beatmap_id}`);
-        await select_next_map(lobby);
-        return;
+      try {
+        lobby.map_data = await get_map_data(lobby.beatmap_id);
+        if (lobby.map_data.beatmapset.availability.download_disabled) {
+          clearTimeout(lobby.countdown);
+          lobby.countdown = -1;
+          await lobby.send(`Skipping map because download is unavailable [${lobby.map_data.beatmapset.availability.more_information} (more info)].`);
+          await map_db.run(SQL`UPDATE map SET dmca = 1 WHERE id = ${lobby.beatmap_id}`);
+          await select_next_map(lobby);
+          return;
+        }
+      } catch (err) {
+        console.error(`Failed to fetch map data for beatmap #${lobby.beatmap_id}: ${err}`);
       }
     }
 

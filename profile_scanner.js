@@ -16,20 +16,27 @@ let maps_db = null;
 let ranks_db = null;
 
 async function osu_fetch(url, options) {
+  let res;
+
   if (!oauth_token) {
-    const res = await fetch('https://osu.ppy.sh/oauth/token', {
-      method: 'post',
-      body: JSON.stringify({
-        client_id: Config.osu_v2api_client_id,
-        client_secret: Config.osu_v2api_client_secret,
-        grant_type: 'client_credentials',
-        scope: 'public',
-      }),
-      headers: {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json',
-      },
-    });
+    try {
+      res = await fetch('https://osu.ppy.sh/oauth/token', {
+        method: 'post',
+        body: JSON.stringify({
+          client_id: Config.osu_v2api_client_id,
+          client_secret: Config.osu_v2api_client_secret,
+          grant_type: 'client_credentials',
+          scope: 'public',
+        }),
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+        },
+      });
+    } catch (err) {
+      throw new Error(`Got system error ${err.code} while fetching OAuth token.`);
+    }
+
     const foo = await res.json();
     oauth_token = foo.access_token;
   }
@@ -43,7 +50,11 @@ async function osu_fetch(url, options) {
 
   options.headers['Authorization'] = 'Bearer ' + oauth_token;
 
-  const res = await fetch(url, options);
+  try {
+    res = await fetch(url, options);
+  } catch (err) {
+    throw new Error(`Got system error ${err.code} while fetching '${url}'.`);
+  }
   if (res.status == 401) {
     console.log('OAuth token expired, fetching a new one...');
     oauth_token = null;
@@ -115,11 +126,17 @@ async function scan_user_profile(user) {
   }
 
   // Fetch top user scores from osu!api
-  const res = await osu_fetch(
-      `https://osu.ppy.sh/api/v2/users/${user.user_id}/scores/best?key=id&mode=osu&limit=100&include_fails=0`,
-      {method: 'get'},
-  );
-  if (res.statusCode >= 500) {
+  let res;
+  try {
+    res = await osu_fetch(
+        `https://osu.ppy.sh/api/v2/users/${user.user_id}/scores/best?key=id&mode=osu&limit=100&include_fails=0`,
+        {method: 'get'},
+    );
+    if (res.statusCode >= 500) {
+      return;
+    }
+  } catch (err) {
+    // Since we already ignore error 500s, also ignore other errors.
     return;
   }
 
