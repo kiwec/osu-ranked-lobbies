@@ -345,11 +345,11 @@ async function listen() {
       } catch (err) {
         http_res.status(503).send(await render_error('Internal server error, try again later.', 503));
         console.error(res.status, await res.text());
-        return;
+        return null;
       }
       if (!res.ok) {
         http_res.status(503).send(await render_error('osu!web sent us bogus tokens. Sorry, idk what to do now', 503));
-        return;
+        return null;
       }
 
       return await res.json();
@@ -357,7 +357,11 @@ async function listen() {
 
     if (req.query.state === 'login') {
       const tokens = await fetchOauthTokens();
+      if (tokens === null) return;
+
       const user_profile = await fetchUserProfile(tokens.access_token);
+      if (user_profile === null) return;
+
       const user_token = await ranks_db.get(SQL`
         SELECT user_id, token, expires_tms FROM website_tokens
         WHERE user_id = ${user_profile.id}
@@ -424,8 +428,10 @@ async function listen() {
     }
 
     const tokens = await fetchOauthTokens();
+    if (tokens === null) return;
 
     const user_profile = await fetchUserProfile(tokens.access_token);
+    if (user_profile === null) return;
 
     // Link accounts! Finally.
     await discord_db.run(
