@@ -453,6 +453,7 @@ body.dark-mode .search-button .search-icon {
   fill: rgb(211, 211, 211);
 }
 .search-button.active {
+    transition: background .3s ease-in-out;
     border-color: #c94580 !important;
 }
 body.dark-mode .search-button {
