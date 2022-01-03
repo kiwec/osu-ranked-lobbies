@@ -443,9 +443,11 @@ body.dark-mode .switcher-sun {
   border-radius: 4px;
   padding: 5px;
   margin-bottom: 60px;
+  transition: border .3s ease-in-out, background .3s ease-in-out;
 }
 .search-button .search-icon {
   fill: black;
+  transition: fill .3s ease-in-out;
 }
 body.dark-mode .search-button .search-icon {
   fill: rgb(211, 211, 211);
@@ -466,7 +468,7 @@ body.dark-mode .search-button {
   color: black;
   width: 70px;
   font-size: 20px;
-  transition: width .3s ease-in-out;
+  transition: width .3s ease-in-out, color .3s ease-in-out;
 }
 body.dark-mode .search-button input {
   color: rgb(211, 211, 211);
@@ -485,6 +487,7 @@ body.dark-mode .search-button input {
   border-bottom-right-radius: 6px;
   width: 100%;
   display: none;
+  transition: background .3s ease-in-out;
 }
 body.dark-mode .search-results {
   background-color: #3f3e3e;
@@ -501,6 +504,7 @@ body.dark-mode .search-results {
   text-decoration: none;
   padding: 10px;
   font-size: 20px;
+  transition: border .3s ease-in-out, color .3s ease-in-out;
 }
 body.dark-mode .search-results .search-result-item {
   border-color: rgb(211, 211, 211);
@@ -508,6 +512,7 @@ body.dark-mode .search-results .search-result-item {
 }
 .search-results .search-result-item:last-child {
   border-bottom: 2px solid black;
+  transition: border .3s ease-in-out;
 }
 body.dark-mode .search-results .search-result-item:last-child {
   border-bottom-color: rgb(211, 211, 211);
@@ -532,6 +537,7 @@ body.dark-mode .search-results .search-result-item:last-child {
   right: 0;
   background-color: rgba(0, 0, 0, 0.2);
   z-index: 50;
+  transition: background .3s ease-in-out;
 }
 body.dark-mode .search-button + .search-background {
   background-color: rgba(255, 255, 255, 0.2);
