@@ -380,6 +380,17 @@ async function listen() {
     http_res.send(await render_with_layout('views/success.html', data));
   });
 
+  app.get('/search', async (req, http_res) => {
+    const players = await ranks_db.all(`
+      SELECT * FROM user
+      WHERE username LIKE ?
+      ORDER BY elo DESC
+      LIMIT 5
+    `, `%${req.query.query}%`);
+
+    http_res.json(players);
+  });
+
   if (Config.ENABLE_SENTRY) {
     app.use(Sentry.Handlers.errorHandler());
   }
