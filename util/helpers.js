@@ -15,6 +15,9 @@ export function capture_sentry_exception(err) {
 export const render_with_layout = async (main_template, data = {}) => {
   data.title = data.title || 'o!RL';
   data.darkTheme = Config.theme === 'dark';
+  data.base_url = Config.website_base_url;
+  data.client_id = Config.osu_v2api_client_id;
+  data.auth_id = Config.auth_id;
 
   const layout = await fs.promises.readFile('views/common/layout.html', 'utf-8');
 

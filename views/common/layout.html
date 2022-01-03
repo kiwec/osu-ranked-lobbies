@@ -34,10 +34,24 @@
         <img src="/images/o!RL-logo.png" />
       </a>
       <nav>
-        <a class="leaderboard-link" href="/leaderboard/">
-          <img src="/images/leaderboard.png" />
-          <span>Leaderboard</span>
-        </a>
+        <div class="other-links">
+          {{#auth_id}}
+            <a class="profile_link" href="{{ base_url }}/u/{{ auth_id }}">
+              <img src="https://s.ppy.sh/a/{{ auth_id }}" />
+              <span>Profile</span>
+            </a>
+          {{/auth_id}}
+          {{^auth_id}}
+            <a class="github-link" href="https://osu.ppy.sh/oauth/authorize?client_id={{ client_id }}&response_type=code&state=login&scope=identify&redirect_uri={{ base_url }}/auth">
+              <img src="/images/login.png" />
+              <span>Login</span>
+            </a>
+          {{/auth_id}}
+          <a class="leaderboard-link" href="/leaderboard/">
+            <img src="/images/leaderboard.png" />
+            <span>Leaderboard</span>
+          </a>
+        </div>
         <div class="other-links">
           <a class="discord-link" href="https://kiwec.net/discord">
             <img src="/images/discord.png" />

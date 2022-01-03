@@ -5,6 +5,7 @@ import Sentry from '@sentry/node';
 import {open} from 'sqlite';
 import sqlite3 from 'sqlite3';
 import cookieParser from 'cookie-parser';
+import crypto from 'crypto';
 
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime.js';
@@ -77,12 +78,40 @@ async function listen() {
 
   app.use(cookieParser());
 
+  // Theme middleware
   app.use(function(req, res, next) {
     const cookies = req.cookies;
     Config.theme = 'dark';
     if (cookies && cookies.theme) {
       Config.theme = cookies.theme;
     }
+    next();
+  });
+
+  // Auth middleware
+  app.use(async function(req, res, next) {
+    const cookies = req.cookies;
+
+    if (cookies && cookies.token) {
+      const user_token = await ranks_db.get(SQL`
+        SELECT user_id, expires_tms FROM website_tokens
+        WHERE token = ${cookies.token}
+      `);
+      const current_tms = Date.now();
+      if (user_token && current_tms > user_token.expires_tms) {
+        await ranks_db.exec(`
+          DELETE FROM website_tokens
+          WHERE user_id = ${user_token.user_id}
+        `);
+      } else if (user_token) {
+        Config.auth_id = user_token.user_id;
+        next();
+        return;
+      }
+    }
+
+    res.clearCookie('token');
+    Config.auth_id = undefined;
     next();
   });
 
@@ -271,6 +300,103 @@ async function listen() {
       return;
     }
 
+    const fetchOauthTokens = async () => {
+      // Get oauth tokens from osu!api
+      try {
+        res = await fetch('https://osu.ppy.sh/oauth/token', {
+          method: 'post',
+          body: JSON.stringify({
+            client_id: Config.osu_v2api_client_id,
+            client_secret: Config.osu_v2api_client_secret,
+            code: req.query.code,
+            grant_type: 'authorization_code',
+            redirect_uri: Config.website_base_url + '/auth',
+          }),
+          headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json',
+          },
+        });
+      } catch (err) {
+        http_res.status(503).send(await render_error('Internal server error, try again later.', 503));
+        console.error(res.status, await res.text());
+        return null;
+      }
+      if (!res.ok) {
+        http_res.status(403).send(await render_error('Invalid auth code.', 403));
+        console.error(res.status, await res.text());
+        return null;
+      }
+  
+      // Get osu user id from the received oauth tokens
+      return await res.json();
+    };
+
+    const fetchUserProfile = async (access_token) => {
+      try {
+        res = await fetch('https://osu.ppy.sh/api/v2/me/osu', {
+          method: 'get',
+          headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${access_token}`,
+          },
+        });
+      } catch (err) {
+        http_res.status(503).send(await render_error('Internal server error, try again later.', 503));
+        console.error(res.status, await res.text());
+        return;
+      }
+      if (!res.ok) {
+        http_res.status(503).send(await render_error('osu!web sent us bogus tokens. Sorry, idk what to do now', 503));
+        return;
+      }
+
+      return await res.json();
+    }
+
+    if (req.query.state === 'login') {
+      const tokens = await fetchOauthTokens();
+      const user_profile = await fetchUserProfile(tokens.access_token);
+      const user_token = await ranks_db.get(SQL`
+        SELECT user_id, token, expires_tms FROM website_tokens
+        WHERE user_id = ${user_profile.id}
+      `);
+
+      const current_tms = Date.now();
+      if (user_token && user_token.expires_tms > current_tms) {
+        await ranks_db.exec(`
+          DELETE FROM website_tokens
+          WHERE user_id = ${user_token.user_id}
+        `);
+      } else if (user_token) {
+        http_res.cookie('token', user_token.token);
+        http_res.redirect(`/u/${user_token.user_id}`);
+        return;
+      }
+
+      const new_expires_tms = Date.now() + tokens.expires_in * 1000;
+      const new_auth_token = crypto.randomBytes(20).toString('hex');
+      await ranks_db.run(
+        `INSERT INTO website_tokens (
+          user_id,
+          token,
+          expires_tms,
+          osu_access_token,
+          osu_refresh_token
+        ) VALUES (?, ?, ?, ?, ?)`,
+        user_profile.id,
+        new_auth_token,
+        new_expires_tms,
+        tokens.access_token,
+        tokens.refresh_token
+      );
+
+      http_res.cookie('token', new_auth_token);
+      http_res.redirect(`/u/${user_profile.id}`);
+      return;
+    }
+
     // Get discord user id from ephemeral token
     const ephemeral_token = req.query.state;
     res = await discord_db.get(SQL`
@@ -297,55 +423,9 @@ async function listen() {
       return;
     }
 
-    // Get oauth tokens from osu!api
-    try {
-      res = await fetch('https://osu.ppy.sh/oauth/token', {
-        method: 'post',
-        body: JSON.stringify({
-          client_id: Config.osu_v2api_client_id,
-          client_secret: Config.osu_v2api_client_secret,
-          code: req.query.code,
-          grant_type: 'authorization_code',
-          redirect_uri: Config.website_base_url + '/auth',
-        }),
-        headers: {
-          'Accept': 'application/json',
-          'Content-Type': 'application/json',
-        },
-      });
-    } catch (err) {
-      http_res.status(503).send(await render_error('Internal server error, try again later.', 503));
-      console.error(res.status, await res.text());
-      return;
-    }
-    if (!res.ok) {
-      http_res.status(403).send(await render_error('Invalid auth code.', 403));
-      console.error(res.status, await res.text());
-      return;
-    }
+    const tokens = await fetchOauthTokens();
 
-    // Get osu user id from the received oauth tokens
-    const tokens = await res.json();
-    try {
-      res = await fetch('https://osu.ppy.sh/api/v2/me/osu', {
-        method: 'get',
-        headers: {
-          'Accept': 'application/json',
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${tokens.access_token}`,
-        },
-      });
-    } catch (err) {
-      http_res.status(503).send(await render_error('Internal server error, try again later.', 503));
-      console.error(res.status, await res.text());
-      return;
-    }
-    if (!res.ok) {
-      http_res.status(503).send(await render_error('osu!web sent us bogus tokens. Sorry, idk what to do now', 503));
-      return;
-    }
-
-    const user_profile = await res.json();
+    const user_profile = await fetchUserProfile(tokens.access_token);
 
     // Link accounts! Finally.
     await discord_db.run(

@@ -43,9 +43,11 @@ body.dark-mode .sidebar {
 	height: 100%;
 	margin: 60px;
 }
-.sidebar nav .other-links {
+.sidebar nav .other-links,
+.sidebar nav .main-links {
   display: flex;
   flex-direction: column;
+  width: 100%;
 }
 .sidebar nav a {
 	width: 60px;
@@ -68,6 +70,20 @@ body.dark-mode .sidebar {
 }
 .sidebar nav a:hover img {
 	filter: invert(48%) sepia(49%) saturate(712%) hue-rotate(282deg) brightness(96%) contrast(84%);
+}
+.sidebar nav a.profile_link {
+  margin-bottom: 40px;
+}
+.sidebar nav a.profile_link:hover {
+	background-color: unset;
+}
+.sidebar nav a.profile_link img {
+  filter: none;
+  height: auto;
+  width: 40px;
+  margin-left: 10px;
+  margin-right: 10px;
+  border-radius: 100%;
 }
 .red {
     color: red;
@@ -578,6 +594,10 @@ body.dark-mode .switcher-sun {
     .sidebar nav a:last-of-type {
         margin-bottom: 30px;
     }
+    .sidebar nav a.profile_link img {
+      margin-left: auto;
+      margin-right: auto;
+    }
     nav a span {
         position: static;
         display: inline-block;
@@ -659,35 +679,51 @@ body.dark-mode .switcher-sun {
         flex-direction: row;
         justify-content: space-between;
         width: calc(100% - 60px);
-        height: 75px;
+        height: 50px;
         padding: 15px 30px;
     }
     .sidebar .logo {
         margin: 0;
+        margin-right: 20px;
+    }
+    .sidebar .logo img {
+        width: 50px;
     }
     .sidebar nav {
         flex-direction: row;
         margin: 0;
     }
     .sidebar nav .other-links {
-      flex-direction: row;
-      margin-left: 20px;
+        flex-direction: row;
     }
-    .sidebar nav a, .sidebar nav a:last-of-type {
-        margin-bottom: 15px;
-        margin-left: 15px;
+    .sidebar nav .other-links:last-child {
+        margin-left: 20px;
     }
     .sidebar nav a img {
+        width: 25px;
         margin-top: 7.5px;
         margin-bottom: 7.5px;
     }
+    .sidebar nav a.profile_link {
+        margin-bottom: inherit;
+    }
+    .sidebar nav a.profile_link img {
+        width: 25px;
+    }
+    nav a {
+        margin-bottom: 0 !important;
+        margin-left: 10px;
+    }
+    nav a:first-child {
+        margin-left: 0;
+    }
     nav a span {
-        padding: 7.5px;
+        padding: 5px 7px;
     }
     main {
         position: static;
         width: 100%;
-        margin-top: 105px;
+        margin-top: 80px;
         padding: 30px;
     }
     .match-history td {

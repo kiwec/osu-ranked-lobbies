@@ -101,6 +101,14 @@ async function init_databases(recomputing_ranks) {
       ignored INTEGER NOT NULL DEFAULT 0,
       difference REAL NOT NULL DEFAULT 0
     )`);
+
+    await ranks_db.exec(`CREATE TABLE IF NOT EXISTS website_tokens (
+      user_id INTEGER,
+      token TEXT,
+      expires_tms INTEGER,
+      osu_access_token TEXT,
+      osu_refresh_token TEXT
+    )`);
   }
 
   if (!maps_db) {
