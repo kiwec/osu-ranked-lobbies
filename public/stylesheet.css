@@ -434,18 +434,23 @@ body.dark-mode .switcher-sun {
   fill: #F1EB75;
 }
 .search-button {
-  position: relative;
+  cursor: pointer;
+  position: absolute;
   z-index: 51;
-  display: inline-flex;
+  right: 200px;
+  top: 63px;
+  height: 30px;
   align-items: center;
   border: 2px solid black;
   background-color: white;
-  border-radius: 4px;
+  border-radius: 30px;
   padding: 5px;
-  margin-bottom: 60px;
   transition: border .3s ease-in-out, background .3s ease-in-out;
 }
 .search-button .search-icon {
+  position: relative;
+  top:  4px;
+  left: 5px;
   fill: black;
   transition: fill .3s ease-in-out;
 }
@@ -453,8 +458,8 @@ body.dark-mode .search-button .search-icon {
   fill: rgb(211, 211, 211);
 }
 .search-button.active {
-    transition: background .3s ease-in-out;
-    border-color: #c94580 !important;
+  transition: background .3s ease-in-out;
+  border-color: #c94580 !important;
 }
 body.dark-mode .search-button {
   border-color: rgb(211, 211, 211);
@@ -462,21 +467,22 @@ body.dark-mode .search-button {
 }
 .search-button input {
   position: relative;
-  margin-left: 8px;
+  vertical-align: top;
+  width: 0;
   background-color: unset;
   border: none;
   outline: none;
   color: black;
-  width: 70px;
   font-size: 20px;
   transition: width .3s ease-in-out, color .3s ease-in-out;
 }
 body.dark-mode .search-button input {
   color: rgb(211, 211, 211);
 }
-.search-button input:focus,
-.search-button input:not(:placeholder-shown) {
+.search-button input:focus, .search-button input:not(:placeholder-shown) {
   width: 350px;
+  margin: 3px 13px 0 8px;
+  cursor: text;
 }
 .search-results {
   position: absolute;
@@ -615,6 +621,10 @@ body.dark-mode .search-button + .search-background {
       right: 70px;
       top: 25px;
     }
+    .search-button {
+      right: 160px;
+      top: 43px;
+    }
 }
 @media screen and (max-width:1200px) {
     .leaderboard-section .leaderboard-focus {
@@ -732,6 +742,10 @@ body.dark-mode .search-button + .search-background {
       right: 30px;
       top: 10px;
     }
+    .search-button {
+      right: 110px;
+      top: 28px;
+    }
 }
 @media screen and (max-width:820px) {
     .leaderboard tbody tr td:last-of-type {
@@ -763,6 +777,9 @@ body.dark-mode .search-button + .search-background {
     }
     .switcher-container {
         display: none;
+    }
+    .search-button {
+      display: none;
     }
 }
 @media screen and (max-width:680px) {

@@ -72,15 +72,14 @@
   let searchFieldInput = document.querySelector('.search-button input');
   let searchFieldBackground = document.querySelector('.search-button + .search-background');
   if (searchField) {
-    function searchFieldInputFocus(ev) {
+    searchField.addEventListener('click', () => searchFieldInput.focus());
+    searchFieldInput.addEventListener('focus', ev => {
       let classes = searchField.getAttribute('class');
       if (classes.indexOf('active') === -1) {
         classes += ' active';
         searchField.setAttribute('class', classes);
       }
-    }
-
-    searchFieldInput.addEventListener('focus', searchFieldInputFocus);
+    });
 
     const searchTimeout = 400;
     let lastSearchRequest = {
@@ -88,7 +87,7 @@
       job: null
     };
 
-    function searchFieldInputListener(ev) {
+    searchField.addEventListener('input', ev => {
       searchResults.innerHTML = '';
       const searchQuery = ev.target.value;
       if (searchQuery === '') {
@@ -121,15 +120,11 @@
           });
       }, searchTimeout);
       lastSearchRequest.tms = Date.now();
-    }
+    });
 
-    searchField.addEventListener('input', searchFieldInputListener);
-
-    function searchFieldBackgroundClick(event) {
+    searchFieldBackground.addEventListener('click', () => {
       searchField.setAttribute('class', searchField.getAttribute('class').replace('active', '').trim());
-    }
-
-    searchFieldBackground.addEventListener('click', searchFieldBackgroundClick);
+    });
   }
 
   function documentKeydown(event) {
