@@ -17,7 +17,7 @@ export const render_with_layout = async (req, main_template, data = {}) => {
   data.base_url = Config.website_base_url;
   data.client_id = Config.osu_v2api_client_id;
   data.darkTheme = req.theme === 'dark';
-  data.user_id = req.user_id;
+  data.auth_id = req.user_id;
 
   const layout = await fs.promises.readFile('views/common/layout.html', 'utf-8');
 
@@ -28,7 +28,7 @@ export const render_with_layout = async (req, main_template, data = {}) => {
   return Mustache.render(layout, data, partials);
 };
 
-export const render_error = async (error, code, data = {}) => {
+export const render_error = async (req, error, code, data = {}) => {
   data.error = error;
   data.title = data.title || `Error ${code} - o!RL`;
 
@@ -37,5 +37,5 @@ export const render_error = async (error, code, data = {}) => {
     error_page = `views/errors/${code}.html`;
   }
 
-  return render_with_layout(error_page, data);
+  return render_with_layout(req, error_page, data);
 };

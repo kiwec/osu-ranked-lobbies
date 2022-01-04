@@ -270,7 +270,7 @@ async function listen() {
       AND games_played > 0`,
     );
     if (!user) {
-      http_res.status(404).send(await render_error('Profile not found. Have you played a game in a ranked lobby yet?', 404));
+      http_res.status(404).send(await render_error(req, 'Profile not found. Have you played a game in a ranked lobby yet?', 404));
       return;
     }
 
@@ -284,7 +284,7 @@ async function listen() {
       AND games_played > 0`,
     );
     if (!user) {
-      http_res.status(404).send(await render_error('Profile not found. Have you played a game in a ranked lobby yet?', 404));
+      http_res.status(404).send(await render_error(req, 'Profile not found. Have you played a game in a ranked lobby yet?', 404));
       return;
     }
 
@@ -295,11 +295,11 @@ async function listen() {
     let res;
 
     if (!req.query.code) {
-      http_res.status(403).send(await render_error('No auth code provided.', 403));
+      http_res.status(403).send(await render_error(req, 'No auth code provided.', 403));
       return;
     }
 
-    const fetchOauthTokens = async () => {
+    const fetchOauthTokens = async (req) => {
       // Get oauth tokens from osu!api
       try {
         res = await fetch('https://osu.ppy.sh/oauth/token', {
@@ -317,12 +317,12 @@ async function listen() {
           },
         });
       } catch (err) {
-        http_res.status(503).send(await render_error('Internal server error, try again later.', 503));
+        http_res.status(503).send(await render_error(req, 'Internal server error, try again later.', 503));
         console.error(res.status, await res.text());
         return null;
       }
       if (!res.ok) {
-        http_res.status(403).send(await render_error('Invalid auth code.', 403));
+        http_res.status(403).send(await render_error(req, 'Invalid auth code.', 403));
         console.error(res.status, await res.text());
         return null;
       }
@@ -331,7 +331,7 @@ async function listen() {
       return await res.json();
     };
 
-    const fetchUserProfile = async (access_token) => {
+    const fetchUserProfile = async (req, access_token) => {
       try {
         res = await fetch('https://osu.ppy.sh/api/v2/me/osu', {
           method: 'get',
@@ -342,12 +342,12 @@ async function listen() {
           },
         });
       } catch (err) {
-        http_res.status(503).send(await render_error('Internal server error, try again later.', 503));
+        http_res.status(503).send(await render_error(req, 'Internal server error, try again later.', 503));
         console.error(res.status, await res.text());
         return null;
       }
       if (!res.ok) {
-        http_res.status(503).send(await render_error('osu!web sent us bogus tokens. Sorry, idk what to do now', 503));
+        http_res.status(503).send(await render_error(req, 'osu!web sent us bogus tokens. Sorry, idk what to do now', 503));
         return null;
       }
 
@@ -355,10 +355,10 @@ async function listen() {
     };
 
     if (req.query.state === 'login') {
-      const tokens = await fetchOauthTokens();
+      const tokens = await fetchOauthTokens(req);
       if (tokens === null) return;
 
-      const user_profile = await fetchUserProfile(tokens.access_token);
+      const user_profile = await fetchUserProfile(req, tokens.access_token);
       if (user_profile === null) return;
 
       const user_token = await ranks_db.get(SQL`
@@ -407,7 +407,7 @@ async function listen() {
       WHERE ephemeral_token = ${ephemeral_token}`,
     );
     if (!res) {
-      http_res.status(403).send(await render_error('Discord token invalid or expired. Please click the "Link account" button once again.', 403));
+      http_res.status(403).send(await render_error(req, 'Discord token invalid or expired. Please click the "Link account" button once again.', 403));
       return;
     }
     await discord_db.run(SQL`
@@ -426,10 +426,10 @@ async function listen() {
       return;
     }
 
-    const tokens = await fetchOauthTokens();
+    const tokens = await fetchOauthTokens(req);
     if (tokens === null) return;
 
-    const user_profile = await fetchUserProfile(tokens.access_token);
+    const user_profile = await fetchUserProfile(req, tokens.access_token);
     if (user_profile === null) return;
 
     // Link accounts! Finally.
