@@ -614,13 +614,17 @@ async function on_lobby_msg(lobby, msg) {
   }
 
   if (msg.message == '!skip' && !lobby.voteskips.includes(msg.from)) {
-    if (!lobby.map_data) {
+    // When bot just joined the lobby, beatmap_id is null.
+    if (lobby.beatmap_id && !lobby.map_data) {
       try {
         lobby.map_data = await get_map_data(lobby.beatmap_id);
         if (lobby.map_data.beatmapset.availability.download_disabled) {
           clearTimeout(lobby.countdown);
           lobby.countdown = -1;
-          await lobby.send(`Skipping map because download is unavailable [${lobby.map_data.beatmapset.availability.more_information} (more info)].`);
+
+          // We don't await the message, because for some reason, bancho doesn't ack it.
+          lobby.send(`Skipped map because download is unavailable [${lobby.map_data.beatmapset.availability.more_information} (more info)].`).then(() => {});
+
           await map_db.run(SQL`UPDATE map SET dmca = 1 WHERE id = ${lobby.beatmap_id}`);
           await select_next_map(lobby);
           return;
