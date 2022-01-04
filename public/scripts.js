@@ -90,13 +90,10 @@
     searchField.addEventListener('input', ev => {
       searchResults.innerHTML = '';
       const searchQuery = ev.target.value;
+      clearTimeout(lastSearchRequest.job);
       if (searchQuery === '') {
-        clearTimeout(lastSearchRequest.job);
-        return
+        return;
       };
-      if (Date.now() < lastSearchRequest.tms + searchTimeout) {
-        clearTimeout(lastSearchRequest.job);
-      }
       lastSearchRequest.job = setTimeout(() => {
         fetch(`/search?query=${searchQuery}`)
           .then(res => res.json())
@@ -158,9 +155,15 @@
       }
     }
     if (event.keyCode === 40) {
+      if (document.querySelector('.search-button.active')) {
+        event.preventDefault();
+      }
       changeActiveItem(true);
     }
     if (event.keyCode === 38) {
+      if (document.querySelector('.search-button.active')) {
+        event.preventDefault();
+      }
       changeActiveItem(false);
     }
     if (event.key === "Escape") {
