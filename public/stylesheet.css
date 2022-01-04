@@ -516,16 +516,16 @@ body.dark-mode .search-results .search-result-item {
 body.dark-mode .search-results .search-result-item:last-child {
   border-bottom-color: rgb(211, 211, 211);
 }
-.search-results .search-result-item:focus,
-.search-results .search-result-item:hover,
-.search-results .search-result-item.active {
+.search-results .search-result-item:focus:not(.not-found),
+.search-results .search-result-item:hover:not(.not-found),
+.search-results .search-result-item.active:not(.not-found) {
   color: #c94580 !important;
   border-color: #c94580 !important;
   border-width: 4px;
 }
-.search-results .search-result-item:focus + .search-result-item,
-.search-results .search-result-item:hover + .search-result-item,
-.search-results .search-result-item.active + .search-result-item {
+.search-results .search-result-item:focus:not(.not-found) + .search-result-item,
+.search-results .search-result-item:hover:not(.not-found) + .search-result-item,
+.search-results .search-result-item.active:not(.not-found) + .search-result-item {
   border-top-color: #c94580;
   border-top-width: 4px;
 }

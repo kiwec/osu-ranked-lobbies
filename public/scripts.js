@@ -82,22 +82,45 @@
 
     searchFieldInput.addEventListener('focus', searchFieldInputFocus);
 
+    const searchTimeout = 400;
+    let lastSearchRequest = {
+      tms: null,
+      job: null
+    };
+
     function searchFieldInputListener(ev) {
       searchResults.innerHTML = '';
-      if (ev.target.value === '') return;
-      fetch(`/search?query=${ev.target.value}`)
-        .then(res => res.json())
-        .then(res => {
-          res.forEach(player => {
-            player.username = player.username.length > 20 ? (player.username.substr(0, 20)+'...') : player.username;
-            searchResults.innerHTML += `
-              <a href="/u/${player.user_id}" class="search-result-item">
-                <span>${player.username}</span>
-                <span>${Math.trunc(player.elo)}</span>
-              </a>
-            `;
+      const searchQuery = ev.target.value;
+      if (searchQuery === '') {
+        clearTimeout(lastSearchRequest.job);
+        return
+      };
+      if (Date.now() < lastSearchRequest.tms + searchTimeout) {
+        clearTimeout(lastSearchRequest.job);
+      }
+      lastSearchRequest.job = setTimeout(() => {
+        fetch(`/search?query=${searchQuery}`)
+          .then(res => res.json())
+          .then(res => {
+            res.forEach(player => {
+              player.username = player.username.length > 20 ? (player.username.substr(0, 20)+'...') : player.username;
+              searchResults.innerHTML += `
+                <a href="/u/${player.user_id}" class="search-result-item">
+                  <span>${player.username}</span>
+                  <span>${Math.trunc(player.elo)}</span>
+                </a>
+              `;
+            });
+            if (res.length === 0) {
+              searchResults.innerHTML = `
+                <div class="search-result-item not-found">
+                  Nothing found!
+                </div>
+              `;
+            }
           });
-        });
+      }, searchTimeout);
+      lastSearchRequest.tms = Date.now();
     }
 
     searchField.addEventListener('input', searchFieldInputListener);
