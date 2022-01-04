@@ -658,7 +658,7 @@ async function start_ranked(_map_db) {
       const bancho_lobby = await bancho.join('#mp_' + lobby.osu_lobby_id);
       await init_lobby(bancho_lobby, {
         creator: lobby.creator,
-        creator: lobby.creator_osu_id,
+        creator_osu_id: lobby.creator_osu_id,
         creator_discord_id: lobby.creator_discord_id,
         created_just_now: false,
         min_stars: lobby.min_stars,
