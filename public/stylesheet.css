@@ -495,7 +495,8 @@ body.dark-mode .search-button {
 body.dark-mode .search-button input {
   color: rgb(211, 211, 211);
 }
-.search-button input:focus, .search-button input:not(:placeholder-shown) {
+.search-button input:focus,
+.search-button.active input {
   width: 350px;
   margin: 3px 13px 0 8px;
   cursor: text;
