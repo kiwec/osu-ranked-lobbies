@@ -521,11 +521,13 @@ body.dark-mode .search-results .search-result-item:last-child {
 .search-results .search-result-item.active {
   color: #c94580 !important;
   border-color: #c94580 !important;
+  border-width: 4px;
 }
 .search-results .search-result-item:focus + .search-result-item,
 .search-results .search-result-item:hover + .search-result-item,
 .search-results .search-result-item.active + .search-result-item {
   border-top-color: #c94580;
+  border-top-width: 4px;
 }
 .search-button + .search-background {
   display: none;
