@@ -2,8 +2,6 @@
 // Might be incorrect. I wish math people stopped using those weird runes.
 
 import {strict as assert} from 'assert';
-import {open} from 'sqlite';
-import sqlite3 from 'sqlite3';
 import SQL from 'sql-template-strings';
 
 import {init_databases} from './database.js';

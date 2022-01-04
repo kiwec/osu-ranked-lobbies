@@ -14,7 +14,7 @@ import ProgressBar from 'progress';
 import SQL from 'sql-template-strings';
 
 import {init_databases} from '../database.js';
-import {init_db, update_mmr, Rating} from '../elo_mmr.js';
+import {update_mmr, Rating} from '../elo_mmr.js';
 
 recompute_ranks();
 
@@ -54,9 +54,6 @@ async function recompute_ranks() {
       return true;
     }
   });
-  const all_scores = await old_db.all(SQL`
-    SELECT score.user_id, score.score, score.mods FROM score WHERE score > 0`,
-  );
 
   const players = await old_db.all(SQL`SELECT * FROM user`);
   let bar = new ProgressBar('importing players [:bar] :rate/s | :etas remaining', {

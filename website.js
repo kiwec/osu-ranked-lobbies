@@ -81,9 +81,9 @@ async function listen() {
   // Theme middleware
   app.use(function(req, res, next) {
     const cookies = req.cookies;
-    Config.theme = 'dark';
+    req.theme = 'dark';
     if (cookies && cookies.theme) {
-      Config.theme = cookies.theme;
+      req.theme = cookies.theme;
     }
     next();
   });
@@ -104,18 +104,17 @@ async function listen() {
           WHERE user_id = ${user_token.user_id}
         `);
       } else if (user_token) {
-        Config.auth_id = user_token.user_id;
+        req.user_id = user_token.user_id;
         next();
         return;
       }
     }
 
     res.clearCookie('token');
-    Config.auth_id = undefined;
     next();
   });
 
-  const render_leaderboard = async (page_num) => {
+  const render_leaderboard = async (req, page_num) => {
     const PLAYERS_PER_PAGE = 20;
 
     const month_ago_tms = Date.now() - (30 * 24 * 3600 * 1000);
@@ -176,10 +175,10 @@ async function listen() {
     }
 
     data.title = 'Leaderboard - o!RL';
-    return render_with_layout('views/leaderboard.html', data);
+    return render_with_layout(req, 'views/leaderboard.html', data);
   };
 
-  const render_user = async (user, page_num) => {
+  const render_user = async (req, user, page_num) => {
     const MATCHES_PER_PAGE = 20;
 
     // Fix user-provided page number
@@ -249,7 +248,7 @@ async function listen() {
       <meta content="https://s.ppy.sh/a/${data.user_id}" property="og:image" />
     `;
     data.profile_link = `https://osu.ppy.sh/users/${data.user_id}`;
-    return render_with_layout('views/userpage.html', data);
+    return render_with_layout(req, 'views/userpage.html', data);
   };
 
   app.get('/', async (req, http_res) => {
@@ -257,11 +256,11 @@ async function listen() {
   });
 
   app.get('/leaderboard/', async (req, http_res) => {
-    http_res.send(await render_leaderboard(1));
+    http_res.send(await render_leaderboard(req, 1));
   });
 
   app.get('/leaderboard/page-:pageNum/', async (req, http_res) => {
-    http_res.send(await render_leaderboard(parseInt(req.params.pageNum, 10)));
+    http_res.send(await render_leaderboard(req, parseInt(req.params.pageNum, 10)));
   });
 
   app.get('/u/:userId/', async (req, http_res) => {
@@ -275,7 +274,7 @@ async function listen() {
       return;
     }
 
-    http_res.send(await render_user(user, 1));
+    http_res.send(await render_user(req, user, 1));
   });
 
   app.get('/u/:userId/page-:pageNum', async (req, http_res) => {
@@ -289,7 +288,7 @@ async function listen() {
       return;
     }
 
-    http_res.send(await render_user(user, parseInt(req.params.pageNum, 10)));
+    http_res.send(await render_user(req, user, parseInt(req.params.pageNum, 10)));
   });
 
   app.get('/auth', async (req, http_res) => {
@@ -327,7 +326,7 @@ async function listen() {
         console.error(res.status, await res.text());
         return null;
       }
-  
+
       // Get osu user id from the received oauth tokens
       return await res.json();
     };
@@ -353,7 +352,7 @@ async function listen() {
       }
 
       return await res.json();
-    }
+    };
 
     if (req.query.state === 'login') {
       const tokens = await fetchOauthTokens();
@@ -382,18 +381,18 @@ async function listen() {
       const new_expires_tms = Date.now() + tokens.expires_in * 1000;
       const new_auth_token = crypto.randomBytes(20).toString('hex');
       await ranks_db.run(
-        `INSERT INTO website_tokens (
+          `INSERT INTO website_tokens (
           user_id,
           token,
           expires_tms,
           osu_access_token,
           osu_refresh_token
         ) VALUES (?, ?, ?, ?, ?)`,
-        user_profile.id,
-        new_auth_token,
-        new_expires_tms,
-        tokens.access_token,
-        tokens.refresh_token
+          user_profile.id,
+          new_auth_token,
+          new_expires_tms,
+          tokens.access_token,
+          tokens.refresh_token,
       );
 
       http_res.cookie('token', new_auth_token);
@@ -463,7 +462,7 @@ async function listen() {
 
   app.get('/success', async (req, http_res) => {
     const data = {title: 'Account Linked - o!RL'};
-    http_res.send(await render_with_layout('views/success.html', data));
+    http_res.send(await render_with_layout(req, 'views/success.html', data));
   });
 
   app.get('/search', async (req, http_res) => {
