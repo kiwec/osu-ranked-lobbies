@@ -384,6 +384,7 @@ async function listen() {
     const players = await ranks_db.all(`
       SELECT * FROM user
       WHERE username LIKE ?
+      AND games_played > 4
       ORDER BY elo DESC
       LIMIT 5
     `, `%${req.query.query}%`);
