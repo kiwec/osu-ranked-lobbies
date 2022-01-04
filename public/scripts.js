@@ -64,7 +64,110 @@
   });
 
   switcher.forEach(el => {
-    el.removeEventListener('click', toggleTheme);
     el.addEventListener('click', toggleTheme);
   });
-})()
+
+  let searchResults = document.querySelector('.search-results');
+  let searchField = document.querySelector('.search-button');
+  let searchFieldInput = document.querySelector('.search-button input');
+  let searchFieldBackground = document.querySelector('.search-button + .search-background');
+  if (searchField) {
+    searchField.addEventListener('click', () => searchFieldInput.focus());
+    searchFieldInput.addEventListener('focus', ev => {
+      let classes = searchField.getAttribute('class');
+      if (classes.indexOf('active') === -1) {
+        classes += ' active';
+        searchField.setAttribute('class', classes);
+      }
+    });
+
+    const searchTimeout = 400;
+    let lastSearchRequest = {
+      tms: null,
+      job: null
+    };
+
+    searchField.addEventListener('input', ev => {
+      searchResults.innerHTML = '';
+      const searchQuery = ev.target.value;
+      if (searchQuery === '') {
+        clearTimeout(lastSearchRequest.job);
+        return
+      };
+      if (Date.now() < lastSearchRequest.tms + searchTimeout) {
+        clearTimeout(lastSearchRequest.job);
+      }
+      lastSearchRequest.job = setTimeout(() => {
+        fetch(`/search?query=${searchQuery}`)
+          .then(res => res.json())
+          .then(res => {
+            res.forEach(player => {
+              player.username = player.username.length > 20 ? (player.username.substr(0, 20)+'...') : player.username;
+              searchResults.innerHTML += `
+                <a href="/u/${player.user_id}" class="search-result-item">
+                  <span>${player.username}</span>
+                  <span>${Math.trunc(player.elo)}</span>
+                </a>
+              `;
+            });
+            if (res.length === 0) {
+              searchResults.innerHTML = `
+                <div class="search-result-item not-found">
+                  Nothing found!
+                </div>
+              `;
+            }
+          });
+      }, searchTimeout);
+      lastSearchRequest.tms = Date.now();
+    });
+
+    searchFieldBackground.addEventListener('click', () => {
+      searchField.setAttribute('class', searchField.getAttribute('class').replace('active', '').trim());
+    });
+  }
+
+  function documentKeydown(event) {
+    if (event.key === "Enter") {
+      let activeItem = document.querySelector('.search-result-item.active');
+      if (activeItem) {
+        document.location = activeItem.getAttribute('href');
+      }
+    }
+    const changeActiveItem = isDown => {
+      if (searchFieldInput === document.activeElement) {
+        searchFieldInput.blur();
+      }
+      let items = document.querySelectorAll('.search-result-item');
+      if (!document.querySelector('.search-result-item.active')) {
+        items[0].setAttribute('class', items[0].getAttribute('class')+' active');
+        return;
+      }
+      for(let i = 0; i < items.length; i++) {
+        if (items[i].getAttribute('class').indexOf('active') !== -1) {
+          items[i].setAttribute('class', items[i].getAttribute('class').replace('active', '').trim());
+          let nextIndex;
+          if (isDown) {
+            nextIndex = ((i + 1) > (items.length - 1)) ? 0 : (i + 1);
+          } else {
+            nextIndex = ((i - 1) < 0) ? (items.length - 1) : (i - 1);
+          }
+          items[nextIndex].setAttribute('class', items[nextIndex].getAttribute('class')+' active');
+          return;
+        }
+      }
+    }
+    if (event.keyCode === 40) {
+      changeActiveItem(true);
+    }
+    if (event.keyCode === 38) {
+      changeActiveItem(false);
+    }
+    if (event.key === "Escape") {
+      searchField.setAttribute('class', searchField.getAttribute('class').replace('active', '').trim());
+      searchFieldInput.blur();
+    }
+  }
+
+  document.onkeydown = documentKeydown;
+})();
