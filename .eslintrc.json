@@ -15,7 +15,7 @@
     "camelcase": "off",
     "require-jsdoc": "off",
     "max-len": "off",
-    "new-cap": "off"
-  },
-  "ignorePatterns": ["public/**"]
+    "new-cap": "off",
+    "no-invalid-this": "off"
+  }
 }

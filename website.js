@@ -1,4 +1,5 @@
 import express from 'express';
+import fs from 'fs';
 import fetch from 'node-fetch';
 import morgan from 'morgan';
 import Sentry from '@sentry/node';
@@ -6,17 +7,12 @@ import cookieParser from 'cookie-parser';
 import crypto from 'crypto';
 
 import {init_databases} from './database.js';
-import {get_rank_text_from_id} from './elo_mmr.js';
+import {get_rank, get_rank_text_from_id} from './elo_mmr.js';
 import {update_discord_role, update_discord_username} from './discord_updates.js';
 import SQL from 'sql-template-strings';
 import Config from './util/config.js';
-import {render_with_layout, render_error} from './util/helpers.js';
-import {
-  register_routes as register_api_routes,
-  get_leaderboard_page,
-  get_user_profile,
-  get_user_matches,
-} from './website_api.js';
+import {render_error} from './util/helpers.js';
+import {register_routes as register_api_routes} from './website_api.js';
 
 
 async function listen() {
@@ -37,16 +33,6 @@ async function listen() {
 
   app.use(cookieParser());
 
-  // Theme middleware
-  app.use(function(req, res, next) {
-    const cookies = req.cookies;
-    req.theme = 'dark';
-    if (cookies && cookies.theme) {
-      req.theme = cookies.theme;
-    }
-    next();
-  });
-
   // Auth middleware
   app.use(async function(req, res, next) {
     const cookies = req.cookies;
@@ -64,6 +50,7 @@ async function listen() {
         `);
       } else if (user_token) {
         req.user_id = user_token.user_id;
+        res.set('X-Osu-ID', user_token.user_id);
         next();
         return;
       }
@@ -77,62 +64,6 @@ async function listen() {
 
   app.get('/', async (req, http_res) => {
     http_res.redirect('/leaderboard/');
-  });
-
-  app.get('/leaderboard/', async (req, http_res) => {
-    const data = await get_leaderboard_page(1);
-    data.title = 'Leaderboard - o!RL';
-    http_res.send(await render_with_layout(req, 'views/leaderboard.html', data));
-  });
-
-  app.get('/leaderboard/page-:pageNum/', async (req, http_res) => {
-    const data = await get_leaderboard_page(parseInt(req.params.pageNum, 10));
-    data.title = 'Leaderboard - o!RL';
-    http_res.send(await render_with_layout(req, 'views/leaderboard.html', data));
-  });
-
-  app.get('/u/:userId/', async (req, http_res) => {
-    try {
-      const user_id = parseInt(req.params.userId, 10);
-      const user = await get_user_profile(user_id);
-      const matches = await get_user_matches(user_id);
-      http_res.send(await render_with_layout(req, 'views/userpage.html', {
-        ...user,
-        ...matches,
-        title: `${user.username}  - Userpage - o!RL`,
-        meta: `
-          <meta content="${user.username}  - Userpage - o!RL" property="og:title" />
-          <meta content="#${user.rank.rank_nb} - ${user.rank.text}" property="og:description" />
-          <meta content="https://osu.kiwec.net/u/${user.user_id}" property="og:url" />
-          <meta content="https://s.ppy.sh/a/${user.user_id}" property="og:image" />
-        `,
-        profile_link: `https://osu.ppy.sh/users/${user.user_id}`,
-      }));
-    } catch (err) {
-      http_res.send(await render_error(req, err, err.code));
-    }
-  });
-
-  app.get('/u/:userId/page-:pageNum', async (req, http_res) => {
-    try {
-      const user_id = parseInt(req.params.userId, 10);
-      const user = await get_user_profile(user_id);
-      const matches = await get_user_matches(user_id, parseInt(req.params.pageNum, 10));
-      http_res.send(await render_with_layout(req, 'views/userpage.html', {
-        ...user,
-        ...matches,
-        title: `${user.username}  - Userpage - o!RL`,
-        meta: `
-          <meta content="${user.username}  - Userpage - o!RL" property="og:title" />
-          <meta content="#${user.rank.rank_nb} - ${user.rank.text}" property="og:description" />
-          <meta content="https://osu.kiwec.net/u/${user.user_id}" property="og:url" />
-          <meta content="https://s.ppy.sh/a/${user.user_id}" property="og:image" />
-        `,
-        profile_link: `https://osu.ppy.sh/users/${user.user_id}`,
-      }));
-    } catch (err) {
-      http_res.send(await render_error(req, err, err.code));
-    }
   });
 
   app.get('/auth', async (req, http_res) => {
@@ -217,7 +148,7 @@ async function listen() {
           WHERE user_id = ${user_token.user_id}
         `);
       } else if (user_token) {
-        http_res.cookie('token', user_token.token);
+        http_res.cookie('token', user_token.token, {sameSite: true});
         http_res.redirect(`/u/${user_token.user_id}`);
         return;
       }
@@ -239,7 +170,7 @@ async function listen() {
           tokens.refresh_token,
       );
 
-      http_res.cookie('token', new_auth_token);
+      http_res.cookie('token', new_auth_token, {sameSite: true});
       http_res.redirect(`/u/${user_profile.id}`);
       return;
     }
@@ -306,7 +237,7 @@ async function listen() {
 
   app.get('/success', async (req, http_res) => {
     const data = {title: 'Account Linked - o!RL'};
-    http_res.send(await render_with_layout(req, 'views/success.html', data));
+    http_res.send(await render_error(req, data, 200));
   });
 
   app.get('/search', async (req, http_res) => {
@@ -318,7 +249,53 @@ async function listen() {
       LIMIT 5
     `, `%${req.query.query}%`);
 
+    http_res.set('Cache-control', 'public, max-age=60');
     http_res.json(players);
+  });
+
+  // In production, we let expressjs return a blank page of status 404, so
+  // that nginx serves the index.html page directly. During development
+  // however, it's useful to serve that page since it avoids having to run a
+  // proxy on the development machine.
+  if (!Config.IS_PRODUCTION) {
+    app.get('*', async (req, http_res) => {
+      http_res.set('Cache-control', 'public, max-age=14400');
+      http_res.send(fs.readFileSync('public/index.html', 'utf-8'));
+    });
+  }
+
+  // Dirty hack to handle Discord embeds nicely
+  app.get('/u/:userId', async (req, http_res) => {
+    if (req.userAgent.indexOf('Discordbot') != -1) {
+      const user = await ranks_db.get(SQL`
+        SELECT * FROM user
+        WHERE user_id = ${req.params.userId}
+        AND games_played > 0`,
+      );
+      if (!user) {
+        http_res.status(404).send('');
+        return;
+      }
+
+      const rank = await get_rank(user.elo);
+      http_res.send(`<html>
+        <head>
+          <meta content="${user.username} - o!RL" property="og:title" />
+          <meta content="#${rank.rank_nb} - ${rank.text}" property="og:description" />
+          <meta content="https://osu.kiwec.net/u/${user.user_id}" property="og:url" />
+          <meta content="https://s.ppy.sh/a/${user.user_id}" property="og:image" />
+        </head>
+        <body>hi :)</body>
+      </html>`);
+      return;
+    }
+
+    if (Config.IS_PRODUCTION) {
+      http_res.status(404).send('');
+    } else {
+      http_res.set('Cache-control', 'public, max-age=14400');
+      http_res.send(fs.readFileSync('public/index.html', 'utf-8'));
+    }
   });
 
   if (Config.ENABLE_SENTRY) {

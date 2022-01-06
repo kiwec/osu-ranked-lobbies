@@ -1,5 +1,5 @@
 {
-    "CONNECT_TO_BANCHO": true,
+    "CONNECT_TO_BANCHO": false,
     "CREATE_LOBBIES": false,
     "APPLY_RANK_DECAY": false,
     "osu_id": "your osu! id here",
@@ -9,8 +9,7 @@
     "osu_v2api_client_id": 1234,
     "osu_v2api_client_secret": "get it here: https://osu.ppy.sh/home/account/edit#new-oauth-application",
 
-    "CONNECT_TO_DISCORD": true,
-    
+    "CONNECT_TO_DISCORD": false,
     "discord_token": "get it here: https://discord.com/developers/applications",
     "discord_invite_link": "don't use a discord.gg link directly, bancho wordswaps those to google.com",
     "discord_guild_id": "891781932067749948",
@@ -30,9 +29,9 @@
     "discord_linked_account_role_id": "909777665223966750",
 
     "HOST_WEBSITE": true,
-    "website_base_url": "https://osu.kiwec.net",
+    "website_base_url": "https://127.0.0.1:3001",
     
-    "ENABLE_SENTRY": true,
-
+    "IS_PRODUCTION": false,
+    "ENABLE_SENTRY": false,
     "sentry_dsn": "create a project on https://sentry.io/ and copy the dsn url here"
 }

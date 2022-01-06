@@ -20,37 +20,6 @@ const USER_NOT_FOUND = new Error('User not found. Have you played a game in a ra
 USER_NOT_FOUND.code = 404;
 
 
-function generate_pagination(page_num, min_pages, max_pages) {
-  const MAX_PAGINATED_PAGES = Math.min(max_pages, 9);
-  let pagination_min = page_num;
-  let pagination_max = page_num;
-  let nb_paginated_pages = min_pages;
-  const pages = [];
-
-  while (nb_paginated_pages < MAX_PAGINATED_PAGES) {
-    if (pagination_min > min_pages) {
-      pagination_min--;
-      nb_paginated_pages++;
-    }
-    if (pagination_max < max_pages) {
-      pagination_max++;
-      nb_paginated_pages++;
-    }
-  }
-  for (let i = pagination_min; i <= pagination_max; i++) {
-    pages.push({
-      number: i,
-      is_current: i == page_num,
-    });
-  }
-
-  return {
-    previous: Math.max(page_num - 1, 1),
-    next: Math.min(page_num + 1, max_pages),
-    pages: pages,
-  };
-}
-
 async function get_leaderboard_page(page_num) {
   const PLAYERS_PER_PAGE = 20;
 
@@ -83,7 +52,8 @@ async function get_leaderboard_page(page_num) {
     nb_ranked_players: total_players.nb,
     the_one: false,
     players: [],
-    pagination: generate_pagination(page_num, 1, nb_pages),
+    page: page_num,
+    max_pages: nb_pages,
   };
 
   // Players
@@ -158,7 +128,8 @@ async function get_user_matches(user_id, page_num) {
 
   const data = {
     matches: [],
-    pagination: generate_pagination(page_num, 1, nb_pages),
+    page: page_num,
+    max_pages: nb_pages,
   };
 
   const offset = (page_num - 1) * MATCHES_PER_PAGE;
@@ -242,9 +213,5 @@ async function register_routes(app) {
 }
 
 export {
-  generate_pagination,
-  get_leaderboard_page,
-  get_user_profile,
-  get_user_matches,
   register_routes,
 };
