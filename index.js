@@ -128,7 +128,7 @@ async function create_lobby_if_needed() {
         scorev2: false,
       });
     }
-    if (!lobbies.some((lobby) => lobby.min_stars == 0.0)) {
+    if (!lobbies.some((lobby) => lobby.min_stars == 5.5)) {
       const lobby = await bancho.make(`5.5-5.99* | o!RL | Auto map select (!about)`);
       await init_lobby(lobby, {
         creator: Config.osu_username,

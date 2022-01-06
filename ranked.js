@@ -4,7 +4,8 @@ import sqlite3 from 'sqlite3';
 import SQL from 'sql-template-strings';
 
 import bancho from './bancho.js';
-import {init_db as init_ranking_db, update_mmr, get_rank} from './elo_mmr.js';
+import {init_databases} from './database.js';
+import {update_mmr, get_rank} from './elo_mmr.js';
 import {
   close_ranked_lobby_on_discord,
 } from './discord_updates.js';
@@ -13,6 +14,7 @@ import {get_map_data} from './profile_scanner.js';
 import {capture_sentry_exception} from './util/helpers.js';
 import Config from './util/config.js';
 
+let discord_db = null;
 let ranking_db = null;
 let map_db = null;
 const DIFFICULTY_MODIFIER = 1.1;
@@ -451,6 +453,11 @@ async function on_lobby_msg(lobby, msg) {
     }
 
     lobby.is_dt = !lobby.is_dt;
+    await discord_db.run(SQL`
+      UPDATE ranked_lobby
+      SET dt = ${lobby.is_dt ? 1 : 0}
+      WHERE osu_lobby_id = ${lobby.id}`,
+    );
     if (lobby.is_dt) await lobby.send('!mp mods dt freemod');
     else await lobby.send('!mp mods freemod');
     await select_next_map(lobby);
@@ -464,6 +471,11 @@ async function on_lobby_msg(lobby, msg) {
     }
 
     lobby.is_scorev2 = !lobby.is_scorev2;
+    await discord_db.run(SQL`
+      UPDATE ranked_lobby
+      SET scorev2 = ${lobby.is_scorev2 ? 1 : 0}
+      WHERE osu_lobby_id = ${lobby.id}`,
+    );
     await lobby.send(`!mp set 0 ${lobby.is_scorev2 ? '3': '0'} 16`);
     await select_next_map(lobby);
     return;
@@ -482,6 +494,11 @@ async function on_lobby_msg(lobby, msg) {
       lobby.min_stars = 0.0;
       lobby.max_stars = 11.0;
       lobby.fixed_star_range = false;
+      await discord_db.run(SQL`
+        UPDATE ranked_lobby
+        SET min_stars = 0.0, max_stars = 11.0
+        WHERE osu_lobby_id = ${lobby.id}`,
+      );
       await select_next_map(lobby);
       return;
     }
@@ -501,6 +518,11 @@ async function on_lobby_msg(lobby, msg) {
     lobby.min_stars = min_stars;
     lobby.max_stars = max_stars;
     lobby.fixed_star_range = true;
+    await discord_db.run(SQL`
+      UPDATE ranked_lobby
+      SET min_stars = ${min_stars}, max_stars = ${max_stars}
+      WHERE osu_lobby_id = ${lobby.id}`,
+    );
     await select_next_map(lobby);
     return;
   }
@@ -648,8 +670,10 @@ async function on_lobby_msg(lobby, msg) {
 }
 
 async function start_ranked(_map_db) {
-  map_db = _map_db;
-  ranking_db = await init_ranking_db();
+  const databases = await init_databases();
+  map_db = databases.maps;
+  ranking_db = databases.ranks;
+  discord_db = databases.discord;
 
   const rejoin_lobby = async (lobby) => {
     console.info('[Ranked] Rejoining lobby #' + lobby.osu_lobby_id);
@@ -672,10 +696,6 @@ async function start_ranked(_map_db) {
     }
   };
 
-  const discord_db = await open({
-    filename: 'discord.db',
-    driver: sqlite3.cached.Database,
-  });
   const lobbies = await discord_db.all('SELECT * from ranked_lobby');
 
   const promises = [];
