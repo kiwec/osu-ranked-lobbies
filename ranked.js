@@ -1,6 +1,4 @@
 import Sentry from '@sentry/node';
-import {open} from 'sqlite';
-import sqlite3 from 'sqlite3';
 import SQL from 'sql-template-strings';
 
 import bancho from './bancho.js';
