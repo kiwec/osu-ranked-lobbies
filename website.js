@@ -266,7 +266,7 @@ async function listen() {
 
   // Dirty hack to handle Discord embeds nicely
   app.get('/u/:userId', async (req, http_res) => {
-    if (req.userAgent.indexOf('Discordbot') != -1) {
+    if (req.get('User-Agent').indexOf('Discordbot') != -1) {
       const user = await ranks_db.get(SQL`
         SELECT * FROM user
         WHERE user_id = ${req.params.userId}
