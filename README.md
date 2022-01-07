@@ -14,7 +14,7 @@ The `sentry_dsn` setting is only required if you intend to run the bot in produc
 
 * Download `maps.db` [from my website](https://osu.kiwec.net/maps.db)
 
-You can also build it yourself, but the scripts required to do so no longer exist (lol) and it takes a long time.
+You can also build it yourself: https://github.com/kiwec/orl-maps-db-generator
 
 * Download and extract the latest `osu_files.tar.bz2` file [from data.ppy.sh](https://data.ppy.sh/) and extract the `.osu` files to the `maps/` directory
 

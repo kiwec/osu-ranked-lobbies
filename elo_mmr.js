@@ -10,7 +10,6 @@ import Config from './util/config.js';
 import {capture_sentry_exception} from './util/helpers.js';
 
 let db = null;
-// let maps_db = null;
 
 
 // Squared variation in individual performances
@@ -279,23 +278,6 @@ async function update_mmr(lobby) {
 
   const contest = new Contest(lobby);
   if (contest.standings.length < 2) return [];
-
-  // // Bot restarted, fetch how much the map weighs.
-  // if (!lobby.current_map_pp) {
-  //   const pp = await maps_db.get(SQL`
-  //     SELECT pp FROM pp
-  //     WHERE map_id = ${contest.map_id} AND mods = ${contest.mods | (1<<16)}`,
-  //   );
-  //   if (!pp) {
-  //     console.error('Failed to fetch pp for map', contest.map_id, 'with mods', contest.mods);
-  //     return [];
-  //   }
-
-  //   lobby.current_map_pp = pp.pp;
-  // }
-
-  // contest.weight = Math.min(lobby.current_map_pp / 500.0, 1.0);
-  // contest.weight = 1.0 - Math.pow(1.0 - contest.weight, 4.0);
   await contest.init();
 
   // Compute sig_perf and discrete_drift
@@ -625,8 +607,6 @@ async function get_rank_text_from_id(osu_user_id) {
 async function init_db() {
   const databases = await init_databases();
   db = databases.ranks;
-  // maps_db = databases.maps;
-
   return db;
 }
 

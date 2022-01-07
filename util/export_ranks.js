@@ -87,17 +87,6 @@ async function export_ranks() {
       standing.pop();
     }
 
-    const pp = await maps_db.get(SQL`
-      SELECT pp FROM pp
-      WHERE map_id = ${contest.map_id} AND mods = ${contest.mods | (1<<16)}`,
-    );
-    if (!pp) {
-      console.error('Failed to fetch pp for map', contest.map_id, 'with mods', contest.mods);
-      continue;
-    }
-
-    output['difficulty'] = pp.pp;
-
     fs.writeFileSync(`/tmp/osucontests/${exported}.json`, JSON.stringify(output));
     console.log(`Exported ${exported++}/${contests.length} contests.`);
   }

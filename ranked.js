@@ -100,29 +100,27 @@ async function select_next_map(lobby) {
 
     if (lobby.is_dt) {
       meta = await map_db.get(SQL`
-        SELECT MIN(pp_stars) AS min_stars, MAX(pp_stars) AS max_stars FROM (
-          SELECT pp.stars AS pp_stars, (
+        SELECT MIN(dt_stars) AS min_stars, MAX(dt_stars) AS max_stars FROM (
+          SELECT dt_stars, (
             ABS(${lobby.median_aim * DT_DIFFICULTY_MODIFIER} - dt_aim_pp)
             + ABS(${lobby.median_speed * DT_DIFFICULTY_MODIFIER} - dt_speed_pp)
             + ABS(${lobby.median_acc * DT_DIFFICULTY_MODIFIER} - dt_acc_pp)
-            + 10*ABS(${lobby.median_ar} - pp.ar)
+            + 10*ABS(${lobby.median_ar} - dt_ar)
           ) AS match_accuracy FROM map
-          INNER JOIN pp ON map.id = pp.map_id
-          WHERE mods = 65600 AND length > 60 AND ranked IN (4, 5, 7) AND match_accuracy IS NOT NULL AND dmca = 0
+          WHERE length > 60 AND ranked IN (4, 5, 7) AND match_accuracy IS NOT NULL AND dmca = 0
           ORDER BY match_accuracy LIMIT 1000
         )`,
       );
     } else {
       meta = await map_db.get(SQL`
-        SELECT MIN(pp_stars) AS min_stars, MAX(pp_stars) AS max_stars FROM (
-          SELECT pp.stars AS pp_stars, (
+        SELECT MIN(stars) AS min_stars, MAX(stars) AS max_stars FROM (
+          SELECT stars, (
             ABS(${lobby.median_aim} - aim_pp)
             + ABS(${lobby.median_speed} - speed_pp)
             + ABS(${lobby.median_acc} - acc_pp)
-            + 10*ABS(${lobby.median_ar} - pp.ar)
+            + 10*ABS(${lobby.median_ar} - ar)
           ) AS match_accuracy FROM map
-          INNER JOIN pp ON map.id = pp.map_id
-          WHERE mods = (1<<16) AND length > 60 AND ranked IN (4, 5, 7) AND match_accuracy IS NOT NULL AND dmca = 0
+          WHERE length > 60 AND ranked IN (4, 5, 7) AND match_accuracy IS NOT NULL AND dmca = 0
           ORDER BY match_accuracy LIMIT 1000
         )`,
       );
@@ -136,15 +134,14 @@ async function select_next_map(lobby) {
     if (lobby.is_dt) {
       new_map = await map_db.get(SQL`
         SELECT * FROM (
-          SELECT *, pp.stars AS pp_stars, (
+          SELECT *, (
             ABS(${lobby.median_aim * DT_DIFFICULTY_MODIFIER} - dt_aim_pp)
             + ABS(${lobby.median_speed * DT_DIFFICULTY_MODIFIER} - dt_speed_pp)
             + ABS(${lobby.median_acc * DT_DIFFICULTY_MODIFIER} - dt_acc_pp)
-            + 10*ABS(${lobby.median_ar} - pp.ar)
+            + 10*ABS(${lobby.median_ar} - dt_ar)
           ) AS match_accuracy FROM map
-          INNER JOIN pp ON map.id = pp.map_id
-          WHERE mods = 65600
-            AND pp.stars >= ${lobby.min_stars} AND pp.stars <= ${lobby.max_stars}
+          WHERE
+            dt_stars >= ${lobby.min_stars} AND dt_stars <= ${lobby.max_stars}
             AND length > 60
             AND ranked IN (4, 5, 7)
             AND match_accuracy IS NOT NULL
@@ -155,15 +152,14 @@ async function select_next_map(lobby) {
     } else {
       new_map = await map_db.get(SQL`
         SELECT * FROM (
-          SELECT *, pp.stars AS pp_stars, (
+          SELECT *, (
             ABS(${lobby.median_aim} - aim_pp)
             + ABS(${lobby.median_speed} - speed_pp)
             + ABS(${lobby.median_acc} - acc_pp)
-            + 10*ABS(${lobby.median_ar} - pp.ar)
+            + 10*ABS(${lobby.median_ar} - ar)
           ) AS match_accuracy FROM map
-          INNER JOIN pp ON map.id = pp.map_id
-          WHERE mods = (1<<16)
-            AND pp.stars >= ${lobby.min_stars} AND pp.stars <= ${lobby.max_stars}
+          WHERE
+            stars >= ${lobby.min_stars} AND stars <= ${lobby.max_stars}
             AND length > 60
             AND ranked IN (4, 5, 7)
             AND match_accuracy IS NOT NULL
@@ -186,7 +182,8 @@ async function select_next_map(lobby) {
 
   try {
     lobby.map_data = null;
-    const flavor = `${MAP_TYPES[new_map.ranked]} ${new_map.pp_stars.toFixed(2)}*, ${Math.round(new_map.pp)}pp`;
+    const sr = lobby.is_dt ? new_map.dt_stars : new_map.stars;
+    const flavor = `${MAP_TYPES[new_map.ranked]} ${sr.toFixed(2)}*, ${Math.round(new_map.pp)}pp`;
     const map_name = `[https://osu.ppy.sh/beatmapsets/${new_map.set_id}#osu/${new_map.id} ${new_map.name}]`;
     const beatconnect_link = `[https://beatconnect.io/b/${new_map.set_id} [1]]`;
     const chimu_link = `[https://api.chimu.moe/v1/download/${new_map.set_id}?n=1 [2]]`;

@@ -274,15 +274,14 @@ async function _scan_user_profile(user) {
 
   // Get average SR for those pp values
   const meta = await maps_db.get(SQL`
-    SELECT AVG(pp_stars) AS avg_sr FROM (
-      SELECT pp.stars AS pp_stars, (
+    SELECT AVG(stars) AS avg_sr FROM (
+      SELECT stars, (
         ABS(${aim_pp} - aim_pp)
         + ABS(${speed_pp} - speed_pp)
         + ABS(${acc_pp} - acc_pp)
-        + 10*ABS(${avg_ar} - pp.ar)
+        + 10*ABS(${avg_ar} - ar)
       ) AS match_accuracy FROM map
-      INNER JOIN pp ON map.id = pp.map_id
-      WHERE mods = (1<<16) AND length > 60 AND ranked IN (4, 5, 7) AND match_accuracy IS NOT NULL
+      WHERE length > 60 AND ranked IN (4, 5, 7) AND match_accuracy IS NOT NULL
       ORDER BY match_accuracy LIMIT 1000
     )`,
   );
