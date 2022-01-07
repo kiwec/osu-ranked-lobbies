@@ -114,8 +114,8 @@ async function main() {
               value: `Vote to kick a player. This is used in rare cases where the lobby gets stuck because of a single player. Most of the time, you'll want to use the in-game ignoring and reporting features.`,
             },
             {
-              name: '!rank',
-              value: `Display your rank.`,
+              name: '!rank <player>',
+              value: `Display your rank or the rank of another player.`,
             },
             {
               name: '!stars <minimum> <maximum>',

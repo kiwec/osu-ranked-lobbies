@@ -9,8 +9,6 @@
 // which is why we have a JavaScript implementation in the first place.
 
 import fs from 'fs';
-import {open} from 'sqlite';
-import sqlite3 from 'sqlite3';
 import SQL from 'sql-template-strings';
 
 import {init_db} from '../elo_mmr.js';
@@ -18,10 +16,6 @@ import {init_db} from '../elo_mmr.js';
 
 async function export_ranks() {
   const db = await init_db();
-  const maps_db = await open({
-    filename: 'maps.db',
-    driver: sqlite3.cached.Database,
-  });
 
   const contests = await db.all(SQL`
     SELECT rowid, lobby_id, map_id, tms, scoring_system, mods

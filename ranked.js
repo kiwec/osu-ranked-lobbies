@@ -15,8 +15,8 @@ import Config from './util/config.js';
 let discord_db = null;
 let ranking_db = null;
 let map_db = null;
-const DIFFICULTY_MODIFIER = 1.2;
-const DT_DIFFICULTY_MODIFIER = 0.8;
+const DIFFICULTY_MODIFIER = 1.1;
+const DT_DIFFICULTY_MODIFIER = 0.7;
 
 function set_sentry_context(lobby, current_task) {
   if (Config.ENABLE_SENTRY) {
