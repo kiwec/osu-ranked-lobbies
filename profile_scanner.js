@@ -1,11 +1,13 @@
-import {open} from 'sqlite';
+import {createRequire} from 'module';
+const require = createRequire(import.meta.url);
+const rosu = require('rosu-pp');
+
 import * as fs from 'fs/promises';
-import sqlite3 from 'sqlite3';
 import fetch from 'node-fetch';
 import {promisify} from 'util';
-import ojsama from 'ojsama';
 import SQL from 'sql-template-strings';
 
+import {init_databases} from './database.js';
 import {update_discord_username} from './discord_updates.js';
 
 import {constants} from 'fs';
@@ -78,17 +80,10 @@ async function get_map_data(map_id) {
 
 // We assume user.user_id is already set.
 async function scan_user_profile(user) {
-  if (!maps_db) {
-    maps_db = await open({
-      filename: 'maps.db',
-      driver: sqlite3.cached.Database,
-    });
-  }
-  if (!ranks_db) {
-    ranks_db = await open({
-      filename: 'ranks.db',
-      driver: sqlite3.cached.Database,
-    });
+  if (!maps_db || !ranks_db) {
+    const databases = await init_databases();
+    maps_db = databases.maps;
+    ranks_db = databases.ranks;
   }
 
   // Check if the user exists in the database
@@ -161,9 +156,7 @@ async function scan_user_profile(user) {
       break;
     }
   }
-
-  // Re-scan users with last_update below 1638722217000 to set their nickname (see bottom of file)
-  if (user.last_update_tms > 1638722217000 && user.avg_sr != null && !has_new_score) {
+  if (user.avg_sr != null && !has_new_score) {
     return;
   }
 
@@ -195,60 +188,40 @@ async function scan_user_profile(user) {
         await fs.writeFile(file, await new_file.text());
       }
 
-      const contents = await fs.readFile(file, 'utf-8');
-      const parser = new ojsama.parser();
-      parser.feed(contents);
+      let mods = 0;
+      if (score.mods.includes('NF')) mods |= (1<<0);
+      if (score.mods.includes('EZ')) mods |= (1<<1);
+      if (score.mods.includes('TD')) mods |= (1<<2);
+      if (score.mods.includes('HD')) mods |= (1<<3);
+      if (score.mods.includes('HR')) mods |= (1<<4);
+      if (score.mods.includes('SD')) mods |= (1<<5);
+      if (score.mods.includes('DT')) mods |= (1<<6);
+      if (score.mods.includes('RX')) mods |= (1<<7);
+      if (score.mods.includes('HT')) mods |= (1<<8);
+      if (score.mods.includes('NC')) mods |= (1<<9);
+      if (score.mods.includes('FL')) mods |= (1<<10);
+      if (score.mods.includes('AT')) mods |= (1<<11);
+      if (score.mods.includes('SO')) mods |= (1<<12);
+      if (score.mods.includes('AP')) mods |= (1<<13);
+      if (score.mods.includes('PF')) mods |= (1<<14);
 
-      const map_pp = ojsama.ppv2({
-        map: parser.map,
-        mods: ojsama.modbits.from_string(score.mods.join('')),
-        nmiss: score.statistics.count_miss,
-        n50: score.statistics.count_50,
-        n100: score.statistics.count_100,
-        n300: score.statistics.count_300,
+      const pp_res = rosu.calculate({
+        path: file,
+        mods: mods,
         combo: score.max_combo,
+        n300: score.statistics.count_300,
+        n100: score.statistics.count_100,
+        n50: score.statistics.count_50,
+        nMisses: score.statistics.count_miss,
       });
-      aim_pp += map_pp.aim * current_weight;
-      acc_pp += map_pp.acc * current_weight;
-      speed_pp += map_pp.speed * current_weight;
-      overall_pp += map_pp.total * current_weight;
 
-      let approach_rate = score.beatmap.ar;
-      if (score.mods.includes('HR')) {
-        approach_rate *= 1.4;
-        if (approach_rate > 10) approach_rate = 10;
-      } else if (score.mods.includes('EZ')) {
-        approach_rate /= 2;
-      }
-
-      // For how long the circle is shown on screen, in milliseconds
-      // See https://osu.ppy.sh/wiki/en/Beatmapping/Approach_rate
-      let preempt;
-      if (approach_rate > 5) {
-        preempt = 1200 - 150 * (approach_rate - 5);
-      } else {
-        preempt = 1200 + 120 * (5 - approach_rate);
-      }
-
-      if (score.mods.includes('DT')) {
-        preempt *= 2/3;
-        if (preempt > 1200) {
-          approach_rate = 5 - (preempt - 1200) / 120;
-        } else {
-          approach_rate = (1200 - preempt) / 150 + 5;
-        }
-      } else if (score.mods.includes('HT')) {
-        preempt /= 0.75;
-        if (preempt > 1200) {
-          approach_rate = 5 - (preempt - 1200) / 120;
-        } else {
-          approach_rate = (1200 - preempt) / 150 + 5;
-        }
-      }
-      approach_rate *= current_weight;
-      avg_ar += approach_rate;
+      aim_pp += pp_res[0].ppAim * current_weight;
+      acc_pp += pp_res[0].ppAcc * current_weight;
+      speed_pp += pp_res[0].ppSpeed * current_weight;
+      overall_pp += pp_res[0].pp * current_weight;
+      avg_ar += pp_res[0].ar * current_weight;
     } catch (err) {
-      console.error('Failed to compute pp for map', score.beatmap.id, ':', err);
+      console.error(`[PP] Map #${score.beatmap.id}:`, err);
       continue;
     }
 
@@ -309,15 +282,6 @@ async function scan_user_profile(user) {
       last_update_tms = ${Date.now()}
     WHERE user_id = ${user.user_id}`,
   );
-
-  // User never got their discord nickname set
-  if (recent_scores.length > 0 && user.last_update_tms < 1638722217000) {
-    await update_discord_username(
-        user.user_id,
-        recent_scores[0].user.username,
-        'Fixed nickname for existing user',
-    );
-  }
 
   console.log('[API] Finished recalculating pp for ' + user.username);
 }

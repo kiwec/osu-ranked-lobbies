@@ -410,6 +410,11 @@ callsites@^3.0.0, callsites@^3.1.0:
   resolved "https://registry.yarnpkg.com/callsites/-/callsites-3.1.0.tgz#b3630abd8943432f54b3f0519238e33cd7df2f73"
   integrity sha512-P8BjAsXvZS+VIDUI11hHCQEv74YT67YUi5JJFNWIqL235sBmjX4+qx9Muvls5ivyNENctx46xQLQ3aTuE7ssaQ==
 
+cargo-cp-artifact@^0.1:
+  version "0.1.6"
+  resolved "https://registry.yarnpkg.com/cargo-cp-artifact/-/cargo-cp-artifact-0.1.6.tgz#df1bc9dad036ae0f4230639a869182e1d5850f89"
+  integrity sha512-CQw0doK/aaF7j041666XzuilHxqMxaKkn+I5vmBsd8SAwS0cO5CqVEVp0xJwOKstyqWZ6WK4Ww3O6p26x/Goyg==
+
 caseless@~0.12.0:
   version "0.12.0"
   resolved "https://registry.yarnpkg.com/caseless/-/caseless-0.12.0.tgz#1b681c21ff84033c826543090689420d187151dc"
@@ -1563,11 +1568,6 @@ object-assign@^4.1.0:
   resolved "https://registry.yarnpkg.com/object-assign/-/object-assign-4.1.1.tgz#2109adc7965887cfc05cbbd442cac8bfbb360863"
   integrity sha1-IQmtx5ZYh8/AXLvUQsrIv7s2CGM=
 
-ojsama@^2.2.0:
-  version "2.2.0"
-  resolved "https://registry.yarnpkg.com/ojsama/-/ojsama-2.2.0.tgz#ccff01b681fc25a66d7ee73c78ed3808cf1b9c52"
-  integrity sha512-kO0IaYP+u1QyMrajfm6m6a0xKNCf7psD/CjEHpLZ7gOx4YRJM6m2fEyNZd187Ocrlb+gOqbITDMyLpvOsqzsCg==
-
 on-finished@~2.3.0:
   version "2.3.0"
   resolved "https://registry.yarnpkg.com/on-finished/-/on-finished-2.3.0.tgz#20f1336481b083cd75337992a16971aa2d906947"
@@ -1796,6 +1796,13 @@ rimraf@^3.0.2:
   integrity sha512-JZkJMZkAGFFPP2YqXZXPbMlMBgsxzE8ILs4lMIX/2o0L9UBw9O/Y3o6wFw/i9YLapcUJWwqbi3kdxIPdC62TIA==
   dependencies:
     glob "^7.1.3"
+
+rosu-pp@^0.4.0:
+  version "0.4.0"
+  resolved "https://registry.yarnpkg.com/rosu-pp/-/rosu-pp-0.4.0.tgz#f9a597c69d34988d33a5809d4fe29f319b282916"
+  integrity sha512-7TaEPQVCMbsvbVT80yidrb0EwiSCRwJJ2o1hmLVUty1BXr7JmGpGptEgNlGdmSdSn0D3lB5YmvZ1qsfbcRNNSg==
+  dependencies:
+    cargo-cp-artifact "^0.1"
 
 safe-buffer@5.1.2, safe-buffer@~5.1.0, safe-buffer@~5.1.1:
   version "5.1.2"
