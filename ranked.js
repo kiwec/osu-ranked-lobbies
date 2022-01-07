@@ -15,8 +15,8 @@ import Config from './util/config.js';
 let discord_db = null;
 let ranking_db = null;
 let map_db = null;
-const DIFFICULTY_MODIFIER = 1.1;
-const DT_DIFFICULTY_MODIFIER = 0.7;
+const DIFFICULTY_MODIFIER = 1.2;
+const DT_DIFFICULTY_MODIFIER = 0.8;
 
 function set_sentry_context(lobby, current_task) {
   if (Config.ENABLE_SENTRY) {
@@ -107,7 +107,7 @@ async function select_next_map(lobby) {
             + ABS(${lobby.median_acc * DT_DIFFICULTY_MODIFIER} - dt_acc_pp)
             + 10*ABS(${lobby.median_ar} - dt_ar)
           ) AS match_accuracy FROM map
-          WHERE length > 60 AND ranked IN (4, 5, 7) AND match_accuracy IS NOT NULL AND dmca = 0
+          WHERE length > 90 AND ranked IN (4, 5, 7) AND match_accuracy IS NOT NULL AND dmca = 0
           ORDER BY match_accuracy LIMIT 1000
         )`,
       );
@@ -142,7 +142,7 @@ async function select_next_map(lobby) {
           ) AS match_accuracy FROM map
           WHERE
             dt_stars >= ${lobby.min_stars} AND dt_stars <= ${lobby.max_stars}
-            AND length > 60
+            AND length > 90
             AND ranked IN (4, 5, 7)
             AND match_accuracy IS NOT NULL
             AND dmca = 0
@@ -178,12 +178,13 @@ async function select_next_map(lobby) {
   }
 
   lobby.recent_maps.push(new_map.id);
-  lobby.current_map_pp = new_map.pp;
+  const pp = lobby.is_dt ? new_map.dt_overall_pp : new_map.overall_pp;
+  lobby.current_map_pp = pp;
 
   try {
     lobby.map_data = null;
     const sr = lobby.is_dt ? new_map.dt_stars : new_map.stars;
-    const flavor = `${MAP_TYPES[new_map.ranked]} ${sr.toFixed(2)}*, ${Math.round(new_map.pp)}pp`;
+    const flavor = `${MAP_TYPES[new_map.ranked]} ${sr.toFixed(2)}*, ${Math.round(pp)}pp`;
     const map_name = `[https://osu.ppy.sh/beatmapsets/${new_map.set_id}#osu/${new_map.id} ${new_map.name}]`;
     const beatconnect_link = `[https://beatconnect.io/b/${new_map.set_id} [1]]`;
     const chimu_link = `[https://api.chimu.moe/v1/download/${new_map.set_id}?n=1 [2]]`;

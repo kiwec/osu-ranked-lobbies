@@ -117,7 +117,7 @@ async function render_user(user_id, page_num) {
   const template = document.querySelector('#user-template').content.cloneNode(true);
   template.querySelector('.heading-left img').src = `https://s.ppy.sh/a/${json.user_id}`;
   template.querySelector('.heading-right h1').innerText = json.username;
-  template.querySelector('.heading-right .subheading').href = json.profile_link;
+  template.querySelector('.heading-right .subheading').href = `https://osu.ppy.sh/users/${json.user_id}`;
 
   const blocks = template.querySelectorAll('.user-focus-block');
   blocks[0].innerHTML = `<span>${json.rank.text}</span><span>Rank #${json.rank.rank_nb}</span>`;
