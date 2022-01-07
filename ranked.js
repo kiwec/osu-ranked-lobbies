@@ -248,16 +248,6 @@ async function init_lobby(lobby, settings) {
   lobby.is_dt = settings.dt;
   lobby.is_scorev2 = settings.scorev2;
 
-  if (settings.created_just_now) {
-    await lobby.send(`!mp settings ${Math.random().toString(36).substring(2, 6)}`);
-    await lobby.send('!mp password');
-    await lobby.send(`!mp set 0 ${settings.scorev2 ? '3': '0'} 16`);
-    if (settings.dt) await lobby.send('!mp mods dt freemod');
-    else await lobby.send('!mp mods freemod');
-  } else {
-    await lobby.send(`!mp settings (restarted) ${Math.random().toString(36).substring(2, 6)}`);
-  }
-
   lobby.on('message', (msg) => on_lobby_msg(lobby, msg).catch((err) => {
     set_sentry_context(lobby, 'on_lobby_msg');
     Sentry.setUser({
@@ -393,6 +383,17 @@ async function init_lobby(lobby, settings) {
   });
 
   bancho.joined_lobbies.push(lobby);
+  if (settings.created_just_now) {
+    await lobby.send(`!mp settings ${Math.random().toString(36).substring(2, 6)}`);
+    await lobby.send('!mp password');
+    await lobby.send(`!mp set 0 ${lobby.is_scorev2 ? '3': '0'} 16`);
+
+    // Don't await !mp mods, it looks like it's not acked by bancho..?
+    if (lobby.is_dt) lobby.send('!mp mods dt freemod').then(() => {});
+    else lobby.send('!mp mods freemod').then(() => {});
+  } else {
+    await lobby.send(`!mp settings (restarted) ${Math.random().toString(36).substring(2, 6)}`);
+  }
 }
 
 async function on_lobby_msg(lobby, msg) {
