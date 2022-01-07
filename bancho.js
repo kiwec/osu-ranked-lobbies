@@ -44,7 +44,6 @@ async function try_get_player(display_username) {
   if (player) {
     // Have not scanned the player's profile in the last 24 hours
     if (player.last_update_tms + (3600 * 24 * 1000) <= Date.now()) {
-      console.info('[API] Scanning top 100 scores of ' + display_username);
       await scan_user_profile(player);
     }
   } else {

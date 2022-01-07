@@ -78,8 +78,32 @@ async function get_map_data(map_id) {
   return await res.json();
 }
 
+const profile_scan_queue = [];
+function scan_user_profile(user) {
+  return new Promise((resolve, reject) => {
+    const run_scan = async () => {
+      try {
+        await _scan_user_profile(user);
+        resolve();
+      } catch (err) {
+        reject(err);
+      }
+
+      profile_scan_queue.shift();
+      if (profile_scan_queue.length > 0) {
+        profile_scan_queue[0]();
+      }
+    };
+
+    profile_scan_queue.push(run_scan);
+    if (profile_scan_queue.length == 1) {
+      run_scan();
+    }
+  });
+}
+
 // We assume user.user_id is already set.
-async function scan_user_profile(user) {
+async function _scan_user_profile(user) {
   if (!maps_db || !ranks_db) {
     const databases = await init_databases();
     maps_db = databases.maps;
@@ -100,7 +124,7 @@ async function scan_user_profile(user) {
       )`,
     );
 
-    return await scan_user_profile(user);
+    return await _scan_user_profile(user);
   }
 
   if (user.username != exists.username) {
@@ -124,6 +148,7 @@ async function scan_user_profile(user) {
   // Fetch top user scores from osu!api
   let res;
   try {
+    console.info(`[API] Scanning top 100 scores of ${user.username}`);
     res = await osu_fetch(
         `https://osu.ppy.sh/api/v2/users/${user.user_id}/scores/best?key=id&mode=osu&limit=100&include_fails=0`,
         {method: 'get'},
@@ -268,6 +293,7 @@ async function scan_user_profile(user) {
   user.overall_pp = overall_pp;
   user.avg_ar = avg_ar;
   user.avg_sr = meta.avg_sr;
+  user.last_update_tms = Date.now();
 
   await ranks_db.run(SQL`
     UPDATE user
@@ -279,7 +305,7 @@ async function scan_user_profile(user) {
       avg_ar = ${avg_ar},
       avg_sr = ${meta.avg_sr},
       last_top_score_tms = ${last_top_score_tms},
-      last_update_tms = ${Date.now()}
+      last_update_tms = ${user.last_update_tms}
     WHERE user_id = ${user.user_id}`,
   );
 
