@@ -262,16 +262,6 @@ async function _scan_user_profile(user) {
     avg_ar /= total_weight;
   }
 
-  // Three digit players mostly farm, so their top 100 scores are not
-  // representative of what they usually achieve. Limit max pp to 600.
-  if (overall_pp > 600.0) {
-    const ratio = overall_pp / 600.0;
-    aim_pp /= ratio;
-    acc_pp /= ratio;
-    speed_pp /= ratio;
-    overall_pp /= ratio;
-  }
-
   // Get average SR for those pp values
   const meta = await maps_db.get(SQL`
     SELECT AVG(stars) AS avg_sr FROM (

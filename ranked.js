@@ -208,10 +208,25 @@ async function update_median_pp(lobby) {
 
   for (const username in lobby.players) {
     if (lobby.players.hasOwnProperty(username)) {
-      aims.push(lobby.players[username].aim_pp);
-      accs.push(lobby.players[username].acc_pp);
-      speeds.push(lobby.players[username].speed_pp);
-      overalls.push(lobby.players[username].overall_pp);
+      let aim_pp = lobby.players[username].aim_pp;
+      let acc_pp = lobby.players[username].acc_pp;
+      let speed_pp = lobby.players[username].speed_pp;
+      let overall_pp = lobby.players[username].overall_pp;
+
+      // Over 600pp, map selection is getting way too hard.
+      if (overall_pp > 600.0) {
+        const ratio = overall_pp / 600.0;
+        aim_pp /= ratio;
+        acc_pp /= ratio;
+        speed_pp /= ratio;
+        overall_pp /= ratio;
+      }
+
+      aims.push(aim_pp);
+      accs.push(acc_pp);
+      speeds.push(speed_pp);
+      overalls.push(overall_pp);
+
       ars.push(lobby.players[username].avg_ar);
     }
   }
