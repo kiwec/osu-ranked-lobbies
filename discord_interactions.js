@@ -72,7 +72,7 @@ async function on_interaction(interaction) {
       );
 
       if (target) {
-        await interaction.reply(`${Config.website_base_url}/u/${target.osu_id}`);
+        await interaction.reply(`${Config.website_base_url}/u/${target.osu_id}?${Math.floor(Math.random() * 100000)}`);
       } else {
         await interaction.reply({
           content: 'That user hasn\'t linked their osu! account yet.',
