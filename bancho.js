@@ -188,6 +188,22 @@ class BanchoClient extends EventEmitter {
             continue;
           }
 
+          // These channel-specific errors can be sent to a channel, even if
+          // you haven't joined it or been forced to join it. :)
+          const error_codes = ['461', '403', '405', '475', '474', '471', '473'];
+          if (error_codes.includes(parts[1])) {
+            const channel = parts[3];
+            parts.splice(0, 4);
+            this.emit(
+                'lobbyJoined', {
+                  channel: channel,
+                  lobby: null,
+                },
+                new Error(parts.join(' ').substring(1)),
+            );
+            continue;
+          }
+
           if (parts[1] == '464') {
             console.error('[IRC] Invalid username/password. See: https://osu.ppy.sh/p/irc');
             parts.shift(); parts.shift();
@@ -294,15 +310,15 @@ class BanchoClient extends EventEmitter {
         }
       }
 
-      const join_listener = (lobby, err) => {
-        if (lobby.channel == channel) {
+      const join_listener = (evt, err) => {
+        if (evt.channel == channel) {
           this.off('lobbyJoined', join_listener);
 
           if (err) {
             return reject(err);
+          } else {
+            return resolve(evt.lobby);
           }
-
-          return resolve(lobby);
         }
       };
 
@@ -372,14 +388,10 @@ class BanchoLobby extends EventEmitter {
     if (parts[1] == '332' && parts[3] == this.channel) {
       this.joined = true;
       this.invite_id = parseInt(parts[6].substring(1), 10);
-      bancho.emit('lobbyJoined', this);
-      return;
-    }
-
-    const error_codes = ['461', '403', '405', '475', '474', '471', '473'];
-    if (error_codes.includes(parts[1]) && parts[3] == this.channel) {
-      parts.splice(0, 4);
-      bancho.emit('lobbyJoined', this, new Error(parts.join(' ').substring(1)));
+      bancho.emit('lobbyJoined', {
+        channel: this.channel,
+        lobby: this,
+      });
       return;
     }
 
