@@ -80,7 +80,6 @@ class BanchoClient extends EventEmitter {
 
     this._whois_requests = [];
     this._outgoing_messages = [];
-    this._sent_messages = [];
     this._buffer = '';
     this._socket = null;
     this._writer = null;
@@ -115,10 +114,6 @@ class BanchoClient extends EventEmitter {
         const obj = this._outgoing_messages.shift();
         obj.callback();
       }
-      while (this._sent_messages.length > 0) {
-        const obj = this._sent_messages.shift();
-        obj.callback();
-      }
 
       this._buffer = '';
       clearInterval(this._writer);
@@ -141,16 +136,7 @@ class BanchoClient extends EventEmitter {
         const obj = this._outgoing_messages.shift();
         if (obj) {
           this._send(obj.message);
-
-          const tournament_command_regex = /PRIVMSG #mp_(\d+) :!mp .+/;
-          if (tournament_command_regex.test(obj.message)) {
-            // Tournament API does not echo the commands for some reason.
-            // In any case, those messages should not be awaited, but their
-            // respective events instead.
-            obj.callback();
-          } else {
-            this._sent_messages.push(obj);
-          }
+          obj.callback();
         }
       }, this.MILLISECONDS_BETWEEN_SENDS);
     });
@@ -162,15 +148,6 @@ class BanchoClient extends EventEmitter {
 
         const lines = this._buffer.split('\n');
         for (let i = 0; i < lines.length - 1; i++) {
-          // Before processing the line, check if we need to ACK the promise of a sent message
-          for (const sent of this._sent_messages) {
-            if (`:${Config.osu_username}!cho@ppy.sh ${sent.message}` == lines[i]) {
-              this._sent_messages = this._sent_messages.filter((msg) => msg != sent);
-              sent.callback();
-              break;
-            }
-          }
-
           const parts = lines[i].split(' ');
           if (parts[1] != 'QUIT') {
             console.debug('[IRC] < ' + lines[i]);
@@ -548,18 +525,12 @@ class BanchoLobby extends EventEmitter {
     }
   }
 
-  leave() {
-    return new Promise((resolve, reject) => {
-      if (!this.joined) {
-        return resolve();
-      }
+  async leave() {
+    if (!this.joined) {
+      return;
+    }
 
-      bancho._sent_messages.push({
-        message: `PART :${this.channel}`,
-        callback: resolve,
-      });
-      bancho._send('PART ' + this.channel);
-    });
+    bancho._send('PART ' + this.channel);
   }
 
   async send(message) {

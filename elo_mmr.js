@@ -221,6 +221,10 @@ function solve_newton(f) {
 }
 
 async function apply_rank_decay() {
+  if (!db) {
+    await init_db();
+  }
+
   try {
     console.info('[Decay] Applying rank decay');
     const excess_beta_sq = (BETA * BETA - SIG_LIMIT * SIG_LIMIT);
@@ -610,4 +614,4 @@ async function init_db() {
   return db;
 }
 
-export {init_db, update_mmr, get_rank, get_rank_text_from_id, apply_rank_decay, Rating};
+export {update_mmr, get_rank, get_rank_text_from_id, apply_rank_decay, Rating};

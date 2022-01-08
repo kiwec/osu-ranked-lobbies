@@ -5,7 +5,7 @@ import SQL from 'sql-template-strings';
 
 import bancho from './bancho.js';
 import {init_databases} from './database.js';
-import {init_db as init_ranking_db, apply_rank_decay} from './elo_mmr.js';
+import {apply_rank_decay} from './elo_mmr.js';
 import {init as init_discord_interactions} from './discord_interactions.js';
 import {init as init_discord_updates} from './discord_updates.js';
 import {listen as website_listen} from './website.js';
@@ -22,7 +22,16 @@ async function main() {
     });
   }
 
-  await init_databases();
+  const databases = await init_databases();
+
+  if (Config.CREATE_LOBBIES) {
+    // Check for lobby creation every 10 minutes
+    setInterval(() => create_lobby_if_needed(), 10 * 60 * 1000);
+  }
+  if (Config.APPLY_RANK_DECAY) {
+    // This is pretty database intensive, so run it hourly
+    setInterval(apply_rank_decay, 3600 * 1000);
+  }
 
   bancho.on('pm', async (msg) => {
     if (msg.message.indexOf('!') == 0) {
@@ -51,25 +60,14 @@ async function main() {
     });
     console.log('Connected to bancho.');
 
-    const map_db = await open({
-      filename: 'maps.db',
-      driver: sqlite3.cached.Database,
-    });
-
-    await start_ranked(map_db);
+    await start_ranked(databases.maps);
 
     if (Config.CREATE_LOBBIES) {
-      // Check for lobby creation every 10 minutes
-      setInterval(() => create_lobby_if_needed(), 10 * 60 * 1000);
       await create_lobby_if_needed();
     }
   }
 
   if (Config.APPLY_RANK_DECAY) {
-    await init_ranking_db();
-
-    // This is pretty database intensive, so run it hourly
-    setInterval(apply_rank_decay, 3600 * 1000);
     await apply_rank_decay();
   }
 

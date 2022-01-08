@@ -247,6 +247,7 @@ async function update_median_pp(lobby) {
 }
 
 async function init_lobby(lobby, settings) {
+  bancho.joined_lobbies.push(lobby);
   lobby.recent_maps = [];
   lobby.voteaborts = [];
   lobby.votekicks = [];
@@ -397,15 +398,13 @@ async function init_lobby(lobby, settings) {
     }
   });
 
-  bancho.joined_lobbies.push(lobby);
   if (settings.created_just_now) {
     await lobby.send(`!mp settings ${Math.random().toString(36).substring(2, 6)}`);
     await lobby.send('!mp password');
     await lobby.send(`!mp set 0 ${lobby.is_scorev2 ? '3': '0'} 16`);
 
-    // Don't await !mp mods, it looks like it's not acked by bancho..?
-    if (lobby.is_dt) lobby.send('!mp mods dt freemod').then(() => {});
-    else lobby.send('!mp mods freemod').then(() => {});
+    if (lobby.is_dt) await lobby.send('!mp mods dt freemod');
+    else await lobby.send('!mp mods freemod');
   } else {
     await lobby.send(`!mp settings (restarted) ${Math.random().toString(36).substring(2, 6)}`);
   }
@@ -656,9 +655,7 @@ async function on_lobby_msg(lobby, msg) {
           clearTimeout(lobby.countdown);
           lobby.countdown = -1;
 
-          // We don't await the message, because for some reason, bancho doesn't ack it.
-          lobby.send(`Skipped map because download is unavailable [${lobby.map_data.beatmapset.availability.more_information} (more info)].`).then(() => {});
-
+          await lobby.send(`Skipped map because download is unavailable [${lobby.map_data.beatmapset.availability.more_information} (more info)].`);
           await map_db.run(SQL`UPDATE map SET dmca = 1 WHERE id = ${lobby.beatmap_id}`);
           await select_next_map(lobby);
           return;

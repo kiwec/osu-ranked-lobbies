@@ -11,11 +11,12 @@
 import fs from 'fs';
 import SQL from 'sql-template-strings';
 
-import {init_db} from '../elo_mmr.js';
+import {init_databases} from '../database.js';
 
 
 async function export_ranks() {
-  const db = await init_db();
+  const databases = await init_databases();
+  const db = databases.ranks;
 
   const contests = await db.all(SQL`
     SELECT rowid, lobby_id, map_id, tms, scoring_system, mods
