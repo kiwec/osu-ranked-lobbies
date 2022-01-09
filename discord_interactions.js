@@ -72,7 +72,7 @@ async function on_interaction(interaction) {
       );
 
       if (target) {
-        await interaction.reply(`${Config.website_base_url}/u/${target.osu_id}`);
+        await interaction.reply(`${Config.website_base_url}/u/${target.osu_id}?v=${crypto.randomBytes(5).toString('hex')}`);
       } else {
         await interaction.reply({
           content: 'That user hasn\'t linked their osu! account yet.',
