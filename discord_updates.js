@@ -1,26 +1,22 @@
-import {open} from 'sqlite';
-import sqlite3 from 'sqlite3';
-import SQL from 'sql-template-strings';
 import {MessageActionRow, MessageButton, MessageEmbed} from 'discord.js';
 
 import bancho from './bancho.js';
+import databases from './database.js';
 import {capture_sentry_exception} from './util/helpers.js';
 import Config from './util/config.js';
 
 let discord_client = null;
-let db = null;
+const stmts = {
+  lobby_from_id: databases.discord.prepare('SELECT * FROM ranked_lobby WHERE osu_lobby_id = ?'),
+  delete_lobby: databases.discord.prepare('DELETE FROM ranked_lobby WHERE osu_lobby_id = ?'),
+  user_from_osu_id: databases.discord.prepare('SELECT * FROM user WHERE osu_id = ?'),
+};
 
 // Array of lobby info as displayed on discord
 const discord_lobbies = [];
 
 async function init(discord_client_) {
   discord_client = discord_client_;
-
-  db = await open({
-    filename: 'discord.db',
-    driver: sqlite3.cached.Database,
-  });
-
   discord_update_loop();
 }
 
@@ -69,9 +65,7 @@ async function discord_update_loop() {
 // Updates the lobby information on Discord.
 // Creates the message in the o!rl #lobbies channel if it doesn't exist.
 async function update_ranked_lobby_on_discord(lobby) {
-  const ranked_lobby = await db.get(
-      SQL`SELECT * FROM ranked_lobby WHERE osu_lobby_id = ${lobby.id}`,
-  );
+  const ranked_lobby = stmts.lobby_from_id.get(lobby.id);
   if (!ranked_lobby) {
     // If the lobby isn't yet in the database, create it here and call this
     // method again to create/update/delete the discord messages
@@ -83,15 +77,21 @@ async function update_ranked_lobby_on_discord(lobby) {
       max_stars = lobby.max_stars;
     }
 
-    await db.run(SQL`
+    const insert_lobby_stmt = databases.discord.prepare(`
       INSERT INTO ranked_lobby (
         osu_lobby_id, creator, creator_osu_id, creator_discord_id,
         min_stars, max_stars, dt, scorev2
-      )
-      VALUES (
-        ${lobby.id}, ${lobby.creator}, ${lobby.creator_osu_id}, ${lobby.creator_discord_id},
-        ${min_stars}, ${max_stars}, ${lobby.is_dt ? 1 : 0}, ${lobby.is_scorev2 ? 1 : 0}
-      )`,
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    );
+    insert_lobby_stmt.run(
+        lobby.id,
+        lobby.creator,
+        lobby.creator_osu_id,
+        lobby.creator_discord_id,
+        min_stars,
+        max_stars,
+        lobby.is_dt ? 1 : 0,
+        lobby.is_scorev2 ? 1 : 0,
     );
 
     return await update_ranked_lobby_on_discord(lobby);
@@ -107,12 +107,12 @@ async function update_ranked_lobby_on_discord(lobby) {
     try {
       const discord_channel = discord_client.channels.cache.get(ranked_lobby.discord_channel_id);
       await discord_channel.messages.delete(ranked_lobby.discord_msg_id);
-
-      await db.run(SQL`
+      const unlist_lobby_stmt = databases.discord.prepare(`
         UPDATE ranked_lobby
         SET discord_channel_id = NULL, discord_msg_id = NULL
-        WHERE osu_lobby_id = ${lobby.id}
-      `);
+        WHERE osu_lobby_id = ?`,
+      );
+      unlist_lobby_stmt.run(lobby.id);
     } catch (err) {
       // If it's already deleted, ignore the error. We don't want to
       // delete the actual lobby from the database.
@@ -172,7 +172,7 @@ async function update_ranked_lobby_on_discord(lobby) {
     } catch (err) {
       if (err.message == 'Unknown Message') {
         // Message was deleted, try again
-        await db.run(SQL`DELETE FROM ranked_lobby WHERE osu_lobby_id = ${lobby.id}`);
+        stmts.delete_lobby.run(lobby.id);
         return await update_ranked_lobby_on_discord(lobby);
       }
 
@@ -188,11 +188,12 @@ async function update_ranked_lobby_on_discord(lobby) {
     const discord_channel = discord_client.channels.cache.get(Config.discord_lobbies_channel_id);
     const discord_msg = await discord_channel.send(msg);
 
-    await db.run(SQL`
+    const create_listing_stmt = databases.discord.prepare(`
       UPDATE ranked_lobby
-      SET discord_channel_id = ${discord_channel.id}, discord_msg_id = ${discord_msg.id}
-      WHERE osu_lobby_id = ${lobby.id}`,
+      SET discord_channel_id = ?, discord_msg_id = ?
+      WHERE osu_lobby_id = ?`,
     );
+    create_listing_stmt.run(discord_channel.id, discord_msg.id, lobby.id);
   } catch (err) {
     console.error(`${lobby.channel} Failed to create Discord message: ${err}`);
     capture_sentry_exception(err);
@@ -201,13 +202,11 @@ async function update_ranked_lobby_on_discord(lobby) {
 
 // Removes the lobby information from the o!rl #lobbies channel.
 async function close_ranked_lobby_on_discord(lobby) {
-  const ranked_lobby = await db.get(SQL`
-    SELECT * FROM ranked_lobby WHERE osu_lobby_id = ${lobby.id}`,
-  );
+  const ranked_lobby = stmts.lobby_from_id.get(lobby.id);
   if (!ranked_lobby) return;
 
   try {
-    await db.run(SQL`DELETE FROM ranked_lobby WHERE osu_lobby_id = ${lobby.id}`);
+    stmts.delete_lobby.run(lobby.id);
 
     if (discord_client) {
       const discord_channel = discord_client.channels.cache.get(ranked_lobby.discord_channel_id);
@@ -221,10 +220,7 @@ async function close_ranked_lobby_on_discord(lobby) {
 async function update_discord_username(osu_user_id, new_username, reason) {
   if (!discord_client) return;
 
-  const user = await db.get(SQL`
-    SELECT * FROM user WHERE osu_id = ${osu_user_id}`,
-  );
-
+  const user = stmts.user_from_osu_id.get(osu_user_id);
   try {
     if (!user) return;
 
@@ -262,9 +258,7 @@ async function update_discord_role(osu_user_id, rank_text) {
   // Remove '++' suffix from the rank_text
   rank_text = rank_text.split('+')[0];
 
-  const user = await db.get(SQL`
-    SELECT * FROM user WHERE osu_id = ${osu_user_id}`,
-  );
+  const user = stmts.user_from_osu_id.get(osu_user_id);
   if (!user) {
     // User hasn't linked their discord account yet.
     return;
@@ -309,11 +303,12 @@ async function update_discord_role(osu_user_id, rank_text) {
         await member.roles.add(DISCORD_ROLES[rank_text]);
       }
 
-      await db.run(SQL`
+      const update_rank_stmt = databases.discord.prepare(`
         UPDATE user
-        SET discord_rank = ${rank_text}
-        WHERE osu_id = ${osu_user_id}`,
+        SET discord_rank = ?
+        WHERE osu_id = ?`,
       );
+      update_rank_stmt.run(rank_text, osu_user_id);
     } catch (err) {
       // User left the server
       if (err.message == 'Unknown Member') {

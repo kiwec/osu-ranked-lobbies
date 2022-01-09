@@ -1,8 +1,7 @@
 import Sentry from '@sentry/node';
-import SQL from 'sql-template-strings';
 
 import bancho from './bancho.js';
-import {init_databases} from './database.js';
+import databases from './database.js';
 import {update_mmr, get_rank} from './elo_mmr.js';
 import {
   close_ranked_lobby_on_discord,
@@ -12,11 +11,73 @@ import {get_map_data} from './profile_scanner.js';
 import {capture_sentry_exception} from './util/helpers.js';
 import Config from './util/config.js';
 
-let discord_db = null;
-let ranking_db = null;
-let map_db = null;
-const DIFFICULTY_MODIFIER = 1.1;
+const DIFFICULTY_MODIFIER = 1.2;
 const DT_DIFFICULTY_MODIFIER = 0.7;
+
+const stmts = {
+  star_range_from_pp: databases.maps.prepare(`
+    SELECT MIN(stars) AS min_stars, MAX(stars) AS max_stars FROM (
+      SELECT stars, (
+        ABS(? - aim_pp)
+        + ABS(? - speed_pp)
+        + ABS(? - acc_pp)
+        + 10*ABS(? - ar)
+      ) AS match_accuracy FROM map
+      WHERE length > 60 AND ranked IN (4, 5, 7) AND match_accuracy IS NOT NULL AND dmca = 0
+      ORDER BY match_accuracy LIMIT 1000
+    )`,
+  ),
+  dt_star_range_from_pp: databases.maps.prepare(`
+    SELECT MIN(dt_stars) AS min_stars, MAX(dt_stars) AS max_stars FROM (
+      SELECT dt_stars, (
+        ABS(? - dt_aim_pp)
+        + ABS(? - dt_speed_pp)
+        + ABS(? - dt_acc_pp)
+        + 10*ABS(? - dt_ar)
+      ) AS match_accuracy FROM map
+      WHERE length > 90 AND ranked IN (4, 5, 7) AND match_accuracy IS NOT NULL AND dmca = 0
+      ORDER BY match_accuracy LIMIT 1000
+    )`,
+  ),
+
+  select_map: databases.maps.prepare(`
+    SELECT * FROM (
+      SELECT *, (
+        ABS(? - aim_pp)
+        + ABS(? - speed_pp)
+        + ABS(? - acc_pp)
+        + 10*ABS(? - ar)
+      ) AS match_accuracy FROM map
+      WHERE
+        stars >= ? AND stars <= ?
+        AND length > 60
+        AND ranked IN (4, 5, 7)
+        AND match_accuracy IS NOT NULL
+        AND dmca = 0
+      ORDER BY match_accuracy LIMIT 1000
+    ) ORDER BY RANDOM() LIMIT 1`,
+  ),
+  select_dt_map: databases.maps.prepare(`
+    SELECT * FROM (
+      SELECT *, (
+        ABS(? - dt_aim_pp)
+        + ABS(? - dt_speed_pp)
+        + ABS(? - dt_acc_pp)
+        + 10*ABS(? - dt_ar)
+      ) AS match_accuracy FROM map
+      WHERE
+        dt_stars >= ? AND dt_stars <= ?
+        AND length > 90
+        AND ranked IN (4, 5, 7)
+        AND match_accuracy IS NOT NULL
+        AND dmca = 0
+      ORDER BY match_accuracy LIMIT 1000
+    ) ORDER BY RANDOM() LIMIT 1`,
+  ),
+
+  dmca_map: databases.maps.prepare('UPDATE map SET dmca = 1 WHERE id = ?'),
+};
+
 
 function set_sentry_context(lobby, current_task) {
   if (Config.ENABLE_SENTRY) {
@@ -99,30 +160,18 @@ async function select_next_map(lobby) {
     let meta = null;
 
     if (lobby.is_dt) {
-      meta = await map_db.get(SQL`
-        SELECT MIN(dt_stars) AS min_stars, MAX(dt_stars) AS max_stars FROM (
-          SELECT dt_stars, (
-            ABS(${lobby.median_aim * DT_DIFFICULTY_MODIFIER} - dt_aim_pp)
-            + ABS(${lobby.median_speed * DT_DIFFICULTY_MODIFIER} - dt_speed_pp)
-            + ABS(${lobby.median_acc * DT_DIFFICULTY_MODIFIER} - dt_acc_pp)
-            + 10*ABS(${lobby.median_ar} - dt_ar)
-          ) AS match_accuracy FROM map
-          WHERE length > 90 AND ranked IN (4, 5, 7) AND match_accuracy IS NOT NULL AND dmca = 0
-          ORDER BY match_accuracy LIMIT 1000
-        )`,
+      meta = stmts.dt_star_range_from_pp(
+          lobby.median_aim * DT_DIFFICULTY_MODIFIER,
+          lobby.median_speed * DT_DIFFICULTY_MODIFIER,
+          lobby.median_acc * DT_DIFFICULTY_MODIFIER,
+          lobby.median_ar,
       );
     } else {
-      meta = await map_db.get(SQL`
-        SELECT MIN(stars) AS min_stars, MAX(stars) AS max_stars FROM (
-          SELECT stars, (
-            ABS(${lobby.median_aim} - aim_pp)
-            + ABS(${lobby.median_speed} - speed_pp)
-            + ABS(${lobby.median_acc} - acc_pp)
-            + 10*ABS(${lobby.median_ar} - ar)
-          ) AS match_accuracy FROM map
-          WHERE length > 60 AND ranked IN (4, 5, 7) AND match_accuracy IS NOT NULL AND dmca = 0
-          ORDER BY match_accuracy LIMIT 1000
-        )`,
+      meta = stmts.star_range_from_pp(
+          lobby.median_aim,
+          lobby.median_speed,
+          lobby.median_acc,
+          lobby.median_ar,
       );
     }
 
@@ -132,40 +181,22 @@ async function select_next_map(lobby) {
 
   do {
     if (lobby.is_dt) {
-      new_map = await map_db.get(SQL`
-        SELECT * FROM (
-          SELECT *, (
-            ABS(${lobby.median_aim * DT_DIFFICULTY_MODIFIER} - dt_aim_pp)
-            + ABS(${lobby.median_speed * DT_DIFFICULTY_MODIFIER} - dt_speed_pp)
-            + ABS(${lobby.median_acc * DT_DIFFICULTY_MODIFIER} - dt_acc_pp)
-            + 10*ABS(${lobby.median_ar} - dt_ar)
-          ) AS match_accuracy FROM map
-          WHERE
-            dt_stars >= ${lobby.min_stars} AND dt_stars <= ${lobby.max_stars}
-            AND length > 90
-            AND ranked IN (4, 5, 7)
-            AND match_accuracy IS NOT NULL
-            AND dmca = 0
-          ORDER BY match_accuracy LIMIT 1000
-        ) ORDER BY RANDOM() LIMIT 1`,
+      new_map = stmts.select_dt_map.get(
+          lobby.median_aim * DT_DIFFICULTY_MODIFIER,
+          lobby.median_speed * DT_DIFFICULTY_MODIFIER,
+          lobby.median_acc * DT_DIFFICULTY_MODIFIER,
+          lobby.median_ar,
+          lobby.min_stars,
+          lobby.max_stars,
       );
     } else {
-      new_map = await map_db.get(SQL`
-        SELECT * FROM (
-          SELECT *, (
-            ABS(${lobby.median_aim} - aim_pp)
-            + ABS(${lobby.median_speed} - speed_pp)
-            + ABS(${lobby.median_acc} - acc_pp)
-            + 10*ABS(${lobby.median_ar} - ar)
-          ) AS match_accuracy FROM map
-          WHERE
-            stars >= ${lobby.min_stars} AND stars <= ${lobby.max_stars}
-            AND length > 60
-            AND ranked IN (4, 5, 7)
-            AND match_accuracy IS NOT NULL
-            AND dmca = 0
-          ORDER BY match_accuracy LIMIT 1000
-        ) ORDER BY RANDOM() LIMIT 1`,
+      new_map = stmts.select_map.get(
+          lobby.median_aim,
+          lobby.median_speed,
+          lobby.median_acc,
+          lobby.median_ar,
+          lobby.min_stars,
+          lobby.max_stars,
       );
     }
     tries++;
@@ -411,8 +442,6 @@ async function init_lobby(lobby, settings) {
 }
 
 async function on_lobby_msg(lobby, msg) {
-  console.info(`${lobby.channel} ${msg.from}: ${msg.message}`);
-
   // NOTE: !start needs to be checked before !star (because we allow multiple spelling for !stars)
   if (msg.message.toLowerCase() == '!start') {
     if (lobby.countdown != -1 || lobby.playing) return;
@@ -464,11 +493,12 @@ async function on_lobby_msg(lobby, msg) {
     }
 
     lobby.is_dt = !lobby.is_dt;
-    await discord_db.run(SQL`
+    const toggle_dt_stmt = databases.discord.prepare(`
       UPDATE ranked_lobby
-      SET dt = ${lobby.is_dt ? 1 : 0}
-      WHERE osu_lobby_id = ${lobby.id}`,
+      SET dt = ?
+      WHERE osu_lobby_id = ?`,
     );
+    toggle_dt_stmt.run(lobby.is_dt ? 1 : 0, lobby.id);
     if (lobby.is_dt) await lobby.send('!mp mods dt freemod');
     else await lobby.send('!mp mods freemod');
     await select_next_map(lobby);
@@ -482,11 +512,12 @@ async function on_lobby_msg(lobby, msg) {
     }
 
     lobby.is_scorev2 = !lobby.is_scorev2;
-    await discord_db.run(SQL`
+    const toggle_scorev2_stmt = databases.discord.prepare(`
       UPDATE ranked_lobby
-      SET scorev2 = ${lobby.is_scorev2 ? 1 : 0}
-      WHERE osu_lobby_id = ${lobby.id}`,
+      SET scorev2 = ?
+      WHERE osu_lobby_id = ?`,
     );
+    toggle_scorev2_stmt.run(lobby.is_scorev2 ? 1 : 0, lobby.id);
     await lobby.send(`!mp set 0 ${lobby.is_scorev2 ? '3': '0'} 16`);
     await select_next_map(lobby);
     return;
@@ -505,11 +536,12 @@ async function on_lobby_msg(lobby, msg) {
       lobby.min_stars = 0.0;
       lobby.max_stars = 11.0;
       lobby.fixed_star_range = false;
-      await discord_db.run(SQL`
+      const remove_sr_restrictions_stmt = databases.discord.prepare(`
         UPDATE ranked_lobby
         SET min_stars = 0.0, max_stars = 11.0
-        WHERE osu_lobby_id = ${lobby.id}`,
+        WHERE osu_lobby_id = ?`,
       );
+      remove_sr_restrictions_stmt.run(lobby.id);
       await select_next_map(lobby);
       return;
     }
@@ -529,11 +561,12 @@ async function on_lobby_msg(lobby, msg) {
     lobby.min_stars = min_stars;
     lobby.max_stars = max_stars;
     lobby.fixed_star_range = true;
-    await discord_db.run(SQL`
+    const update_star_range_stmt = databases.discord.prepare(`
       UPDATE ranked_lobby
-      SET min_stars = ${min_stars}, max_stars = ${max_stars}
-      WHERE osu_lobby_id = ${lobby.id}`,
+      SET min_stars = ?, max_stars = ?
+      WHERE osu_lobby_id = ?`,
     );
+    update_star_range_stmt.run(min_stars, max_stars, lobby.id);
     await select_next_map(lobby);
     return;
   }
@@ -598,27 +631,23 @@ async function on_lobby_msg(lobby, msg) {
 
     let user;
     let user_id;
+    const user_from_id_stmt = databases.ranks.prepare(`
+      SELECT games_played, elo, user_id FROM user
+      WHERE user_id = ?
+    `);
     if (requested_username === msg.from) {
       user_id = await bancho.whois(requested_username);
-
-      user = await ranking_db.get(SQL`
-        SELECT games_played, elo, user_id FROM user
-        WHERE user_id = ${user_id}
-      `);
+      user = user_from_id_stmt.get(user_id);
     } else {
-      user = await ranking_db.get(SQL`
+      const user_from_username_stmt = databases.ranks.prepare(`
         SELECT games_played, elo, user_id FROM user
-        WHERE username = ${requested_username}
-      `);
-
+        WHERE username = ?`,
+      );
+      user = user_from_username_stmt.get(requested_username);
       if (!user) {
         try {
           user_id = await bancho.whois(requested_username);
-
-          user = await ranking_db.get(SQL`
-            SELECT games_played, elo, user_id FROM user
-            WHERE user_id = ${user_id}
-          `);
+          user = user_from_id_stmt.get(user_id);
         } catch (err) {
           await lobby.send(`${msg.from}: Player ${requested_username} not found. Are they online?`);
           return;
@@ -640,7 +669,7 @@ async function on_lobby_msg(lobby, msg) {
         await lobby.send(`${msg.from}: ${requested_username} is unranked.`);
       }
     } else {
-      await lobby.send(`[${Config.website_base_url}/u/${user.user_id}/ ${requested_username}] | Rank: ${rank_info.text} (#${rank_info.rank_nb}) | Elo: ${rank_info.elo} | Games played: ${user.games_played}`);
+      await lobby.send(`[${Config.website_base_url}/u/${user.user_id}/ ${requested_username}] | Rank: ${rank_info.text} (#${rank_info.rank_nb}) | Elo: ${Math.round(rank_info.elo)} | Games played: ${user.games_played}`);
     }
 
     return;
@@ -656,7 +685,7 @@ async function on_lobby_msg(lobby, msg) {
           lobby.countdown = -1;
 
           await lobby.send(`Skipped map because download is unavailable [${lobby.map_data.beatmapset.availability.more_information} (more info)].`);
-          await map_db.run(SQL`UPDATE map SET dmca = 1 WHERE id = ${lobby.beatmap_id}`);
+          stmts.dmca_map.run(lobby.beatmap_id);
           await select_next_map(lobby);
           return;
         }
@@ -678,12 +707,7 @@ async function on_lobby_msg(lobby, msg) {
   }
 }
 
-async function start_ranked(_map_db) {
-  const databases = await init_databases();
-  map_db = databases.maps;
-  ranking_db = databases.ranks;
-  discord_db = databases.discord;
-
+async function start_ranked() {
   const rejoin_lobby = async (lobby) => {
     console.info('[Ranked] Rejoining lobby #' + lobby.osu_lobby_id);
 
@@ -705,8 +729,8 @@ async function start_ranked(_map_db) {
     }
   };
 
-  const lobbies = await discord_db.all('SELECT * from ranked_lobby');
-
+  const lobbies_stmt = databases.discord.prepare('SELECT * from ranked_lobby');
+  const lobbies = lobbies_stmt.all();
   const promises = [];
   for (const lobby of lobbies) {
     promises.push(rejoin_lobby(lobby));

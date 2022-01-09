@@ -1,9 +1,7 @@
 import EventEmitter from 'events';
 import {Socket} from 'net';
-import {open} from 'sqlite';
-import sqlite3 from 'sqlite3';
-import SQL from 'sql-template-strings';
 
+import databases from './database.js';
 import {scan_user_profile} from './profile_scanner.js';
 
 import Config from './util/config.js';
@@ -25,22 +23,11 @@ import {capture_sentry_exception} from './util/helpers.js';
 //
 
 
-let ranks_db = null;
-
-
 // Try to get a player object from a username, and return a placeholder player
 // object if we didn't succeed.
 async function try_get_player(display_username) {
-  if (!ranks_db) {
-    ranks_db = await open({
-      filename: 'ranks.db',
-      driver: sqlite3.cached.Database,
-    });
-  }
-
-  let player = await ranks_db.get(SQL`
-    SELECT * FROM user WHERE username = ${display_username}`,
-  );
+  const stmt = databases.ranks.prepare('SELECT * FROM user WHERE username = ?');
+  let player = stmt.get(display_username);
   if (player) {
     // Have not scanned the player's profile in the last 24 hours
     if (player.last_update_tms + (3600 * 24 * 1000) <= Date.now()) {
@@ -51,11 +38,11 @@ async function try_get_player(display_username) {
     // their id; leave them uninitialized for now.
     player = {
       username: display_username,
-      elo: 690, // new Rating(1500, 350).toFloat(), hardcoded
+      elo: 800, // hardcoded 1500 - (2 * 350)
       approx_mu: 1500, approx_sig: 350,
-      normal_mu: 1500, normal_sig: 350,
       aim_pp: 10.0, acc_pp: 1.0, speed_pp: 1.0, overall_pp: 1.0,
       avg_ar: 8.0, avg_sr: 2.0,
+      last_contest_tms: 0,
       last_update_tms: 0,
       games_played: 0, rank_text: 'Unranked',
     };

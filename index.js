@@ -1,10 +1,7 @@
 import Sentry from '@sentry/node';
-import {open} from 'sqlite';
-import sqlite3 from 'sqlite3';
-import SQL from 'sql-template-strings';
 
 import bancho from './bancho.js';
-import {init_databases} from './database.js';
+import databases from './database.js';
 import {apply_rank_decay} from './elo_mmr.js';
 import {init as init_discord_interactions} from './discord_interactions.js';
 import {init as init_discord_updates} from './discord_updates.js';
@@ -21,8 +18,6 @@ async function main() {
       dsn: Config.sentry_dsn,
     });
   }
-
-  const databases = await init_databases();
 
   if (Config.CREATE_LOBBIES) {
     // Check for lobby creation every 10 minutes
@@ -76,12 +71,8 @@ async function main() {
 
 
 async function create_lobby_if_needed() {
-  const db = await open({
-    filename: 'discord.db',
-    driver: sqlite3.cached.Database,
-  });
-
-  const lobbies = await db.all(SQL`SELECT * FROM ranked_lobby WHERE creator = ${Config.osu_username}`);
+  const get_lobbies_stmt = databases.discord.prepare('SELECT * FROM ranked_lobby WHERE creator = ?');
+  const lobbies = get_lobbies_stmt.all(Config.osu_username);
   if (!lobbies || lobbies.length >= 4) return;
 
   console.log(`Creating ${4 - lobbies.length} missing lobbies...`);

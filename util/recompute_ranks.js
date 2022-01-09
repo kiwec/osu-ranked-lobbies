@@ -1,94 +1,110 @@
 // This script recomputes player ranks based on stored scores.
 //
 // Instructions:
-// - Copy the osubot directory to another directory
-// - Keep the bot running in the old osubot directory
-// - Delete 'ranks.db' from the new directory
-// - Run `node util/recompute_ranks.js` in the new directory
-// - After a few runs and once all ranks are updated, kill the bot,
-//   replace the database, update the code, restart the bot. Done!
+// - Run `node util/recompute_ranks.js`
+// - Stop the bot
+// - Run `INCREMENTAL_UPDATE=1 node util/recompute_ranks.js`
+// - Replace `ranks.db` with `new_ranks.db`
+// - Start the bot. Done!
 
-import {open} from 'sqlite';
-import sqlite3 from 'sqlite3';
+import Database from 'better-sqlite3';
 import ProgressBar from 'progress';
-import SQL from 'sql-template-strings';
 
-import {init_databases} from '../database.js';
-import {update_mmr, Rating} from '../elo_mmr.js';
+import databases from '../database.js';
+import {update_mmr} from '../elo_mmr.js';
 
 recompute_ranks();
 
 async function recompute_ranks() {
-  const usernames = [];
-  const player_cache = [];
+  databases.ranks.exec('BEGIN DEFERRED TRANSACTION');
 
-  const databases = await init_databases(true);
+  console.info('Fetching maps...');
+  const maps_stmt = databases.maps.prepare('SELECT id, overall_pp, dt_overall_pp FROM map');
+  const maps = maps_stmt.all();
+  const pps = [];
+  const dt_pps = [];
+  for (const map of maps) {
+    pps[map.id] = map.overall_pp;
+    dt_pps[map.id] = map.dt_overall_pp;
+  }
+
   let latest_recomputed_tms = -1;
-  const res = await databases.ranks.get(SQL`SELECT MAX(tms) AS max_tms FROM contest`);
+  const max_tms_stmt = databases.ranks.prepare('SELECT MAX(tms) AS max_tms FROM contest');
+  const res = max_tms_stmt.get();
   if (res && res.max_tms) {
     latest_recomputed_tms = res.max_tms;
   }
 
-  const old_db = await open({
-    filename: 'ranks.db',
-    driver: sqlite3.cached.Database,
-  });
-
-  await old_db.run('PRAGMA TEMP_STORE=MEMORY');
-  await old_db.run('PRAGMA JOURNAL_MODE=OFF');
-  await old_db.run('PRAGMA SYNCHRONOUS=OFF');
-  await old_db.run('PRAGMA LOCKING_MODE=EXCLUSIVE');
-
-  let contests = await old_db.all(SQL`
-    SELECT rowid, lobby_id, map_id, tms, scoring_system, lobby_creator, mods
+  const old_db = new Database('ranks.db', {readonly: true});
+  const contests_stmt = old_db.prepare(`
+    SELECT rowid, lobby_id, map_id, tms, lobby_creator, mods
     FROM contest
-    WHERE tms > ${latest_recomputed_tms}
+    WHERE tms > ?
     ORDER BY tms`,
   );
-  let prev = null;
-  contests = contests.filter((contest) => {
-    if (prev == contest.map_id) {
-      return false;
-    } else {
-      prev = contest.map_id;
-      return true;
-    }
-  });
+  const contests = contests_stmt.all(latest_recomputed_tms);
 
-  const players = await old_db.all(SQL`SELECT * FROM user`);
-  let bar = new ProgressBar('importing players [:bar] :rate/s | :etas remaining', {
+  console.info('Fetching scores...');
+  const scores_stmt = old_db.prepare('SELECT * FROM score WHERE tms > ?');
+  const all_scores = scores_stmt.all(latest_recomputed_tms);
+
+  let bar = new ProgressBar('populating contests [:bar] :rate/s | :etas remaining', {
+    complete: '=',
+    incomplete: ' ',
+    width: 20,
+    total: contests.length,
+  });
+  for (const contest of contests) {
+    contest.scores = all_scores.filter((score) => score.contest_id == contest.rowid);
+    contest.pp = contest.mods & 64 ? dt_pps[contest.map_id] : pps[contest.map_id];
+
+    // Let's make the database consistent
+    if (!contest.lobby_creator) contest.lobby_creator = 'kiwec';
+    if (contest.lobby_creator == '12398096') contest.lobby_creator = 'kiwec';
+
+    bar.tick(1);
+  }
+
+  const player_cache = [];
+  const players_stmt = old_db.prepare('SELECT * FROM user WHERE games_played > 0');
+  const new_players_stmt = databases.ranks.prepare('SELECT * FROM user');
+  const players = players_stmt.all();
+  const new_players = new_players_stmt.all();
+  bar = new ProgressBar('importing players [:bar] :rate/s | :etas remaining', {
     complete: '=',
     incomplete: ' ',
     width: 20,
     total: players.length,
   });
+  const insert_user_stmt = databases.ranks.prepare(`
+    INSERT INTO user (
+      user_id, username, approx_mu, approx_sig, games_played,
+      aim_pp, acc_pp, speed_pp, overall_pp, avg_ar, avg_sr,
+      last_top_score_tms, last_update_tms,
+      rank_text
+    ) VALUES (?, ?, 1500, 350, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  );
   for (const player of players) {
-    usernames[player.user_id] = player.username;
+    player_cache[player.user_id] = new_players.find((n_p) => n_p.user_id == player.user_id);
+    if (!player_cache[player.user_id]) {
+      player_cache[player.user_id] = {
+        id: player.user_id,
+        user_id: player.user_id,
+        username: player.username,
+        overall_pp: player.overall_pp,
+        elo: 800, // hardcoded 1500 - (2 * 350)
+        approx_mu: 1500,
+        approx_sig: 350,
+        last_contest_tms: 0,
+        games_played: 0,
+      };
 
-    const rows = await databases.ranks.run(SQL`
-      UPDATE user SET
-        rank_text = ${player.rank_text},
-        aim_pp = ${player.aim_pp}, acc_pp = ${player.acc_pp}, speed_pp = ${player.speed_pp},
-        overall_pp = ${player.overall_pp}, avg_ar = ${player.avg_ar}, avg_sr = ${player.avg_sr},
-        last_top_score_tms = ${player.last_top_score_tms}, last_update_tms = ${player.last_update_tms}
-      WHERE user_id = ${player.user_id}`,
-    );
-    if (rows.changes == 0) {
-      await databases.ranks.run(SQL`
-        INSERT INTO user (
-          user_id, username, approx_mu, approx_sig, normal_mu, normal_sig, games_played,
-          aim_pp, acc_pp, speed_pp,
-          overall_pp, avg_ar, avg_sr,
-          last_top_score_tms, last_update_tms,
-          rank_text
-        )
-        SELECT
-          ${player.user_id}, ${player.username}, 1500, 350, 1500, 350, 0,
-          ${player.aim_pp}, ${player.acc_pp}, ${player.speed_pp},
-          ${player.overall_pp}, ${player.avg_ar}, ${player.avg_sr},
-          ${player.last_top_score_tms}, ${player.last_update_tms},
-          ${player.rank_text}
-        WHERE NOT EXISTS (SELECT 1 FROM user WHERE user_id = ${player.user_id})`,
+      insert_user_stmt.run(
+          player.user_id, player.username,
+          player.aim_pp, player.acc_pp, player.speed_pp, player.overall_pp,
+          player.avg_ar, player.avg_sr,
+          player.last_top_score_tms, player.last_update_tms,
+          player.rank_text,
       );
     }
 
@@ -103,47 +119,33 @@ async function recompute_ranks() {
     total: contests.length,
   });
   for (const contest of contests) {
-    const scores = await old_db.all(SQL`
-      SELECT score.user_id, score.score, score.mods FROM score
-      WHERE score.contest_id = ${contest.rowid} AND score > 0`,
-    );
-
     const lobby = {
       id: contest.lobby_id,
       creator: contest.lobby_creator,
       beatmap_id: contest.map_id,
+      current_map_pp: contest.pp,
       match_participants: [],
       scores: [],
-      mock_tms: contest.tms,
       is_dt: contest.mods & 64,
-      win_condition: contest.scoring_system,
     };
 
-    for (const score of scores) {
-      score.username = usernames[score.user_id];
+    if (typeof lobby.current_map_pp === 'undefined') {
+      console.info(' PP not found for map ID ' + lobby.beatmap_id);
+      continue;
+    }
 
-      if (!(score.username in player_cache)) {
-        player_cache[score.username] = {
-          id: score.user_id,
-          user_id: score.user_id,
-          username: score.username,
-          approx_posterior: new Rating(1500, 350),
-          normal_factor: new Rating(1500, 350),
-          logistic_factors: [],
-          elo: 690, // new Rating(1500, 350).toFloat(), hardcoded
-          approx_mu: 1500, approx_sig: 350,
-          normal_mu: 1500, normal_sig: 350,
-          games_played: 0, rank_text: 'Unranked',
-        };
-      }
-
+    for (const score of contest.scores) {
+      const score_player = player_cache[score.user_id];
+      score.username = score_player.username;
       lobby.scores[score.username] = score.score;
-      lobby.match_participants[score.username] = player_cache[score.username];
+      lobby.match_participants[score.username] = score_player;
     }
 
     // Recompute MMR using fake lobby object
-    await update_mmr(lobby);
+    await update_mmr(lobby, contest.tms);
 
     bar.tick(1);
   }
+
+  databases.ranks.exec('COMMIT TRANSACTION');
 }

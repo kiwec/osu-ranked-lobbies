@@ -46,6 +46,10 @@ async function main() {
               value: `They're chosen based on the top 100 plays of the lobby players. Accuracy, aim, speed, approach rate and star rating are taken into consideration when choosing which map fits the lobby best.`,
             },
             {
+              name: 'Why is the bot picking 4* maps in the 5* lobby?',
+              value: 'The maps are actually 5*, it\'s just that the game still displays the old star rating system.',
+            },
+            {
               name: 'What are the ranks?',
               value: `Here is the rank distribution:
 - Cardboard: Bottom 0.62%

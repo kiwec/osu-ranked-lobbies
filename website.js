@@ -6,19 +6,52 @@ import Sentry from '@sentry/node';
 import cookieParser from 'cookie-parser';
 import crypto from 'crypto';
 
-import {init_databases} from './database.js';
+import databases from './database.js';
 import {get_rank, get_rank_text_from_id} from './elo_mmr.js';
 import {update_discord_role, update_discord_username} from './discord_updates.js';
-import SQL from 'sql-template-strings';
 import Config from './util/config.js';
 import {render_error} from './util/helpers.js';
 import {register_routes as register_api_routes} from './website_api.js';
 
 
 async function listen() {
-  const databases = await init_databases();
-  const discord_db = databases.discord;
-  const ranks_db = databases.ranks;
+  const stmts = {
+    user_login: databases.ranks.prepare('SELECT user_id, expires_tms FROM website_tokens WHERE token = ?'),
+    delete_token: databases.ranks.prepare('DELETE FROM website_tokens WHERE user_id = ?'),
+    fetch_tokens: databases.ranks.prepare('SELECT user_id, token, expires_tms FROM website_tokens WHERE user_id = ?'),
+    insert_token: databases.ranks.prepare(`
+      INSERT INTO website_tokens (
+        user_id,
+        token,
+        expires_tms,
+        osu_access_token,
+        osu_refresh_token
+      ) VALUES (?, ?, ?, ?, ?)`,
+    ),
+    user_from_id: databases.ranks.prepare(`
+      SELECT * FROM user
+      WHERE user_id = ?
+      AND games_played > 0`,
+    ),
+    search_player: databases.ranks.prepare(`
+      SELECT * FROM user
+      WHERE username LIKE ?
+      AND games_played > 0
+      ORDER BY elo DESC
+      LIMIT 5
+    `),
+    discord_from_ephemeral_token: databases.discord.prepare('SELECT * FROM auth_tokens WHERE ephemeral_token = ?'),
+    delete_ephemeral_token: databases.discord.prepare('DELETE FROM auth_tokens WHERE ephemeral_token = ?'),
+    user_from_discord_id: databases.discord.prepare('SELECT * FROM user WHERE discord_id = ?'),
+    link_account: databases.discord.prepare(`
+      INSERT INTO user (
+        discord_id,
+        osu_id,
+        osu_access_token,
+        osu_refresh_token
+      ) VALUES (?, ?, ?, ?)`,
+    ),
+  };
 
   const app = express();
 
@@ -38,16 +71,10 @@ async function listen() {
     const cookies = req.cookies;
 
     if (cookies && cookies.token) {
-      const user_token = await ranks_db.get(SQL`
-        SELECT user_id, expires_tms FROM website_tokens
-        WHERE token = ${cookies.token}
-      `);
+      const user_token = stmts.user_login.get(cookies.token);
       const current_tms = Date.now();
       if (user_token && current_tms > user_token.expires_tms) {
-        await ranks_db.exec(`
-          DELETE FROM website_tokens
-          WHERE user_id = ${user_token.user_id}
-        `);
+        stmts.delete_token.run(user_token.user_id);
       } else if (user_token) {
         req.user_id = user_token.user_id;
         res.set('X-Osu-ID', user_token.user_id);
@@ -136,17 +163,10 @@ async function listen() {
       const user_profile = await fetchUserProfile(req, tokens.access_token);
       if (user_profile === null) return;
 
-      const user_token = await ranks_db.get(SQL`
-        SELECT user_id, token, expires_tms FROM website_tokens
-        WHERE user_id = ${user_profile.id}
-      `);
-
+      const user_token = stmts.fetch_tokens.get(user_profile.id);
       const current_tms = Date.now();
       if (user_token && user_token.expires_tms > current_tms) {
-        await ranks_db.exec(`
-          DELETE FROM website_tokens
-          WHERE user_id = ${user_token.user_id}
-        `);
+        stmts.delete_token.run(user_token.user_id);
       } else if (user_token) {
         http_res.cookie('token', user_token.token, {sameSite: true});
         http_res.redirect(`/u/${user_token.user_id}`);
@@ -155,14 +175,7 @@ async function listen() {
 
       const new_expires_tms = Date.now() + tokens.expires_in * 1000;
       const new_auth_token = crypto.randomBytes(20).toString('hex');
-      await ranks_db.run(
-          `INSERT INTO website_tokens (
-          user_id,
-          token,
-          expires_tms,
-          osu_access_token,
-          osu_refresh_token
-        ) VALUES (?, ?, ?, ?, ?)`,
+      stmts.insert_token.run(
           user_profile.id,
           new_auth_token,
           new_expires_tms,
@@ -177,25 +190,16 @@ async function listen() {
 
     // Get discord user id from ephemeral token
     const ephemeral_token = req.query.state;
-    res = await discord_db.get(SQL`
-      SELECT * FROM auth_tokens
-      WHERE ephemeral_token = ${ephemeral_token}`,
-    );
+    res = stmts.discord_from_ephemeral_token.get(ephemeral_token);
     if (!res) {
       http_res.status(403).send(await render_error(req, 'Discord token invalid or expired. Please click the "Link account" button once again.', 403));
       return;
     }
-    await discord_db.run(SQL`
-      DELETE FROM auth_tokens
-      WHERE ephemeral_token = ${ephemeral_token}`,
-    );
+    stmts.delete_ephemeral_token.run(ephemeral_token);
     const discord_user_id = res.discord_user_id;
 
     // Check if user didn't already link their account
-    res = await discord_db.get(SQL`
-      SELECT * FROM user
-      WHERE discord_id = ${discord_user_id}`,
-    );
+    res = stmts.user_from_discord_id.get(discord_user_id);
     if (res) {
       http_res.redirect('/success');
       return;
@@ -208,19 +212,7 @@ async function listen() {
     if (user_profile === null) return;
 
     // Link accounts! Finally.
-    await discord_db.run(
-        `INSERT INTO user (
-          discord_id,
-          osu_id,
-          osu_access_token,
-          osu_refresh_token
-        ) VALUES (?, ?, ?, ?)`,
-        discord_user_id,
-        user_profile.id,
-        tokens.access_token,
-        tokens.refresh_token,
-    );
-
+    stmts.link_account.run( discord_user_id, user_profile.id, tokens.access_token, tokens.refresh_token);
     http_res.redirect('/success');
 
     // Now for the fun part: add Discord roles, etc.
@@ -241,14 +233,7 @@ async function listen() {
   });
 
   app.get('/search', async (req, http_res) => {
-    const players = await ranks_db.all(`
-      SELECT * FROM user
-      WHERE username LIKE ?
-      AND games_played > 4
-      ORDER BY elo DESC
-      LIMIT 5
-    `, `%${req.query.query}%`);
-
+    const players = stmts.search_player.all(`%${req.query.query}%`);
     http_res.set('Cache-control', 'public, max-age=60');
     http_res.json(players);
   });
@@ -267,11 +252,7 @@ async function listen() {
   // Dirty hack to handle Discord embeds nicely
   app.get('/u/:userId', async (req, http_res) => {
     if (req.get('User-Agent').indexOf('Discordbot') != -1) {
-      const user = await ranks_db.get(SQL`
-        SELECT * FROM user
-        WHERE user_id = ${req.params.userId}
-        AND games_played > 0`,
-      );
+      const user = stmts.user_from_id.get(req.params.userId);
       if (!user) {
         http_res.status(404).send('');
         return;

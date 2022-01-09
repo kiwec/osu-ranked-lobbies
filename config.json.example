@@ -8,6 +8,7 @@
     "osu_v1api_key": "get it here: https://osu.ppy.sh/p/api",
     "osu_v2api_client_id": 1234,
     "osu_v2api_client_secret": "get it here: https://osu.ppy.sh/home/account/edit#new-oauth-application",
+    "difficulty": 1.2,
 
     "CONNECT_TO_DISCORD": false,
     "discord_token": "get it here: https://discord.com/developers/applications",

@@ -1,36 +1,20 @@
 import crypto from 'crypto';
 import fs from 'fs';
 import Sentry from '@sentry/node';
-import {open} from 'sqlite';
-import sqlite3 from 'sqlite3';
-import SQL from 'sql-template-strings';
 import {Client, Intents, MessageActionRow, MessageButton} from 'discord.js';
 
 import bancho from './bancho.js';
+import databases from './database.js';
 import {init_lobby} from './ranked.js';
 import {capture_sentry_exception} from './util/helpers.js';
 import Config from './util/config.js';
 
-let client = null;
-let db = null;
-let ranks_db = null;
+const client = new Client({igntents: [Intents.FLAGS.GUILDS]});
 
 
 function init() {
   return new Promise(async (resolve, reject) => {
     try {
-      db = await open({
-        filename: 'discord.db',
-        driver: sqlite3.cached.Database,
-      });
-
-      ranks_db = await open({
-        filename: 'ranks.db',
-        driver: sqlite3.cached.Database,
-      });
-
-      client = new Client({intents: [Intents.FLAGS.GUILDS]});
-
       client.once('ready', async () => {
         client.on('interactionCreate', (interaction) => on_interaction(interaction).catch(capture_sentry_exception));
         console.log('Discord bot is ready.');
@@ -46,9 +30,9 @@ function init() {
 }
 
 async function on_interaction(interaction) {
-  const user = await db.get(
-      SQL`SELECT * FROM user WHERE discord_id = ${interaction.user.id}`,
-  );
+  const get_user_stmt = databases.discord.prepare('SELECT * FROM user WHERE discord_id = ?');
+  const user = get_user_stmt.get(interaction.user.id);
+
   if (Config.ENABLE_SENTRY) {
     if (user) {
       Sentry.setUser({
@@ -67,9 +51,7 @@ async function on_interaction(interaction) {
 
   if (interaction.isContextMenu()) {
     if (interaction.commandName == 'Display o!RL profile') {
-      const target = await db.get(
-          SQL`SELECT * FROM user WHERE discord_id = ${interaction.targetId}`,
-      );
+      const target = get_user_stmt.get(interaction.targetId);
 
       if (target) {
         await interaction.reply(`${Config.website_base_url}/u/${target.osu_id}?v=${crypto.randomBytes(5).toString('hex')}`);
@@ -133,7 +115,8 @@ async function on_make_ranked_command(user, interaction) {
   await interaction.deferReply({ephemeral: true});
 
   try {
-    const osu_user = await ranks_db.get(SQL`SELECT * FROM user WHERE user_id = ${user.osu_id}`);
+    const stmt = databases.ranks.prepare('SELECT * FROM user WHERE user_id = ?');
+    const osu_user = stmt.get(user.osu_id);
     if (!osu_user) {
       await interaction.editReply({content: `Please at least join an o!RL lobby once before attempting to create one.`});
       return;
@@ -179,7 +162,8 @@ async function on_lobby_invite_button_press(user, interaction) {
 
   await interaction.deferReply({ephemeral: true});
 
-  const player = await ranks_db.get(SQL`SELECT username FROM user WHERE user_id = ${user.osu_id}`);
+  const stmt = databases.ranks.prepare('SELECT username FROM user WHERE user_id = ?');
+  const player = stmt.get(user.osu_id);
   if (!player) {
     await interaction.editReply({
       content: 'Sorry, but you need to join your first lobby from in-game. Search for "o!RL".',
@@ -217,15 +201,10 @@ async function on_link_osu_account_press(user, interaction) {
   }
 
   // Create ephemeral token
-  await db.run(SQL`
-    DELETE from auth_tokens
-    WHERE discord_user_id = ${interaction.user.id}`,
-  );
-  const ephemeral_token = crypto.randomBytes(16).toString('hex');
-  await db.run(SQL`
-    INSERT INTO auth_tokens (discord_user_id, ephemeral_token)
-    VALUES (${interaction.user.id}, ${ephemeral_token})`,
-  );
+  let stmt = databases.discord.prepare('DELETE from auth_tokens WHERE discord_user_id = ?');
+  stmt.run(interaction.user.id);
+  stmt = databases.discord.prepare('INSERT INTO auth_tokens (discord_user_id, ephemeral_token) VALUES (?, ?)');
+  stmt.run(interaction.user.id, crypto.randomBytes(16).toString('hex'));
 
   // Send authorization link
   await interaction.reply({

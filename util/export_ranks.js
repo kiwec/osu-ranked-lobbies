@@ -9,22 +9,21 @@
 // which is why we have a JavaScript implementation in the first place.
 
 import fs from 'fs';
-import SQL from 'sql-template-strings';
 
-import {init_databases} from '../database.js';
+import databases from '../database.js';
 
 
 async function export_ranks() {
-  const databases = await init_databases();
-  const db = databases.ranks;
-
-  const contests = await db.all(SQL`
+  const contests_stmt = databases.ranks.prepare(`
     SELECT rowid, lobby_id, map_id, tms, scoring_system, mods
     FROM contest
     ORDER BY tms`,
   );
+  const scores_stmt = databases.ranks.prepare('SELECT user_id, score FROM score WHERE contest_id = ?');
+  const username_stmt = databases.ranks.prepare('SELECT username FROM user WHERE user_id = ?');
 
   let exported = 0;
+  const contests = contests_stmt.all();
   for (const contest of contests) {
     const output = {
       'name': 'contest #' + exported,
@@ -32,7 +31,7 @@ async function export_ranks() {
       'standings': [],
     };
 
-    const scores = await db.all(SQL`SELECT user_id, score FROM score WHERE contest_id = ${contest.rowid}`);
+    const scores = scores_stmt.all(contest.rowid);
     const user_ids = [];
     for (const score of scores) {
       if (user_ids.includes(score.user_id)) {
@@ -40,7 +39,7 @@ async function export_ranks() {
         continue;
       }
 
-      const user = await db.get(SQL`SELECT username FROM user WHERE user_id = ${score.user_id}`);
+      const user = username_stmt.get(score.user_id);
       output['standings'].push([user.username, null, null, score.score]);
       user_ids.push(score.user_id);
     }

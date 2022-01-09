@@ -5,9 +5,8 @@ const rosu = require('rosu-pp');
 import * as fs from 'fs/promises';
 import fetch from 'node-fetch';
 import {promisify} from 'util';
-import SQL from 'sql-template-strings';
 
-import {init_databases} from './database.js';
+import databases from './database.js';
 import {update_discord_username} from './discord_updates.js';
 
 import {constants} from 'fs';
@@ -15,8 +14,6 @@ import Config from './util/config.js';
 import {capture_sentry_exception} from './util/helpers.js';
 
 let oauth_token = null;
-let maps_db = null;
-let ranks_db = null;
 
 async function osu_fetch(url, options) {
   let res;
@@ -104,35 +101,24 @@ function scan_user_profile(user) {
 
 // We assume user.user_id is already set.
 async function _scan_user_profile(user) {
-  if (!maps_db || !ranks_db) {
-    const databases = await init_databases();
-    maps_db = databases.maps;
-    ranks_db = databases.ranks;
-  }
-
   // Check if the user exists in the database
-  const exists = await ranks_db.get(SQL`SELECT * FROM user WHERE user_id = ${user.user_id}`);
+  let stmt = databases.ranks.prepare('SELECT * FROM user WHERE user_id = ?');
+  const exists = stmt.get(user.user_id);
   if (!exists) {
-    await ranks_db.run(SQL`
+    stmt = databases.ranks.prepare(`
       INSERT INTO user (
-        user_id, username, approx_mu, approx_sig, normal_mu, normal_sig, games_played,
+        user_id, username, approx_mu, approx_sig, games_played,
         aim_pp, acc_pp, speed_pp, overall_pp, avg_ar, avg_sr
-      )
-      VALUES (
-        ${user.user_id}, ${user.username}, 1500, 350, 1500, 350, 0,
-        10.0, 1.0, 1.0, 1.0, 8.0, 2.0
-      )`,
+      ) VALUES (?, ?, 1500, 350, 0, 10.0, 1.0, 1.0, 1.0, 8.0, 2.0)`,
     );
+    stmt.run(user.user_id, user.username);
 
     return await _scan_user_profile(user);
   }
 
   if (user.username != exists.username) {
-    await ranks_db.run(SQL`
-      UPDATE user
-      SET username = ${user.username}
-      WHERE user_id = ${user.user_id}`,
-    );
+    stmt = databases.ranks.prepare('UPDATE user SET username = ? WHERE user_id = ?');
+    stmt.run(user.username, user.user_id);
 
     console.info(`[API] ${exists.username} is now known as ${user.username}`);
     await update_discord_username(
@@ -263,18 +249,19 @@ async function _scan_user_profile(user) {
   }
 
   // Get average SR for those pp values
-  const meta = await maps_db.get(SQL`
+  stmt = databases.maps.prepare(`
     SELECT AVG(stars) AS avg_sr FROM (
       SELECT stars, (
-        ABS(${aim_pp} - aim_pp)
-        + ABS(${speed_pp} - speed_pp)
-        + ABS(${acc_pp} - acc_pp)
-        + 10*ABS(${avg_ar} - ar)
+        ABS(? - aim_pp)
+        + ABS(? - speed_pp)
+        + ABS(? - acc_pp)
+        + 10*ABS(? - ar)
       ) AS match_accuracy FROM map
       WHERE length > 60 AND ranked IN (4, 5, 7) AND match_accuracy IS NOT NULL
       ORDER BY match_accuracy LIMIT 1000
     )`,
   );
+  const meta = stmt.get(aim_pp, speed_pp, acc_pp, avg_ar);
 
   user.aim_pp = aim_pp;
   user.acc_pp = acc_pp;
@@ -284,18 +271,16 @@ async function _scan_user_profile(user) {
   user.avg_sr = meta.avg_sr;
   user.last_update_tms = Date.now();
 
-  await ranks_db.run(SQL`
+  stmt = databases.ranks.prepare(`
     UPDATE user
     SET
-      aim_pp = ${aim_pp},
-      acc_pp = ${acc_pp},
-      speed_pp = ${speed_pp},
-      overall_pp = ${overall_pp},
-      avg_ar = ${avg_ar},
-      avg_sr = ${meta.avg_sr},
-      last_top_score_tms = ${last_top_score_tms},
-      last_update_tms = ${user.last_update_tms}
-    WHERE user_id = ${user.user_id}`,
+      aim_pp = ?, acc_pp = ?, speed_pp = ?, overall_pp = ?, avg_ar = ?, avg_sr = ?,
+      last_top_score_tms = ?, last_update_tms = ?
+    WHERE user_id = ?`,
+  );
+  stmt.run(
+      aim_pp, acc_pp, speed_pp, overall_pp, avg_ar, meta.avg_sr,
+      last_top_score_tms, user.last_update_tms, user.user_id,
   );
 
   console.log('[API] Finished recalculating pp for ' + user.username);

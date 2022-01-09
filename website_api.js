@@ -4,17 +4,15 @@
 // - API is subject to change. Message us if you're using it so we avoid
 //   breaking it in the future.
 
-import SQL from 'sql-template-strings';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime.js';
 dayjs.extend(relativeTime);
 
-import {init_databases} from './database.js';
+import databases from './database.js';
 import {get_rank} from './elo_mmr.js';
 
 
-let maps_db = null;
-let ranks_db = null;
+const stmts = {};
 
 const USER_NOT_FOUND = new Error('User not found. Have you played a game in a ranked lobby yet?');
 USER_NOT_FOUND.code = 404;
@@ -24,10 +22,7 @@ async function get_leaderboard_page(page_num) {
   const PLAYERS_PER_PAGE = 20;
 
   const month_ago_tms = Date.now() - (30 * 24 * 3600 * 1000);
-  const total_players = await ranks_db.get(SQL`
-      SELECT COUNT(*) AS nb FROM user
-      WHERE games_played > 4 AND last_contest_tms > ${month_ago_tms}`,
-  );
+  const total_players = stmts.playercount.get(month_ago_tms);
 
   // Fix user-provided page number
   const nb_pages = Math.ceil(total_players.nb / PLAYERS_PER_PAGE);
@@ -41,13 +36,7 @@ async function get_leaderboard_page(page_num) {
   }
 
   const offset = (page_num - 1) * PLAYERS_PER_PAGE;
-  const res = await ranks_db.all(SQL`
-      SELECT * FROM user
-      WHERE games_played > 4 AND last_contest_tms > ${month_ago_tms}
-      ORDER BY elo DESC LIMIT ${PLAYERS_PER_PAGE} OFFSET ${offset}`,
-  );
-
-
+  const res = stmts.leaderboard_page.all(month_ago_tms, PLAYERS_PER_PAGE, offset);
   const data = {
     nb_ranked_players: total_players.nb,
     the_one: false,
@@ -85,11 +74,7 @@ async function get_leaderboard_page(page_num) {
 }
 
 async function get_user_profile(user_id) {
-  const user = await ranks_db.get(SQL`
-    SELECT * FROM user
-    WHERE user_id = ${user_id}
-    AND games_played > 0`,
-  );
+  const user = stmts.user_by_id.get(user_id);
   if (!user) {
     throw USER_NOT_FOUND;
   }
@@ -104,11 +89,7 @@ async function get_user_profile(user_id) {
 }
 
 async function get_user_matches(user_id, page_num) {
-  const user = await ranks_db.get(SQL`
-    SELECT user_id, games_played FROM user
-    WHERE user_id = ${user_id}
-    AND games_played > 0`,
-  );
+  const user = stmts.user_by_id.get(user_id);
   if (!user) {
     throw USER_NOT_FOUND;
   }
@@ -133,24 +114,12 @@ async function get_user_matches(user_id, page_num) {
   };
 
   const offset = (page_num - 1) * MATCHES_PER_PAGE;
-  const scores = await ranks_db.all(SQL`
-      SELECT * FROM score
-      WHERE user_id = ${user.user_id}
-      ORDER BY tms DESC LIMIT ${MATCHES_PER_PAGE} OFFSET ${offset}`,
-  );
-
+  const scores = stmts.user_scores_page.all(user.user_id, MATCHES_PER_PAGE, offset);
   for (const score of scores) {
-    const elo_change = Math.round(score.difference);
+    const elo_change = Math.round(score.new_elo - score.old_elo);
 
     let placement = 0;
-    const contest = await ranks_db.get(SQL`
-        SELECT * FROM contest WHERE rowid = ${score.contest_id}`,
-    );
-    const contest_scores = await ranks_db.all(SQL`
-        SELECT user_id FROM score
-        WHERE contest_id = ${score.contest_id}
-        ORDER BY score DESC`,
-    );
+    const contest_scores = stmts.contest_scores.all(score.contest_id);
     for (const contest_score of contest_scores) {
       placement++;
       if (contest_score.user_id == user.user_id) {
@@ -159,7 +128,7 @@ async function get_user_matches(user_id, page_num) {
     }
 
     data.matches.push({
-      map: await maps_db.get(SQL`SELECT * FROM map WHERE id = ${contest.map_id}`),
+      map: stmts.fetch_map.get(score.map_id),
       placement: placement,
       players_in_match: contest_scores.length,
       elo_change: elo_change,
@@ -174,9 +143,31 @@ async function get_user_matches(user_id, page_num) {
 }
 
 async function register_routes(app) {
-  const databases = await init_databases();
-  maps_db = databases.maps;
-  ranks_db = databases.ranks;
+  stmts.fetch_map = databases.maps.prepare('SELECT * FROM map WHERE id = ?');
+  stmts.playercount = databases.ranks.prepare(`
+    SELECT COUNT(*) AS nb FROM user
+    WHERE games_played > 4 AND last_contest_tms > ?`,
+  );
+  stmts.leaderboard_page = databases.ranks.prepare(`
+    SELECT * FROM user
+    WHERE games_played > 4 AND last_contest_tms > ?
+    ORDER BY elo DESC LIMIT ? OFFSET ?`,
+  );
+  stmts.user_by_id = databases.ranks.prepare(`
+    SELECT * FROM user
+    WHERE user_id = ?
+    AND games_played > 0`,
+  );
+  stmts.user_scores_page = databases.ranks.prepare(`
+    SELECT * FROM score
+    WHERE user_id = ?
+    ORDER BY tms DESC LIMIT ? OFFSET ?`,
+  );
+  stmts.contest_scores = databases.ranks.prepare(`
+    SELECT user_id FROM score
+    WHERE contest_id = ?
+    ORDER BY score DESC`,
+  );
 
   app.get('/api/leaderboard/:pageNum/', async (req, http_res) => {
     try {
