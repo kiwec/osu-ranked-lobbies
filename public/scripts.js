@@ -16,6 +16,10 @@ function click_listener(evt) {
   }
 };
 
+window.addEventListener('popstate', function(event) {
+  route(event.target.location.href);
+});
+
 
 async function get(url) {
   const res = await fetch(url, {
