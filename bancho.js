@@ -57,6 +57,7 @@ async function try_get_player(display_username) {
       aim_pp: 10.0, acc_pp: 1.0, speed_pp: 1.0, overall_pp: 1.0,
       avg_ar: 8.0, avg_sr: 2.0,
       last_update_tms: 0,
+      readyState: "Not Ready",
       games_played: 0, rank_text: 'Unranked',
     };
   }
@@ -467,6 +468,8 @@ class BanchoLobby extends EventEmitter {
             this.players[display_username] = player;
           }
 
+          this.players[display_username].readyState = m[2];
+
           if (!player.id) {
             player.id = parseInt(m[3], 10);
             player.user_id = player.id;
@@ -482,6 +485,23 @@ class BanchoLobby extends EventEmitter {
           this.players_to_parse--;
           if (this.players_to_parse == 0) {
             this.emit('settings');
+
+            // Check if all players are ready if we are not playing
+            if (!this.playing) {
+              var playerUsernames = Object.keys(this.players);
+              var notReadyFlag = false;
+              for(var i = 0; i < playerUsernames; i++) {
+                var tempPlayerUsername = playerUsernames[i];
+                if (this.players[tempPlayerUsername].readyState != "Ready") {
+                  notReadyFlag = true;
+                  break;
+                }
+              }
+
+              if (!notReadyFlag) {
+                this.emit('allPlayersReady')
+              }
+            }
           }
         } else if (m = score_regex.exec(message)) {
           // We only handle the score if we have properly fetched the user.

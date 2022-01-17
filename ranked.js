@@ -321,6 +321,9 @@ async function init_lobby(lobby, settings) {
         }
         return;
       }
+
+      // Get settings to update players and their readyState
+      await lobby.send('!mp settings');
     } catch (err) {
       set_sentry_context(lobby, 'playerLeft');
       Sentry.setUser(player);
