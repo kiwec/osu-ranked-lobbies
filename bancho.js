@@ -57,7 +57,7 @@ async function try_get_player(display_username) {
       aim_pp: 10.0, acc_pp: 1.0, speed_pp: 1.0, overall_pp: 1.0,
       avg_ar: 8.0, avg_sr: 2.0,
       last_update_tms: 0,
-      readyState: "Not Ready",
+      readyState: 'Not Ready',
       games_played: 0, rank_text: 'Unranked',
     };
   }
@@ -488,18 +488,18 @@ class BanchoLobby extends EventEmitter {
 
             // Check if all players are ready if we are not playing
             if (!this.playing) {
-              var playerUsernames = Object.keys(this.players);
-              var notReadyFlag = false;
-              for(var i = 0; i < playerUsernames; i++) {
-                var tempPlayerUsername = playerUsernames[i];
-                if (this.players[tempPlayerUsername].readyState != "Ready") {
+              const playerUsernames = Object.keys(this.players);
+              let notReadyFlag = false;
+              for (let i = 0; i < playerUsernames; i++) {
+                const tempPlayerUsername = playerUsernames[i];
+                if (this.players[tempPlayerUsername].readyState != 'Ready') {
                   notReadyFlag = true;
                   break;
                 }
               }
 
               if (!notReadyFlag) {
-                this.emit('allPlayersReady')
+                this.emit('allPlayersReady');
               }
             }
           }
