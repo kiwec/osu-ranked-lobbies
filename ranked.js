@@ -96,27 +96,45 @@ function set_sentry_context(lobby, current_task) {
 }
 
 async function set_new_title(lobby) {
-  let title_modifiers = '';
-  if (lobby.is_dt) title_modifiers += ' DT';
-  if (lobby.is_scorev2) title_modifiers += ' ScoreV2';
+  let new_title = '';
 
-  // Min stars: we prefer not displaying the decimals whenever possible
-  let fancy_min_stars;
-  if (Math.abs(lobby.min_stars - Math.round(lobby.min_stars)) <= 0.1) {
-    fancy_min_stars = lobby.min_stars.toFixed(0);
+  if (lobby.fixed_star_range) {
+    // Min stars: we prefer not displaying the decimals whenever possible
+    let fancy_min_stars;
+    if (Math.abs(lobby.min_stars - Math.round(lobby.min_stars)) <= 0.1) {
+      fancy_min_stars = lobby.min_stars.toFixed(0);
+    } else {
+      fancy_min_stars = lobby.min_stars.toFixed(1);
+    }
+
+    // Max stars: we prefer displaying .99 whenever possible
+    let fancy_max_stars;
+    if (Math.abs(lobby.max_stars - Math.round(lobby.max_stars)) <= 0.1) {
+      fancy_max_stars = (Math.round(lobby.max_stars) - 0.01).toFixed(2);
+    } else {
+      fancy_max_stars = lobby.max_stars.toFixed(1);
+    }
+
+    new_title += `${fancy_min_stars}-${fancy_max_stars}*`;
   } else {
-    fancy_min_stars = lobby.min_stars.toFixed(1);
+    if (lobby.median_elo == 0) {
+      // "Unranked" would be confusing since the games *are* ranked.
+      new_title += '0-11*';
+    } else {
+      const median_rank = await get_rank(lobby.median_elo);
+      new_title += median_rank.text;
+    }
   }
 
-  // Max stars: we prefer displaying .99 whenever possible
-  let fancy_max_stars;
-  if (Math.abs(lobby.max_stars - Math.round(lobby.max_stars)) <= 0.1) {
-    fancy_max_stars = (Math.round(lobby.max_stars) - 0.01).toFixed(2);
-  } else {
-    fancy_max_stars = lobby.max_stars.toFixed(1);
-  }
+  if (lobby.is_dt) new_title += ' DT';
+  if (lobby.is_scorev2) new_title += ' ScoreV2';
 
-  const new_title = `${fancy_min_stars}-${fancy_max_stars}*${title_modifiers} | o!RL | Auto map select (!about)`;
+  // Title is limited to 50 characters, so only add extra stuff when able to
+  new_title += ' | o!RL';
+  if (new_title.length <= 39) new_title += ' | Auto map';
+  if (new_title.length <= 43) new_title += ' select';
+  if (new_title.length <= 41) new_title += ' (!about)';
+
   if (lobby.name != new_title) {
     await lobby.send(`!mp name ${new_title}`);
     lobby.name = new_title;
@@ -236,6 +254,7 @@ async function update_median_pp(lobby) {
   const speeds = [];
   const overalls = [];
   const ars = [];
+  const elos = [];
 
   for (const username in lobby.players) {
     if (lobby.players.hasOwnProperty(username)) {
@@ -259,6 +278,7 @@ async function update_median_pp(lobby) {
       overalls.push(overall_pp);
 
       ars.push(lobby.players[username].avg_ar);
+      elos.push(lobby.players[username].elo);
     }
   }
 
@@ -273,6 +293,7 @@ async function update_median_pp(lobby) {
   lobby.median_speed = median(speeds) * DIFFICULTY_MODIFIER;
   lobby.median_overall = median(overalls) * DIFFICULTY_MODIFIER;
   lobby.median_ar = median(ars);
+  lobby.median_elo = median(elos);
 
   return false;
 }
@@ -410,7 +431,12 @@ async function init_lobby(lobby, settings) {
         return;
       }
 
-      await lobby.send(`!mp start .${Math.random().toString(36).substring(2, 6)}`);
+      // Players can spam the Ready button and due to lag, this command could
+      // be spammed before the match actually got started.
+      if (!lobby.playing) {
+        lobby.playing = true;
+        await lobby.send(`!mp start .${Math.random().toString(36).substring(2, 6)}`);
+      }
     } catch (err) {
       set_sentry_context(lobby, 'allPlayersReady');
       capture_sentry_exception(err);

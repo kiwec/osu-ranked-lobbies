@@ -20,8 +20,8 @@ async function main() {
   }
 
   if (Config.CREATE_LOBBIES) {
-    // Check for lobby creation every 10 minutes
-    setInterval(() => create_lobby_if_needed(), 10 * 60 * 1000);
+    // Check for lobby creation every minute
+    setInterval(() => create_lobby_if_needed(), 60 * 1000);
   }
   if (Config.APPLY_RANK_DECAY) {
     // This is pretty database intensive, so run it hourly
@@ -56,10 +56,6 @@ async function main() {
     console.log('Connected to bancho.');
 
     await start_ranked(databases.maps);
-
-    if (Config.CREATE_LOBBIES) {
-      await create_lobby_if_needed();
-    }
   }
 
   if (Config.APPLY_RANK_DECAY) {
@@ -73,69 +69,36 @@ async function main() {
 async function create_lobby_if_needed() {
   const get_lobbies_stmt = databases.discord.prepare('SELECT * FROM ranked_lobby WHERE creator = ?');
   const lobbies = get_lobbies_stmt.all(Config.osu_username);
-  if (!lobbies || lobbies.length >= 4) return;
+  if (!lobbies || lobbies.length >= Config.max_lobbies) return;
 
-  console.log(`Creating ${4 - lobbies.length} missing lobbies...`);
+  let filled_lobbies = 0;
+  for (const lobby of bancho.joined_lobbies) {
+    if (lobby.creator == Config.osu_username && lobby.nb_players > 8) {
+      filled_lobbies++;
+    }
+  }
+
+  if (filled_lobbies < lobbies.length) {
+    // We don't want to create a lobby if one of the bot-created lobbies isn't
+    // filled enough.
+    return;
+  }
 
   try {
-    if (!lobbies.some((lobby) => lobby.min_stars == 3.0)) {
-      const lobby = await bancho.make(`3-3.99* | o!RL | Auto map select (!about)`);
-      await init_lobby(lobby, {
-        creator: Config.osu_username,
-        creator_osu_id: Config.osu_id,
-        creator_discord_id: Config.discord_bot_id,
-        created_just_now: true,
-        min_stars: 3,
-        max_stars: 4,
-        dt: false,
-        scorev2: false,
-      });
-    }
-    if (!lobbies.some((lobby) => lobby.min_stars == 4.0)) {
-      const lobby = await bancho.make(`4-4.99* | o!RL | Auto map select (!about)`);
-      await init_lobby(lobby, {
-        creator: Config.osu_username,
-        creator_osu_id: Config.osu_id,
-        creator_discord_id: Config.discord_bot_id,
-        created_just_now: true,
-        min_stars: 4,
-        max_stars: 5,
-        dt: false,
-        scorev2: false,
-      });
-    }
-    if (!lobbies.some((lobby) => lobby.min_stars == 5.0)) {
-      const lobby = await bancho.make(`5-5.5* | o!RL | Auto map select (!about)`);
-      await init_lobby(lobby, {
-        creator: Config.osu_username,
-        creator_osu_id: Config.osu_id,
-        creator_discord_id: Config.discord_bot_id,
-        created_just_now: true,
-        min_stars: 5,
-        max_stars: 5.5,
-        dt: false,
-        scorev2: false,
-      });
-    }
-    if (!lobbies.some((lobby) => lobby.min_stars == 5.5)) {
-      const lobby = await bancho.make(`5.5-5.99* | o!RL | Auto map select (!about)`);
-      await init_lobby(lobby, {
-        creator: Config.osu_username,
-        creator_osu_id: Config.osu_id,
-        creator_discord_id: Config.discord_bot_id,
-        created_just_now: true,
-        min_stars: 5.5,
-        max_stars: 6,
-        dt: false,
-        scorev2: false,
-      });
-    }
+    console.log('Creating new lobby...');
+    const lobby = await bancho.make(`o!RL | Auto map select (!about)`);
+    await init_lobby(lobby, {
+      creator: Config.osu_username,
+      creator_osu_id: Config.osu_id,
+      creator_discord_id: Config.discord_bot_id,
+      created_just_now: true,
+      dt: false,
+      scorev2: false,
+    });
   } catch (err) {
     // Don't care about errors here.
     console.error(err);
   }
-
-  console.log('Done creating missing lobbies.');
 }
 
 main();
