@@ -15,7 +15,7 @@ const DIFFICULTY_MODIFIER = 1.2;
 const DT_DIFFICULTY_MODIFIER = 0.7;
 
 const stmts = {
-  star_range_from_pp: databases.maps.prepare(`
+  star_range_from_pp: databases.ranks.prepare(`
     SELECT MIN(stars) AS min_stars, MAX(stars) AS max_stars FROM (
       SELECT stars, (
         ABS(? - aim_pp)
@@ -27,7 +27,7 @@ const stmts = {
       ORDER BY match_accuracy LIMIT 1000
     )`,
   ),
-  dt_star_range_from_pp: databases.maps.prepare(`
+  dt_star_range_from_pp: databases.ranks.prepare(`
     SELECT MIN(dt_stars) AS min_stars, MAX(dt_stars) AS max_stars FROM (
       SELECT dt_stars, (
         ABS(? - dt_aim_pp)
@@ -40,7 +40,7 @@ const stmts = {
     )`,
   ),
 
-  select_map: databases.maps.prepare(`
+  select_map: databases.ranks.prepare(`
     SELECT * FROM (
       SELECT *, (
         ABS(? - aim_pp)
@@ -57,7 +57,7 @@ const stmts = {
       ORDER BY match_accuracy LIMIT 1000
     ) ORDER BY RANDOM() LIMIT 1`,
   ),
-  select_dt_map: databases.maps.prepare(`
+  select_dt_map: databases.ranks.prepare(`
     SELECT * FROM (
       SELECT *, (
         ABS(? - dt_aim_pp)
@@ -75,7 +75,7 @@ const stmts = {
     ) ORDER BY RANDOM() LIMIT 1`,
   ),
 
-  dmca_map: databases.maps.prepare('UPDATE map SET dmca = 1 WHERE id = ?'),
+  dmca_map: databases.ranks.prepare('UPDATE map SET dmca = 1 WHERE id = ?'),
 };
 
 
@@ -121,7 +121,7 @@ async function set_new_title(lobby) {
       // "Unranked" would be confusing since the games *are* ranked.
       new_title += '0-11*';
     } else {
-      const median_rank = await get_rank(lobby.median_elo);
+      const median_rank = get_rank(lobby.median_elo);
       new_title += median_rank.text;
     }
   }
@@ -248,7 +248,7 @@ async function select_next_map(lobby) {
 
 
 // Updates the lobby's median_pp value.
-async function update_median_pp(lobby) {
+function update_median_pp(lobby) {
   const aims = [];
   const accs = [];
   const speeds = [];
@@ -333,7 +333,7 @@ async function init_lobby(lobby, settings) {
 
   lobby.on('settings', async () => {
     try {
-      await update_median_pp(lobby);
+      update_median_pp(lobby);
 
       // Cannot select a map until we fetched the player IDs via !mp settings.
       if (settings.created_just_now) {
@@ -349,7 +349,7 @@ async function init_lobby(lobby, settings) {
   lobby.on('playerJoined', async (player) => {
     try {
       if (player.user_id) {
-        await update_median_pp(lobby);
+        update_median_pp(lobby);
         if (lobby.nb_players == 1) {
           await select_next_map(lobby);
         }
@@ -363,7 +363,7 @@ async function init_lobby(lobby, settings) {
 
   lobby.on('playerLeft', async (player) => {
     try {
-      await update_median_pp(lobby);
+      update_median_pp(lobby);
 
       if (lobby.nb_players == 0) {
         if (!lobby.fixed_star_range) {
@@ -684,7 +684,7 @@ async function on_lobby_msg(lobby, msg) {
     if (!user || user.games_played < 5) {
       rank_info.text = 'Unranked';
     } else {
-      rank_info = await get_rank(user.elo);
+      rank_info = get_rank(user.elo);
     }
 
     if (rank_info.text == 'Unranked') {

@@ -9,7 +9,7 @@ import {init_lobby} from './ranked.js';
 import {capture_sentry_exception} from './util/helpers.js';
 import Config from './util/config.js';
 
-const client = new Client({igntents: [Intents.FLAGS.GUILDS]});
+const client = new Client({intents: [Intents.FLAGS.GUILDS]});
 
 
 function init() {

@@ -90,7 +90,4 @@ ranks.exec(`CREATE TABLE IF NOT EXISTS user (
     osu_refresh_token TEXT
   )`);
 
-const maps = new Database('maps.db');
-// Initialize your maps.db with https://github.com/kiwec/orl-maps-db-generator
-
-export default {discord, ranks, maps};
+export default {discord, ranks};

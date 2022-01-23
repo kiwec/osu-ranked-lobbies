@@ -1,10 +1,11 @@
 // This script recomputes player ranks based on stored scores.
 //
 // Instructions:
-// - Run `node util/recompute_ranks.js`
+// - Run `sqlite3 ranks.db < util/merge_maps_into_ranks.sql`
 // - Stop the bot
-// - Run `INCREMENTAL_UPDATE=1 node util/recompute_ranks.js`
+// - Run `node util/recompute_ranks.js`
 // - Replace `ranks.db` with `new_ranks.db`
+// - Run `sqlite3 ranks.db < util/merge_maps_into_ranks.sql`
 // - Start the bot. Done!
 
 import Database from 'better-sqlite3';
@@ -16,18 +17,6 @@ import {update_mmr} from '../elo_mmr.js';
 recompute_ranks();
 
 async function recompute_ranks() {
-  databases.ranks.exec('BEGIN DEFERRED TRANSACTION');
-
-  console.info('Fetching maps...');
-  const maps_stmt = databases.maps.prepare('SELECT id, overall_pp, dt_overall_pp FROM map');
-  const maps = maps_stmt.all();
-  const pps = [];
-  const dt_pps = [];
-  for (const map of maps) {
-    pps[map.id] = map.overall_pp;
-    dt_pps[map.id] = map.dt_overall_pp;
-  }
-
   let latest_recomputed_tms = -1;
   const max_tms_stmt = databases.ranks.prepare('SELECT MAX(tms) AS max_tms FROM contest');
   const res = max_tms_stmt.get();
@@ -37,40 +26,20 @@ async function recompute_ranks() {
 
   const old_db = new Database('ranks.db', {readonly: true});
   const contests_stmt = old_db.prepare(`
-    SELECT rowid, lobby_id, map_id, tms, lobby_creator, mods
+    SELECT contest.rowid, lobby_id, map_id, tms, lobby_creator, mods, overall_pp, dt_overall_pp
     FROM contest
+    INNER JOIN map ON contest.map_id = map.id
     WHERE tms > ?
     ORDER BY tms`,
   );
   const contests = contests_stmt.all(latest_recomputed_tms);
-
-  console.info('Fetching scores...');
-  const scores_stmt = old_db.prepare('SELECT * FROM score WHERE tms > ?');
-  const all_scores = scores_stmt.all(latest_recomputed_tms);
-
-  let bar = new ProgressBar('populating contests [:bar] :rate/s | :etas remaining', {
-    complete: '=',
-    incomplete: ' ',
-    width: 20,
-    total: contests.length,
-  });
-  for (const contest of contests) {
-    contest.scores = all_scores.filter((score) => score.contest_id == contest.rowid);
-    contest.pp = contest.mods & 64 ? dt_pps[contest.map_id] : pps[contest.map_id];
-
-    // Let's make the database consistent
-    if (!contest.lobby_creator) contest.lobby_creator = 'kiwec';
-    if (contest.lobby_creator == '12398096') contest.lobby_creator = 'kiwec';
-
-    bar.tick(1);
-  }
 
   const player_cache = [];
   const players_stmt = old_db.prepare('SELECT * FROM user WHERE games_played > 0');
   const new_players_stmt = databases.ranks.prepare('SELECT * FROM user');
   const players = players_stmt.all();
   const new_players = new_players_stmt.all();
-  bar = new ProgressBar('importing players [:bar] :rate/s | :etas remaining', {
+  let bar = new ProgressBar('importing players [:bar] :rate/s | :etas remaining', {
     complete: '=',
     incomplete: ' ',
     width: 20,
@@ -112,6 +81,7 @@ async function recompute_ranks() {
   }
 
   // Recompute all scores
+  const score_stmt = old_db.prepare('SELECT * FROM score WHERE contest_id = ?');
   bar = new ProgressBar('recomputing scores [:bar] :rate/s | :etas remaining', {
     complete: '=',
     incomplete: ' ',
@@ -119,6 +89,13 @@ async function recompute_ranks() {
     total: contests.length,
   });
   for (const contest of contests) {
+    contest.scores = score_stmt.all(contest.rowid);
+    contest.pp = contest.mods & 64 ? contest.dt_overall_pp : contest.overall_pp;
+
+    // Let's make the database consistent
+    if (!contest.lobby_creator) contest.lobby_creator = 'kiwec';
+    if (contest.lobby_creator == '12398096') contest.lobby_creator = 'kiwec';
+
     const lobby = {
       id: contest.lobby_id,
       creator: contest.lobby_creator,
@@ -147,5 +124,5 @@ async function recompute_ranks() {
     bar.tick(1);
   }
 
-  databases.ranks.exec('COMMIT TRANSACTION');
+  console.info('Done!');
 }

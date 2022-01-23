@@ -55,7 +55,7 @@ async function main() {
     });
     console.log('Connected to bancho.');
 
-    await start_ranked(databases.maps);
+    await start_ranked();
   }
 
   if (Config.APPLY_RANK_DECAY) {

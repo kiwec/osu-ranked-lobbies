@@ -84,7 +84,7 @@ async function get_user_profile(user_id) {
     user_id: user.user_id,
     games_played: user.games_played,
     elo: Math.round(user.elo),
-    rank: await get_rank(user.elo),
+    rank: get_rank(user.elo),
   };
 }
 
@@ -143,7 +143,7 @@ async function get_user_matches(user_id, page_num) {
 }
 
 async function register_routes(app) {
-  stmts.fetch_map = databases.maps.prepare('SELECT * FROM map WHERE id = ?');
+  stmts.fetch_map = databases.ranks.prepare('SELECT * FROM map WHERE id = ?');
   stmts.playercount = databases.ranks.prepare(`
     SELECT COUNT(*) AS nb FROM user
     WHERE games_played > 4 AND last_contest_tms > ?`,

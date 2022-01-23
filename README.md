@@ -20,6 +20,10 @@ You can also build it yourself: https://github.com/kiwec/orl-maps-db-generator
 
 This step isn't required, but makes profile scanning faster and avoids spamming the osu! servers with requests.
 
+* Run the bot once, it will crash, then run `sqlite3 ranks.db < util/merge_maps_into_ranks.sql`.
+
+A bit janky, I know, I'll make it easier later™.
+
 ### Feature flags
 
 During development, you might not want to run the entire bot. You can disable the following feature flags in config.json:

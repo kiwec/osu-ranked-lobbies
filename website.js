@@ -223,7 +223,7 @@ async function listen() {
     );
     await update_discord_role(
         user_profile.id,
-        await get_rank_text_from_id(user_profile.id),
+        get_rank_text_from_id(user_profile.id),
     );
   });
 
@@ -258,7 +258,7 @@ async function listen() {
         return;
       }
 
-      const rank = await get_rank(user.elo);
+      const rank = get_rank(user.elo);
       http_res.send(`<html>
         <head>
           <meta content="${user.username} - o!RL" property="og:title" />

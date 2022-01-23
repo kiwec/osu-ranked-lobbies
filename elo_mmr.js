@@ -25,7 +25,7 @@ const stmts = {
       elo = ?,
       approx_mu = ?,
       approx_sig = ?,
-      games_played = (SELECT COUNT(*) FROM score WHERE user_id = ?),
+      games_played = ?,
       last_contest_tms = ?
     WHERE user_id = ?`,
   ),
@@ -163,8 +163,7 @@ async function update_mmr(lobby, contest_tms) {
       player.score = lobby.scores[username];
 
       if (is_live_lobby) {
-        const rank = await get_rank(player.elo);
-        player.rank_float = rank.ratio;
+        player.rank_float = get_rank(player.elo).ratio;
       }
 
       players.push(player);
@@ -177,7 +176,7 @@ async function update_mmr(lobby, contest_tms) {
     player.approx_sig = get_new_deviation(player, contest_tms) / 173.7178;
   }
 
-  const MAX_PP_DIFFERENCE = Math.log10(500);
+  const MAX_PP_DIFFERENCE = Math.log(500);
   for (const player of players) {
     // Steps 3. and 4.
     let outcomes = 0.0;
@@ -187,13 +186,10 @@ async function update_mmr(lobby, contest_tms) {
       if (player.score > opponent.score) score = 1.0;
       if (player.score < opponent.score) score = 0.0;
 
-      // If the opponent's skill is more than 500pp from the map's estimated
-      // difficulty, their play won't matter much.
+      // Being far from the map's pp increases the opponent's volatility,
+      // which means their play impacts the player's rank less.
       const opponent_pp = Config.difficulty * (opponent.overall_pp || 0);
-      let importance = MAX_PP_DIFFERENCE - Math.max(0, Math.log10(Math.abs(lobby.current_map_pp - opponent_pp)));
-      if (importance < 0) importance = 0;
-      importance /= MAX_PP_DIFFERENCE;
-      const opponent_sig = opponent.approx_sig / importance;
+      const opponent_sig = opponent.approx_sig + Math.abs(lobby.current_map_pp - opponent_pp);
 
       const fval = 1.0 / Math.sqrt(1.0 + 3.0 * opponent_sig * opponent_sig / (Math.PI * Math.PI));
       const gval = 1.0 / (1.0 + Math.exp(-fval * (player.approx_mu - opponent.approx_mu)));
@@ -205,7 +201,7 @@ async function update_mmr(lobby, contest_tms) {
     // estimated difficulty, their rank won't change much (even though their
     // volatility will).
     const player_pp = Config.difficulty * (player.overall_pp || 0);
-    let importance = MAX_PP_DIFFERENCE - Math.max(0, Math.log10(Math.abs(lobby.current_map_pp - player_pp)));
+    let importance = MAX_PP_DIFFERENCE - Math.max(0, Math.log(Math.abs(lobby.current_map_pp - player_pp)));
     if (importance < 0) importance = 0;
     importance /= MAX_PP_DIFFERENCE;
     outcomes *= importance;
@@ -225,12 +221,12 @@ async function update_mmr(lobby, contest_tms) {
     player.games_played++;
 
     stmts.insert_score.run(
-        player.user_id, contest_id, player.score, contest_tms,
+        player.user_id, contest_id, player.score, player.last_contest_tms,
         lobby.beatmap_id, player.old_approx_mu, player.approx_mu, player.approx_sig,
     );
     stmts.update_user.run(
         player.elo, player.approx_mu, player.approx_sig,
-        player.user_id, contest_tms, player.user_id,
+        player.games_played, player.last_contest_tms, player.user_id,
     );
   }
 
@@ -255,7 +251,7 @@ async function update_mmr(lobby, contest_tms) {
   for (const player of players) {
     if (player.games_played < 5) continue;
 
-    const new_rank = await get_rank(player.elo);
+    const new_rank = get_rank(player.elo);
     if (new_rank.text != player.rank_text) {
       const old_index = division_to_index(player.rank_text);
       const new_index = division_to_index(new_rank.text);
@@ -303,7 +299,7 @@ function get_rank_text(rank_float) {
   return RANK_DIVISIONS[RANK_DIVISIONS.length - 1];
 }
 
-async function get_rank(elo) {
+function get_rank(elo) {
   const month_ago_tms = Date.now() - (30 * 24 * 3600 * 1000);
   const all_users = stmts.ranked_user_count.get(month_ago_tms);
   const better_users = stmts.better_users_count.get(elo, month_ago_tms);
@@ -318,14 +314,13 @@ async function get_rank(elo) {
   };
 }
 
-async function get_rank_text_from_id(osu_user_id) {
+function get_rank_text_from_id(osu_user_id) {
   const res = elo_from_id.get(osu_user_id);
   if (!res || !res.elo || res.games_played < 5) {
     return 'Unranked';
   }
 
-  const rank = await get_rank(res.elo);
-  return rank.text;
+  return get_rank(res.elo).text;
 }
 
 export {update_mmr, get_rank, get_rank_text_from_id, apply_rank_decay};

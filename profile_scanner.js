@@ -249,7 +249,7 @@ async function _scan_user_profile(user) {
   }
 
   // Get average SR for those pp values
-  stmt = databases.maps.prepare(`
+  stmt = databases.ranks.prepare(`
     SELECT AVG(stars) AS avg_sr FROM (
       SELECT stars, (
         ABS(? - aim_pp)
