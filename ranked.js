@@ -98,32 +98,27 @@ function set_sentry_context(lobby, current_task) {
 async function set_new_title(lobby) {
   let new_title = '';
 
-  if (lobby.fixed_star_range) {
-    // Min stars: we prefer not displaying the decimals whenever possible
-    let fancy_min_stars;
-    if (Math.abs(lobby.min_stars - Math.round(lobby.min_stars)) <= 0.1) {
-      fancy_min_stars = lobby.min_stars.toFixed(0);
-    } else {
-      fancy_min_stars = lobby.min_stars.toFixed(1);
-    }
-
-    // Max stars: we prefer displaying .99 whenever possible
-    let fancy_max_stars;
-    if (Math.abs(lobby.max_stars - Math.round(lobby.max_stars)) <= 0.1) {
-      fancy_max_stars = (Math.round(lobby.max_stars) - 0.01).toFixed(2);
-    } else {
-      fancy_max_stars = lobby.max_stars.toFixed(1);
-    }
-
-    new_title += `${fancy_min_stars}-${fancy_max_stars}*`;
+  // Min stars: we prefer not displaying the decimals whenever possible
+  let fancy_min_stars;
+  if (Math.abs(lobby.min_stars - Math.round(lobby.min_stars)) <= 0.1) {
+    fancy_min_stars = lobby.min_stars.toFixed(0);
   } else {
-    if (lobby.median_elo == 0) {
-      // "Unranked" would be confusing since the games *are* ranked.
-      new_title += '0-11*';
-    } else {
-      const median_rank = get_rank(lobby.median_elo);
-      new_title += median_rank.text;
-    }
+    fancy_min_stars = lobby.min_stars.toFixed(1);
+  }
+
+  // Max stars: we prefer displaying .99 whenever possible
+  let fancy_max_stars;
+  if (Math.abs(lobby.max_stars - Math.round(lobby.max_stars)) <= 0.1) {
+    fancy_max_stars = (Math.round(lobby.max_stars) - 0.01).toFixed(2);
+  } else {
+    fancy_max_stars = lobby.max_stars.toFixed(1);
+  }
+
+  new_title += `${fancy_min_stars}-${fancy_max_stars}*`;
+
+  if (lobby.median_elo > 0) {
+    const median_rank = get_rank(lobby.median_elo);
+    new_title += ' ' + median_rank.text;
   }
 
   if (lobby.is_dt) new_title += ' DT';
@@ -564,7 +559,7 @@ async function on_lobby_msg(lobby, msg) {
       lobby.fixed_star_range = false;
       const remove_sr_restrictions_stmt = databases.discord.prepare(`
         UPDATE ranked_lobby
-        SET min_stars = 0.0, max_stars = 11.0
+        SET min_stars = NULL, max_stars = NULL
         WHERE osu_lobby_id = ?`,
       );
       remove_sr_restrictions_stmt.run(lobby.id);
