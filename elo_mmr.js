@@ -97,7 +97,7 @@ async function apply_rank_decay() {
     console.info('[Decay] Applying rank decay');
     const month_ago_tms = Date.now() - (30 * 24 * 3600 * 1000);
     const active_players_stmt = databases.ranks.prepare(`
-      SELECT user_id, approx_mu, approx_sig FROM user
+      SELECT user_id, approx_mu, approx_sig, last_contest_tms FROM user
       WHERE games_played > 4 AND last_contest_tms > ?`,
     );
     let players = active_players_stmt.all(month_ago_tms);
