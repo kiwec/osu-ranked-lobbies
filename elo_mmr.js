@@ -87,6 +87,16 @@ function get_new_deviation(player, contest_tms) {
 }
 
 
+// This is used to let the bot work while we're running some synchronous task,
+// like recomputing a lot of ranks. Without this, the bot would get timed out
+// for not replying to pings.
+function event_loop_hack() {
+  return new Promise((resolve, reject) => {
+    setTimeout(resolve, 100);
+  });
+}
+
+
 // This method does not actually change any player's elo or derivation, but
 // still updates their rank as if they played a game of 0 importance. We call
 // this method hourly to make the rank decay mechanism visible, NOT to
@@ -108,6 +118,7 @@ async function apply_rank_decay() {
     for (const player of players) {
       if (i == 1 || i % 1000 == 0) {
         console.info(`[Decay] Updating player elos (${i}/${players.length})`);
+        await event_loop_hack();
       }
 
       player.elo = player.approx_mu - (2 * get_new_deviation(player, now));
