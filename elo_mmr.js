@@ -326,7 +326,7 @@ function get_rank(elo) {
 }
 
 function get_rank_text_from_id(osu_user_id) {
-  const res = elo_from_id.get(osu_user_id);
+  const res = stmts.elo_from_id.get(osu_user_id);
   if (!res || !res.elo || res.games_played < 5) {
     return 'Unranked';
   }
