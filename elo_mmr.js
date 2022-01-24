@@ -69,7 +69,7 @@ const RANK_DIVISIONS = [
 
 
 function get_new_deviation(player, contest_tms) {
-  if (player.last_contest_tms == 0) return 350.0;
+  if (player.last_contest_tms == 0 || isNaN(player.last_contest_tms)) return 350.0;
 
   // While the Glicko-2 paper says it works best if there are 10-15 games
   // per player in a rating period, we choose to make a rating period per
