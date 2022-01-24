@@ -61,7 +61,7 @@ async function recompute_ranks() {
         user_id: player.user_id,
         username: player.username,
         overall_pp: player.overall_pp,
-        elo: 800, // hardcoded 1500 - (2 * 350)
+        elo: 450, // hardcoded 1500 - (3 * 350)
         approx_mu: 1500,
         approx_sig: 350,
         last_contest_tms: 0,

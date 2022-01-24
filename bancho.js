@@ -38,7 +38,7 @@ async function try_get_player(display_username) {
     // their id; leave them uninitialized for now.
     player = {
       username: display_username,
-      elo: 800, // hardcoded 1500 - (2 * 350)
+      elo: 450, // hardcoded 1500 - (3 * 350)
       approx_mu: 1500, approx_sig: 350,
       aim_pp: 10.0, acc_pp: 1.0, speed_pp: 1.0, overall_pp: 1.0,
       avg_ar: 8.0, avg_sr: 2.0,

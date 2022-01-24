@@ -105,12 +105,11 @@ function event_loop_hack() {
 async function apply_rank_decay() {
   try {
     console.info('[Decay] Applying rank decay');
-    const month_ago_tms = Date.now() - (30 * 24 * 3600 * 1000);
-    const active_players_stmt = databases.ranks.prepare(`
+    const players_stmt = databases.ranks.prepare(`
       SELECT user_id, approx_mu, approx_sig, last_contest_tms FROM user
-      WHERE games_played > 4 AND last_contest_tms > ?`,
+      WHERE games_played > 4`,
     );
-    let players = active_players_stmt.all(month_ago_tms);
+    let players = players_stmt.all();
 
     const update_elo_stmt = databases.ranks.prepare('UPDATE user SET elo = ? WHERE user_id = ?');
     let i = 1;
@@ -121,7 +120,7 @@ async function apply_rank_decay() {
         await event_loop_hack();
       }
 
-      player.elo = player.approx_mu - (2 * get_new_deviation(player, now));
+      player.elo = player.approx_mu - (3 * get_new_deviation(player, now));
       update_elo_stmt.run(player.elo, player.user_id);
       i++;
     }
@@ -129,10 +128,10 @@ async function apply_rank_decay() {
     i = 1;
     const players_by_elo_stmt = databases.ranks.prepare(`
       SELECT user_id FROM user
-      WHERE games_played > 4 AND last_contest_tms > ?
+      WHERE games_played > 4
       ORDER BY elo ASC`,
     );
-    players = players_by_elo_stmt.all(month_ago_tms);
+    players = players_by_elo_stmt.all();
 
     for (const player of players) {
       if (i == 1 || i % 1000 == 0) {
@@ -228,7 +227,7 @@ async function update_mmr(lobby, contest_tms) {
     player.approx_mu = player.new_approx_mu * 173.7178 + 1500.0;
     player.approx_sig = Math.min(350.0, player.new_approx_sig * 173.7178);
     player.last_contest_tms = contest_tms;
-    player.elo = player.approx_mu - (2 * player.approx_sig);
+    player.elo = player.approx_mu - (3 * player.approx_sig);
     player.games_played++;
 
     stmts.insert_score.run(
