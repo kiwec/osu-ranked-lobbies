@@ -9,7 +9,7 @@ async function main() {
     console.log('ready');
 
     const welcome_channel = client.channels.cache.get(Config.discord_welcome_channel_id);
-    await discord_channel.send({
+    await welcome_channel.send({
       content: 'Link your osu! account to get special roles, in-game invites, and more.',
       components: [
         new MessageActionRow().addComponents([
@@ -22,9 +22,8 @@ async function main() {
       ],
     });
 
-    const discord_channel = client.channels.cache.get(Config.discord_faq_channel_id); // faq channel
-
-    await discord_channel.send({
+    const faq_channel = client.channels.cache.get(Config.discord_faq_channel_id);
+    await faq_channel.send({
       embeds: [
         new MessageEmbed({
           title: 'Frequently Asked Questions',
@@ -52,14 +51,14 @@ async function main() {
             {
               name: 'What are the ranks?',
               value: `Here is the rank distribution:
-- Cardboard: Bottom 0.62%
-- Wood: Top 99.38%
-- Bronze: Top 90.45%
-- Silver: Top 72.70%
-- Gold: Top 50.00%
-- Platinum: Top 27.30%
-- Diamond: Top 9.55%
-- Legendary: Top 0.62%
+- Cardboard: Bottom 2.03%
+- Wood: Top 97.96%
+- Bronze: Top 82.35%
+- Silver: Top 60.63%
+- Gold: Top 38.42%
+- Platinum: Top 19.54%
+- Diamond: Top 6.45%
+- Legendary: Top 0.04%
 - The One: #1`,
             },
             {
