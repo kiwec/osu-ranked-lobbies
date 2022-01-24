@@ -201,10 +201,11 @@ async function on_link_osu_account_press(user, interaction) {
   }
 
   // Create ephemeral token
+  const ephemeral_token = crypto.randomBytes(16).toString('hex');
   let stmt = databases.discord.prepare('DELETE from auth_tokens WHERE discord_user_id = ?');
   stmt.run(interaction.user.id);
   stmt = databases.discord.prepare('INSERT INTO auth_tokens (discord_user_id, ephemeral_token) VALUES (?, ?)');
-  stmt.run(interaction.user.id, crypto.randomBytes(16).toString('hex'));
+  stmt.run(interaction.user.id, ephemeral_token);
 
   // Send authorization link
   await interaction.reply({

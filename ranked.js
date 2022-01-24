@@ -178,14 +178,14 @@ async function select_next_map(lobby) {
     let meta = null;
 
     if (lobby.is_dt) {
-      meta = stmts.dt_star_range_from_pp(
+      meta = stmts.dt_star_range_from_pp.get(
           lobby.median_aim * DT_DIFFICULTY_MODIFIER,
           lobby.median_speed * DT_DIFFICULTY_MODIFIER,
           lobby.median_acc * DT_DIFFICULTY_MODIFIER,
           lobby.median_ar,
       );
     } else {
-      meta = stmts.star_range_from_pp(
+      meta = stmts.star_range_from_pp.get(
           lobby.median_aim,
           lobby.median_speed,
           lobby.median_acc,
