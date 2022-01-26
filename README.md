@@ -4,27 +4,41 @@ A bot that creates osu! lobbies, with an alternative leaderboard not based on pe
 
 Contributions are welcome; if you have trouble getting the bot to run, feel free to message kiwec on discord (or on osu!).
 
-### Development setup
+***
 
-* `yarn install`
+## Development setup
+
+### Prerequisite
+* [Yarn](https://yarnpkg.com/)
+* [Cargo](https://doc.rust-lang.org/cargo/getting-started/installation.html)
+* [Visual Studio 2013/2015/2017/2019 With C++ Option](https://docs.microsoft.com/en-us/visualstudio/install/install-visual-studio?view=vs-2022)
+* [Node LTS](https://nodejs.org/en/)
+
+***
+
+### Installation
+* run `yarn`
 
 * Copy `config.json.example` to `config.json` and add the required API keys.
 
-The `sentry_dsn` setting is only required if you intend to run the bot in production, as it is used for error monitoring.
+>  The `sentry_dsn` setting is only required if you intend to run the bot in production, as it is used for error monitoring.
+
 
 * Download `maps.db` [from my website](https://osu.kiwec.net/maps.db)
 
-You can also build it yourself: https://github.com/kiwec/orl-maps-db-generator
+> You can also build it yourself: https://github.com/kiwec/orl-maps-db-generator
 
 * Download and extract the latest `osu_files.tar.bz2` file [from data.ppy.sh](https://data.ppy.sh/) and extract the `.osu` files to the `maps/` directory
 
-This step isn't required, but makes profile scanning faster and avoids spamming the osu! servers with requests.
+> This step isn't required, but makes profile scanning faster and avoids spamming the osu! servers with requests.
 
 * Run the bot once, it will crash, then run `sqlite3 ranks.db < util/merge_maps_into_ranks.sql`.
 
-A bit janky, I know, I'll make it easier later™.
+> A bit janky, I know, I'll make it easier later™.
 
-### Feature flags
+***
+
+## Feature flags
 
 During development, you might not want to run the entire bot. You can disable the following feature flags in config.json:
 
