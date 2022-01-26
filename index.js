@@ -36,7 +36,12 @@ async function main() {
 
   let discord_client = null;
   if (Config.CONNECT_TO_DISCORD) {
-    discord_client = await init_discord_interactions();
+    try {
+      discord_client = await init_discord_interactions();
+    } catch (err) {
+      console.error('Failed to login to Discord:', err.message);
+      return;
+    }
   }
 
   // We still want to call this even without connecting to discord, since this

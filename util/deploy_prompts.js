@@ -141,7 +141,7 @@ async function main() {
   });
 
   const {discord_token} = JSON.parse(fs.readFileSync('./config.json'));
-  client.login(discord_token);
+  await client.login(discord_token);
 }
 
 main();
