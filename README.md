@@ -32,7 +32,9 @@ Contributions are welcome; if you have trouble getting the bot to run, feel free
 
 > This step isn't required, but makes profile scanning faster and avoids spamming the osu! servers with requests.
 
-* Run the bot once, it will crash, then run `sqlite3 ranks.db < util/merge_maps_into_ranks.sql`.
+* run `yarn start`
+
+* On first run, it will crash, so run `sqlite3 ranks.db < util/merge_maps_into_ranks.sql`.
 
 > A bit janky, I know, I'll make it easier later™.
 
