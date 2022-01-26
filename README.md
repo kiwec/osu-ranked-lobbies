@@ -11,8 +11,10 @@ Contributions are welcome; if you have trouble getting the bot to run, feel free
 ### Prerequisite
 * [Yarn](https://yarnpkg.com/)
 * [Cargo](https://doc.rust-lang.org/cargo/getting-started/installation.html)
-* [Visual Studio 2013/2015/2017/2019 With C++ Option](https://docs.microsoft.com/en-us/visualstudio/install/install-visual-studio?view=vs-2022)
 * [Node LTS](https://nodejs.org/en/)
+* (Windows Only) [Visual Studio 2013/2015/2017/2019 With C++ Option](https://docs.microsoft.com/en-us/visualstudio/install/install-visual-studio?view=vs-2022)
+> Note: Downloading for MSVC, not for IDE
+
 
 ***
 
