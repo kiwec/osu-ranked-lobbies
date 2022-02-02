@@ -10,7 +10,11 @@ async function main() {
 
     const welcome_channel = client.channels.cache.get(Config.discord_welcome_channel_id);
     await welcome_channel.send({
-      content: 'Link your osu! account to get special roles, in-game invites, and more.',
+      content: `**__Rules__**
+- Be nice to others and stay family friendly
+- That's it
+
+To access text channels, link your account with the button below.`,
       components: [
         new MessageActionRow().addComponents([
           new MessageButton({

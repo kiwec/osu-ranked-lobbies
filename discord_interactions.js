@@ -193,6 +193,7 @@ async function on_lobby_invite_button_press(user, interaction) {
 async function on_link_osu_account_press(user, interaction) {
   // Check if user already linked their account
   if (user) {
+    await interaction.member.roles.add(Config.discord_linked_account_role_id);
     await interaction.reply({
       content: 'You already linked your account 👉 https://osu.ppy.sh/users/' + user.osu_id,
       ephemeral: true,
