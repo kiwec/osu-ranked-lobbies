@@ -186,7 +186,6 @@ async function update_mmr(lobby, contest_tms) {
     player.approx_sig = get_new_deviation(player, contest_tms) / 173.7178;
   }
 
-  const MAX_PP_DIFFERENCE = Math.log(500);
   for (const player of players) {
     // Steps 3. and 4.
     let outcomes = 0.0;
@@ -196,29 +195,18 @@ async function update_mmr(lobby, contest_tms) {
       if (player.score > opponent.score) score = 1.0;
       if (player.score < opponent.score) score = 0.0;
 
-      // Being far from the map's pp increases the opponent's volatility,
-      // which means their play impacts the player's rank less.
-      const opponent_pp = Config.difficulty * (opponent.overall_pp || 0);
-      const opponent_sig = opponent.approx_sig + Math.abs(lobby.current_map_pp - opponent_pp);
-
-      const fval = 1.0 / Math.sqrt(1.0 + 3.0 * opponent_sig * opponent_sig / (Math.PI * Math.PI));
+      const fval = 1.0 / Math.sqrt(1.0 + 3.0 * opponent.approx_sig * opponent.approx_sig / (Math.PI * Math.PI));
       const gval = 1.0 / (1.0 + Math.exp(-fval * (player.approx_mu - opponent.approx_mu)));
       variance += fval * fval * gval * (1.0 - gval);
       outcomes += fval * (score - gval);
     }
 
-    // Similarly, if the player's skill is more than 500pp from the map's
-    // estimated difficulty, their rank won't change much (even though their
-    // volatility will).
-    const player_pp = Config.difficulty * (player.overall_pp || 0);
-    let importance = MAX_PP_DIFFERENCE - Math.max(0, Math.log(Math.abs(lobby.current_map_pp - player_pp)));
-    if (importance < 0) importance = 0;
-    importance /= MAX_PP_DIFFERENCE;
-    outcomes *= importance;
-
     // Step 6. and 7.
     player.new_approx_sig = 1.0 / Math.sqrt((1.0 / (player.approx_sig * player.approx_sig)) + (1.0 / Math.pow(variance, -1.0)));
     player.change = player.new_approx_sig * player.new_approx_sig * outcomes;
+
+    const MAX_ELO_CHANGE = 200.0 / 173.7178;
+    player.change = Math.max(-MAX_ELO_CHANGE, Math.min(MAX_ELO_CHANGE, player.change));
     player.new_approx_mu = player.approx_mu + player.change;
   }
 
