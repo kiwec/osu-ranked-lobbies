@@ -160,11 +160,6 @@ async function update_mmr(lobby, contest_tms) {
     is_live_lobby = true;
   }
 
-  const res = stmts.create_contest.run(
-      lobby.id, lobby.beatmap_id, lobby.is_dt ? 64 : 0, contest_tms, lobby.creator,
-  );
-  const contest_id = res.lastInsertRowid;
-
   const players = [];
   for (const username in lobby.scores) {
     if (lobby.scores.hasOwnProperty(username)) {
@@ -179,6 +174,18 @@ async function update_mmr(lobby, contest_tms) {
       players.push(player);
     }
   }
+
+  if (players.length < 2) {
+    // Don't store the contest results when there is only one player in the
+    // match. This avoids bloating the user's profile with 1/1 scores and
+    // affecting their rank/volatility.
+    return [];
+  }
+
+  const res = stmts.create_contest.run(
+      lobby.id, lobby.beatmap_id, lobby.is_dt ? 64 : 0, contest_tms, lobby.creator,
+  );
+  const contest_id = res.lastInsertRowid;
 
   // Step 2.
   for (const player of players) {
