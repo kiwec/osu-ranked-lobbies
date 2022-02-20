@@ -90,6 +90,24 @@ async function create_lobby_if_needed() {
   }
 
   try {
+    // Create 4 lobbies:
+    // - 4-4.99*
+    // - 3-3.99*
+    // - 5-5.99*
+    // - Variable star range
+    let min_stars;
+    let max_stars;
+    if (lobbies.length == 0) {
+      min_stars = 4.0;
+      max_stars = 5.0;
+    } else if (lobbies.length == 1) {
+      min_stars = 3.0;
+      max_stars = 4.0;
+    } else if (lobbies.length == 2) {
+      min_stars = 5.0;
+      max_stars = 6.0;
+    }
+
     console.log('Creating new lobby...');
     const lobby = await bancho.make(`o!RL | Auto map select (!about)`);
     await init_lobby(lobby, {
@@ -97,6 +115,8 @@ async function create_lobby_if_needed() {
       creator_osu_id: Config.osu_id,
       creator_discord_id: Config.discord_bot_id,
       created_just_now: true,
+      min_stars: min_stars,
+      max_stars: max_stars,
       dt: false,
       scorev2: false,
     });
