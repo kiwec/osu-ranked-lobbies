@@ -20,7 +20,6 @@ const stmts = {
       SELECT stars, (
         ABS(? - aim_pp)
         + ABS(? - speed_pp)
-        + ABS(? - acc_pp)
         + 10*ABS(? - ar)
       ) AS match_accuracy FROM map
       WHERE length > 60 AND ranked IN (4, 5, 7) AND match_accuracy IS NOT NULL AND dmca = 0
@@ -32,7 +31,6 @@ const stmts = {
       SELECT dt_stars, (
         ABS(? - dt_aim_pp)
         + ABS(? - dt_speed_pp)
-        + ABS(? - dt_acc_pp)
         + 10*ABS(? - dt_ar)
       ) AS match_accuracy FROM map
       WHERE length > 90 AND ranked IN (4, 5, 7) AND match_accuracy IS NOT NULL AND dmca = 0
@@ -45,7 +43,6 @@ const stmts = {
       SELECT *, (
         ABS(? - aim_pp)
         + ABS(? - speed_pp)
-        + ABS(? - acc_pp)
         + 10*ABS(? - ar)
       ) AS match_accuracy FROM map
       WHERE
@@ -62,7 +59,6 @@ const stmts = {
       SELECT *, (
         ABS(? - dt_aim_pp)
         + ABS(? - dt_speed_pp)
-        + ABS(? - dt_acc_pp)
         + 10*ABS(? - dt_ar)
       ) AS match_accuracy FROM map
       WHERE
@@ -176,14 +172,12 @@ async function select_next_map(lobby) {
       meta = stmts.dt_star_range_from_pp.get(
           lobby.median_aim * DT_DIFFICULTY_MODIFIER,
           lobby.median_speed * DT_DIFFICULTY_MODIFIER,
-          lobby.median_acc * DT_DIFFICULTY_MODIFIER,
           lobby.median_ar,
       );
     } else {
       meta = stmts.star_range_from_pp.get(
           lobby.median_aim,
           lobby.median_speed,
-          lobby.median_acc,
           lobby.median_ar,
       );
     }
@@ -197,7 +191,6 @@ async function select_next_map(lobby) {
       new_map = stmts.select_dt_map.get(
           lobby.median_aim * DT_DIFFICULTY_MODIFIER,
           lobby.median_speed * DT_DIFFICULTY_MODIFIER,
-          lobby.median_acc * DT_DIFFICULTY_MODIFIER,
           lobby.median_ar,
           lobby.min_stars,
           lobby.max_stars,
@@ -206,7 +199,6 @@ async function select_next_map(lobby) {
       new_map = stmts.select_map.get(
           lobby.median_aim,
           lobby.median_speed,
-          lobby.median_acc,
           lobby.median_ar,
           lobby.min_stars,
           lobby.max_stars,
@@ -245,7 +237,6 @@ async function select_next_map(lobby) {
 // Updates the lobby's median_pp value.
 function update_median_pp(lobby) {
   const aims = [];
-  const accs = [];
   const speeds = [];
   const overalls = [];
   const ars = [];
@@ -254,7 +245,6 @@ function update_median_pp(lobby) {
   for (const username in lobby.players) {
     if (lobby.players.hasOwnProperty(username)) {
       let aim_pp = lobby.players[username].aim_pp;
-      let acc_pp = lobby.players[username].acc_pp;
       let speed_pp = lobby.players[username].speed_pp;
       let overall_pp = lobby.players[username].overall_pp;
 
@@ -262,13 +252,11 @@ function update_median_pp(lobby) {
       if (overall_pp > 600.0) {
         const ratio = overall_pp / 600.0;
         aim_pp /= ratio;
-        acc_pp /= ratio;
         speed_pp /= ratio;
         overall_pp /= ratio;
       }
 
       aims.push(aim_pp);
-      accs.push(acc_pp);
       speeds.push(speed_pp);
       overalls.push(overall_pp);
 
@@ -278,13 +266,11 @@ function update_median_pp(lobby) {
   }
 
   aims.sort((a, b) => a - b);
-  accs.sort((a, b) => a - b);
   speeds.sort((a, b) => a - b);
   overalls.sort((a, b) => a - b);
   ars.sort((a, b) => a - b);
 
   lobby.median_aim = median(aims) * DIFFICULTY_MODIFIER;
-  lobby.median_acc = median(accs) * DIFFICULTY_MODIFIER;
   lobby.median_speed = median(speeds) * DIFFICULTY_MODIFIER;
   lobby.median_overall = median(overalls) * DIFFICULTY_MODIFIER;
   lobby.median_ar = median(ars);
