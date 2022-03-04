@@ -1,7 +1,6 @@
 import Sentry from '@sentry/node';
 
 import bancho from './bancho.js';
-import databases from './database.js';
 import {apply_rank_decay} from './elo_mmr.js';
 import {init as init_discord_interactions} from './discord_interactions.js';
 import {init as init_discord_updates} from './discord_updates.js';
@@ -71,58 +70,46 @@ async function main() {
 }
 
 
+// Automatically create lobbies when they're not.
+//
+// Since newly created lobbies are added to the bottom of the lobby list, it's
+// fine to create them optimistically, since players won't see them without
+// searching.
 async function create_lobby_if_needed() {
-  const get_lobbies_stmt = databases.discord.prepare('SELECT * FROM ranked_lobby WHERE creator = ?');
-  const lobbies = get_lobbies_stmt.all(Config.osu_username);
-  if (!lobbies || lobbies.length >= Config.max_lobbies) return;
-
-  let filled_lobbies = 0;
-  for (const lobby of bancho.joined_lobbies) {
-    if (lobby.creator == Config.osu_username && lobby.nb_players > 8) {
-      filled_lobbies++;
-    }
-  }
-
-  if (filled_lobbies < lobbies.length) {
-    // We don't want to create a lobby if one of the bot-created lobbies isn't
-    // filled enough.
-    return;
-  }
-
-  try {
-    // Create 4 lobbies:
-    // - 4-4.99*
-    // - 3-3.99*
-    // - 5-5.99*
-    // - Variable star range
-    let min_stars;
-    let max_stars;
-    if (lobbies.length == 0) {
-      min_stars = 4.0;
-      max_stars = 5.0;
-    } else if (lobbies.length == 1) {
-      min_stars = 3.0;
-      max_stars = 4.0;
-    } else if (lobbies.length == 2) {
-      min_stars = 5.0;
-      max_stars = 6.0;
+  const lobbies_to_create = [
+    {min: 3, max: 4},
+    {min: 4, max: 5},
+    {min: 5, max: 6},
+    {min: 6, max: 7},
+  ];
+  for (const to_create of lobbies_to_create) {
+    let exists = false;
+    for (const lobby of bancho.joined_lobbies) {
+      if (lobby.creator == Config.osu_username && lobby.min_stars == to_create.min && lobby.max_stars == to_create.max) {
+        exists = true;
+        break;
+      }
     }
 
-    console.log('Creating new lobby...');
-    const lobby = await bancho.make(`o!RL | Auto map select (!about)`);
-    await init_lobby(lobby, {
-      creator: Config.osu_username,
-      creator_osu_id: Config.osu_id,
-      creator_discord_id: Config.discord_bot_id,
-      created_just_now: true,
-      min_stars: min_stars,
-      max_stars: max_stars,
-      dt: false,
-      scorev2: false,
-    });
-  } catch (err) {
-    // Don't care about errors here.
-    console.error(err);
+    if (!exists) {
+      try {
+        console.log('Creating new lobby...');
+        const lobby = await bancho.make(`${to_create.min}-${to_create.max-0.01}* | o!RL | Auto map select (!about)`);
+        await init_lobby(lobby, {
+          creator: Config.osu_username,
+          creator_osu_id: Config.osu_id,
+          creator_discord_id: Config.discord_bot_id,
+          created_just_now: true,
+          min_stars: to_create.min,
+          max_stars: to_create.max,
+          dt: false,
+          scorev2: false,
+        });
+      } catch (err) {
+        // Don't care about errors here.
+        console.error(err);
+      }
+    }
   }
 }
 
