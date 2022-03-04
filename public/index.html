@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>osu! ranked lobbies</title>
     <link rel="stylesheet" href="/reset.css?v=1.0">
-    <link rel="stylesheet" href="/stylesheet.css?v=1.1">
+    <link rel="stylesheet" href="/stylesheet.css?v=1.2">
     <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
     <link rel="icon" type="image/png" sizes="96x96" href="/favicon-96x96.png">
     <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
@@ -70,21 +70,67 @@
       <noscript>Sorry, but to reduce server load, pages are rendered client-side, with JavaScript :(</noscript>
     </main>
 
+    <template id="lobbies-template">
+      <h1>Lobbies</h1>
+      <table class="lobby-list">
+        <thead>
+          <tr>
+            <th>-</th>
+            <th>Creator</th>
+            <th>Star rating</th>
+            <th>Average rank</th>
+            <th>Players</th>
+            <th>Status</th>
+            <th>-</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr class="lobby">
+            <td><img src="https://s.ppy.sh/a/12398096" alt="Lobby creator"></td>
+            <td class="creator"><a href="/u/12398096">kiwec</a></td>
+            <td class="star-range">3-3.99*</td>
+            <td class="average-rank">Gold+</td>
+            <td class="nb-players">5/16</td>
+            <td class="status">Waiting</td>
+            <td><button>Get invite</button></td>
+          </tr>
+          <tr class="lobby">
+            <td><img src="https://s.ppy.sh/a/12398096" alt="Lobby creator"></td>
+            <td class="creator"><a href="/u/12398096">kiwec</a></td>
+            <td class="star-range">4-4.99*</td>
+            <td class="average-rank">Platinum</td>
+            <td class="nb-players">15/16</td>
+            <td class="status">Playing</td>
+            <td><button>Get invite</button></td>
+          </tr>
+          <tr class="lobby">
+            <td><img src="https://s.ppy.sh/a/12398096" alt="Lobby creator"></td>
+            <td class="creator"><a href="/u/12398096">kiwec</a></td>
+            <td class="star-range">5-5.99*</td>
+            <td class="average-rank">Diamond++</td>
+            <td class="nb-players">3/16</td>
+            <td class="status">Waiting</td>
+            <td><button>Get invite</button></td>
+          </tr>
+        </tbody>
+      </table>
+    </template>
+
     <template id="leaderboard-template">
       <h1>Leaderboard</h1>
-        <div class="subheading">
-          <span class="nb-ranked"></span>
+      <div class="subheading">
+        <span class="nb-ranked"></span>
+      </div>
+      <div class="leaderboard-section">
+        <div class="leaderboard-focus">
+          <p class="ranking">The One</p>
         </div>
-        <div class="leaderboard-section">
-          <div class="leaderboard-focus">
-            <p class="ranking">The One</p>
-          </div>
-          <table class="leaderboard">
-            <tbody>
-            </tbody>
-          </table>
-          <div class="pagination"></div>
-        </div>
+        <table class="leaderboard">
+          <tbody>
+          </tbody>
+        </table>
+        <div class="pagination"></div>
+      </div>
     </template>
 
     <template id="user-template">
@@ -119,6 +165,6 @@
       </div>
     </template>
 
-    <script src="/scripts.js?v=1.1" type="module"></script>
+    <script src="/scripts.js?v=1.2" type="module"></script>
   </body>
 </html>

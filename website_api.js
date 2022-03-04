@@ -8,6 +8,7 @@ import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime.js';
 dayjs.extend(relativeTime);
 
+import bancho from './bancho.js';
 import databases from './database.js';
 import {get_rank} from './elo_mmr.js';
 
@@ -168,6 +169,10 @@ async function register_routes(app) {
     WHERE contest_id = ?
     ORDER BY score DESC`,
   );
+
+  app.get('/api/lobbies/', async (req, http_res) => {
+    http_res.json(bancho.joined_lobbies);
+  });
 
   app.get('/api/leaderboard/:pageNum/', async (req, http_res) => {
     try {

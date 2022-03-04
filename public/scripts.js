@@ -80,6 +80,22 @@ function render_pagination(node, page_num, max_pages, url_formatter) {
 }
 
 
+async function render_lobbies() {
+  document.title = 'Lobbies - o!RL';
+  const json = await get('/api/lobbies/');
+  const template = document.querySelector('#lobbies-template').content.cloneNode(true);
+  const list = template.querySelector('.lobby-list tbody');
+
+  for (const lobby of json) {
+    const lobby_div = document.createElement('div');
+    lobby_div.classList.add('lobby');
+    list.appendChild(lobby_div);
+  }
+
+  document.querySelector('main').appendChild(template);
+}
+
+
 async function render_leaderboard(page_num) {
   document.title = 'Leaderboard - o!RL';
   const json = await get(`/api/leaderboard/${page_num}`);
@@ -152,7 +168,10 @@ async function render_user(user_id, page_num) {
 
 
 async function route(new_url) {
-  if (m = new_url.match(/\/leaderboard\/(page-(\d+)\/)?/)) {
+  if (m = new_url.match(/\/lobbies\//)) {
+    document.querySelector('main').innerHTML = '';
+    await render_lobbies();
+  } else if (m = new_url.match(/\/leaderboard\/(page-(\d+)\/)?/)) {
     const page_num = m[2] || 1;
     document.querySelector('main').innerHTML = '';
     await render_leaderboard(page_num);

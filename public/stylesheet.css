@@ -233,6 +233,25 @@ tbody tr td a {
 body.dark-mode tbody tr td a {
   color: rgb(211, 211, 211);
 }
+
+.lobby-list {
+    margin-top: 40px;
+    width: 100%;
+}
+.lobby-list td {
+    display: table-cell;
+    text-align: center;
+    vertical-align: middle;
+}
+.lobby-list .lobby .creator a {
+    color: #c94580;
+    text-decoration: none;
+}
+.lobby-list .lobby img {
+    height: 60px;
+    width: 60px;
+}
+
 .leaderboard tbody tr td {
     margin-left: 30px;
 }
