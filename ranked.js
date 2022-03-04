@@ -97,17 +97,22 @@ async function set_new_title(lobby) {
   // Min stars: we prefer not displaying the decimals whenever possible
   let fancy_min_stars;
   if (Math.abs(lobby.min_stars - Math.round(lobby.min_stars)) <= 0.1) {
-    fancy_min_stars = lobby.min_stars.toFixed(0);
+    fancy_min_stars = Math.round(lobby.min_stars);
   } else {
-    fancy_min_stars = lobby.min_stars.toFixed(1);
+    fancy_min_stars = Math.round(lobby.min_stars * 100) / 100;
   }
 
   // Max stars: we prefer displaying .99 whenever possible
   let fancy_max_stars;
-  if (Math.abs(lobby.max_stars - Math.round(lobby.max_stars)) <= 0.1) {
-    fancy_max_stars = (Math.round(lobby.max_stars) - 0.01).toFixed(2);
+  if (lobby.max_stars > 11) {
+    // ...unless it's a ridiculously big number
+    fancy_max_stars = Math.round(Math.min(lobby.max_stars, 999));
   } else {
-    fancy_max_stars = lobby.max_stars.toFixed(1);
+    if (Math.abs(lobby.max_stars - Math.round(lobby.max_stars)) <= 0.1) {
+      fancy_max_stars = (Math.round(lobby.max_stars) - 0.01).toFixed(2);
+    } else {
+      fancy_max_stars = Math.round(lobby.max_stars * 100) / 100;
+    }
   }
 
   new_title += `${fancy_min_stars}-${fancy_max_stars}*`;
