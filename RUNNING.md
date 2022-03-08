@@ -4,12 +4,12 @@ Getting this bot to run all of its features is a long process, so for your conve
 
 * [Node.JS LTS](https://nodejs.org/en/)
 * [Yarn](https://yarnpkg.com/)
-* [Rust](https://doc.rust-lang.org/cargo/getting-started/installation.html)
-* On Windows, [Visual Studio 2013/2015/2017/2019 With C++ Option](https://docs.microsoft.com/en-us/visualstudio/install/install-visual-studio?view=vs-2022)
+* [Rust](https://doc.rust-lang.org/cargo/getting-started/installation.html) (for calculating pp)
+* On Windows, [Visual Studio 2013/2015/2017/2019 with C++ Option](https://docs.microsoft.com/en-us/visualstudio/install/install-visual-studio?view=vs-2022)
 
 # Installation (basic)
 
-* run `yarn`
+* Run `yarn`
 
 * Copy `config.json.example` to `config.json`
 
@@ -23,7 +23,7 @@ That's it! You should be able to run the website with `yarn start`.
 
 It includes a map list of every ranked map. You can also initialize it yourself using [this tool](https://github.com/kiwec/orl-maps-db-generator).
 
-* Download and extract the latest `osu_files.tar.bz2` file [from data.ppy.sh](https://data.ppy.sh/) and extract the `.osu` files to the `maps/` directory
+* Download and extract the latest `osu_files.tar.bz2` file from [data.ppy.sh](https://data.ppy.sh/) and extract the `.osu` files to the `maps/` directory
 
 * Set `CONNECT_TO_BANCHO` and `CREATE_LOBBIES` to `true` in `config.json`
 
