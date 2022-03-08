@@ -131,6 +131,10 @@ async function set_new_title(lobby) {
   if (new_title.length <= 43) new_title += ' select';
   if (new_title.length <= 41) new_title += ' (!about)';
 
+  if (!Config.IS_PRODUCTION) {
+    new_title = 'test lobby';
+  }
+
   if (lobby.name != new_title) {
     await lobby.send(`!mp name ${new_title}`);
     lobby.name = new_title;

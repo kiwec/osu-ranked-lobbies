@@ -257,13 +257,22 @@ class BanchoClient extends EventEmitter {
   // us, and wait for step 4 to resolve that auto-joined lobby.
   make(lobby_title) {
     return new Promise((resolve, reject) => {
+      let nb_owned_lobbies = 0;
+      for (const lobby of this.joined_lobbies) {
+        if (lobby.creator == Config.osu_username) {
+          nb_owned_lobbies++;
+        }
+      }
+      if (nb_owned_lobbies >= Config.max_lobbies) {
+        return reject(new Error('Cannot create any more matches.'));
+      }
+
       const room_created_listener = async (msg) => {
         const room_created_regex = /Created the tournament match https:\/\/osu\.ppy\.sh\/mp\/(\d+) (.+)/;
         if (msg.from == 'BanchoBot') {
           if (msg.message.indexOf('You cannot create any more tournament matches.') == 0) {
             this.off('pm', room_created_listener);
-            reject(new Error('Cannot create any more matches.'));
-            return;
+            return reject(new Error('Cannot create any more matches.'));
           }
 
           const m = room_created_regex.exec(msg.message);
