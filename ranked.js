@@ -1,12 +1,12 @@
 import Sentry from '@sentry/node';
 
 import bancho from './bancho.js';
+import commands from './commands.js';
 import databases from './database.js';
 import {update_mmr, get_rank} from './elo_mmr.js';
 import {
   close_ranked_lobby_on_discord,
 } from './discord_updates.js';
-import {get_map_data} from './profile_scanner.js';
 
 import {capture_sentry_exception} from './util/helpers.js';
 import Config from './util/config.js';
@@ -151,7 +151,7 @@ function median(numbers) {
   return numbers[middle];
 }
 
-async function select_next_map(lobby) {
+async function select_next_map() {
   const MAP_TYPES = {
     1: 'graveyarded',
     2: 'wip',
@@ -162,83 +162,83 @@ async function select_next_map(lobby) {
     7: 'loved',
   };
 
-  lobby.voteskips = [];
-  clearTimeout(lobby.countdown);
-  lobby.countdown = -1;
+  this.voteskips = [];
+  clearTimeout(this.countdown);
+  this.countdown = -1;
 
-  if (lobby.recent_maps.length >= 25) {
-    lobby.recent_maps.shift();
+  if (this.recent_maps.length >= 25) {
+    this.recent_maps.shift();
   }
 
   let new_map = null;
   let tries = 0;
 
   // If we have a variable star range, get it from the current lobby pp
-  if (!lobby.fixed_star_range) {
+  if (!this.fixed_star_range) {
     let meta = null;
 
-    if (lobby.is_dt) {
+    if (this.is_dt) {
       meta = stmts.dt_star_range_from_pp.get(
-          lobby.median_aim * DT_DIFFICULTY_MODIFIER,
-          lobby.median_speed * DT_DIFFICULTY_MODIFIER,
-          lobby.median_ar,
+          this.median_aim * DT_DIFFICULTY_MODIFIER,
+          this.median_speed * DT_DIFFICULTY_MODIFIER,
+          this.median_ar,
       );
     } else {
       meta = stmts.star_range_from_pp.get(
-          lobby.median_aim,
-          lobby.median_speed,
-          lobby.median_ar,
+          this.median_aim,
+          this.median_speed,
+          this.median_ar,
       );
     }
 
-    lobby.min_stars = meta.min_stars;
-    lobby.max_stars = meta.max_stars;
+    this.min_stars = meta.min_stars;
+    this.max_stars = meta.max_stars;
   }
 
   do {
-    if (lobby.is_dt) {
+    if (this.is_dt) {
       new_map = stmts.select_dt_map.get(
-          lobby.median_aim * DT_DIFFICULTY_MODIFIER,
-          lobby.median_speed * DT_DIFFICULTY_MODIFIER,
-          lobby.median_ar,
-          lobby.min_stars,
-          lobby.max_stars,
+          this.median_aim * DT_DIFFICULTY_MODIFIER,
+          this.median_speed * DT_DIFFICULTY_MODIFIER,
+          this.median_ar,
+          this.min_stars,
+          this.max_stars,
       );
     } else {
       new_map = stmts.select_map.get(
-          lobby.median_aim,
-          lobby.median_speed,
-          lobby.median_ar,
-          lobby.min_stars,
-          lobby.max_stars,
+          this.median_aim,
+          this.median_speed,
+          this.median_ar,
+          this.min_stars,
+          this.max_stars,
       );
     }
     tries++;
 
     if (!new_map) break;
-  } while ((lobby.recent_maps.includes(new_map.id)) && tries < 10);
+  } while ((this.recent_maps.includes(new_map.id)) && tries < 10);
   if (!new_map) {
-    await lobby.send(`I couldn't find a map. Either the star range is too small or the bot was too slow to scan your profile (and you may !skip in a few seconds).`);
+    await this.send(`I couldn't find a map. Either the star range is too small or the bot was too slow to scan your profile (and you may !skip in a few seconds).`);
     return;
   }
 
-  lobby.recent_maps.push(new_map.id);
-  const pp = lobby.is_dt ? new_map.dt_overall_pp : new_map.overall_pp;
-  lobby.current_map_pp = pp;
+  this.recent_maps.push(new_map.id);
+  const pp = this.is_dt ? new_map.dt_overall_pp : new_map.overall_pp;
+  this.current_map_pp = pp;
 
   try {
-    lobby.map_data = null;
-    const sr = lobby.is_dt ? new_map.dt_stars : new_map.stars;
+    this.map_data = null;
+    const sr = this.is_dt ? new_map.dt_stars : new_map.stars;
     const flavor = `${MAP_TYPES[new_map.ranked]} ${sr.toFixed(2)}*, ${Math.round(pp)}pp`;
     const map_name = `[https://osu.ppy.sh/beatmapsets/${new_map.set_id}#osu/${new_map.id} ${new_map.name}]`;
     const beatconnect_link = `[https://beatconnect.io/b/${new_map.set_id} [1]]`;
     const chimu_link = `[https://chimu.moe/d/${new_map.set_id} [2]]`;
     const nerina_link = `[https://nerina.pw/d/${new_map.set_id} [3]]`;
     const sayobot_link = `[https://osu.sayobot.cn/osu.php?s=${new_map.set_id} [4]]`;
-    await lobby.send(`!mp map ${new_map.id} 0 | ${map_name} (${flavor}) Alternate downloads: ${beatconnect_link} ${chimu_link} ${nerina_link} ${sayobot_link}`);
-    await set_new_title(lobby);
+    await this.send(`!mp map ${new_map.id} 0 | ${map_name} (${flavor}) Alternate downloads: ${beatconnect_link} ${chimu_link} ${nerina_link} ${sayobot_link}`);
+    await set_new_title(this);
   } catch (e) {
-    console.error(`${lobby.channel} Failed to switch to map ${new_map.id} ${new_map.name}:`, e);
+    console.error(`${this.channel} Failed to switch to map ${new_map.id} ${new_map.name}:`, e);
   }
 }
 
@@ -305,14 +305,33 @@ async function init_lobby(lobby, settings) {
   lobby.fixed_star_range = (settings.min_stars || settings.max_stars);
   lobby.is_dt = settings.dt;
   lobby.is_scorev2 = settings.scorev2;
+  lobby.select_next_map = select_next_map;
 
-  lobby.on('message', (msg) => on_lobby_msg(lobby, msg).catch((err) => {
+  lobby.on('message', async (msg) => {
     set_sentry_context(lobby, 'on_lobby_msg');
     Sentry.setUser({
       username: msg.from,
     });
-    capture_sentry_exception(err);
-  }));
+
+    for (const cmd of commands) {
+      const match = cmd.regex.exec(msg.message);
+      if (match) {
+        if (cmd.creator_only) {
+          if (lobby.creator_osu_id != await bancho.whois(msg.from)) {
+            await lobby.send(msg.from + ': You need to be the lobby creator to use this command.');
+            return;
+          }
+        }
+
+        try {
+          await cmd.handler(msg, match, lobby);
+        } catch (err) {
+          capture_sentry_exception(err);
+        }
+        return;
+      }
+    }
+  });
 
   lobby.on('refereeRemoved', async (username) => {
     if (username != Config.osu_username) return;
@@ -327,7 +346,7 @@ async function init_lobby(lobby, settings) {
 
       // Cannot select a map until we fetched the player IDs via !mp settings.
       if (settings.created_just_now) {
-        await select_next_map(lobby);
+        await lobby.select_next_map();
         settings.created_just_now = false;
       }
     } catch (err) {
@@ -341,7 +360,7 @@ async function init_lobby(lobby, settings) {
       if (player.user_id) {
         update_median_pp(lobby);
         if (lobby.nb_players == 1) {
-          await select_next_map(lobby);
+          await lobby.select_next_map();
         }
       }
     } catch (err) {
@@ -373,7 +392,7 @@ async function init_lobby(lobby, settings) {
   lobby.on('matchFinished', async (scores) => {
     try {
       const rank_updates = await update_mmr(lobby);
-      await select_next_map(lobby);
+      await lobby.select_next_map();
 
       if (rank_updates.length > 0) {
         // Max 8 rank updates per message - or else it starts getting truncated
@@ -454,272 +473,6 @@ async function init_lobby(lobby, settings) {
     else await lobby.send('!mp mods freemod');
   } else {
     await lobby.send(`!mp settings (restarted) ${Math.random().toString(36).substring(2, 6)}`);
-  }
-}
-
-async function on_lobby_msg(lobby, msg) {
-  // NOTE: !start needs to be checked before !star (because we allow multiple spelling for !stars)
-  if (msg.message.toLowerCase() == '!start') {
-    if (lobby.countdown != -1 || lobby.playing) return;
-
-    if (lobby.nb_players < 2) {
-      await lobby.send(`!mp start .${Math.random().toString(36).substring(2, 6)}`);
-      return;
-    }
-
-    lobby.countdown = setTimeout(async () => {
-      if (lobby.playing) {
-        lobby.countdown = -1;
-        return;
-      }
-
-      lobby.countdown = setTimeout(async () => {
-        lobby.countdown = -1;
-        if (!lobby.playing) {
-          await lobby.send(`!mp start .${Math.random().toString(36).substring(2, 6)}`);
-        }
-      }, 10000);
-      await lobby.send('Starting the match in 10 seconds... Ready up to start sooner.');
-    }, 20000);
-    await lobby.send('Starting the match in 30 seconds... Ready up to start sooner.');
-    return;
-  }
-
-  if ((msg.message.toLowerCase() == '!wait' || msg.message.toLowerCase() == '!stop') && lobby.countdown != -1) {
-    clearTimeout(lobby.countdown);
-    lobby.countdown = -1;
-    await lobby.send('Match auto-start is cancelled. Type !start to restart it.');
-    return;
-  }
-
-  if (msg.message == '!about') {
-    await lobby.send(`In this lobby, you get a rank based on how well you play compared to other players. All commands and answers to your questions are [${Config.discord_invite_link} in the Discord.]`);
-    return;
-  }
-
-  if (msg.message == '!discord') {
-    await lobby.send(`[${Config.discord_invite_link} Come hang out in voice chat!] (or just text, no pressure)`);
-    return;
-  }
-
-  if (msg.message.indexOf('!dt') == 0) {
-    if (lobby.creator_osu_id != await bancho.whois(msg.from)) {
-      await lobby.send(msg.from + ': You need to be the lobby creator to use this command.');
-      return;
-    }
-
-    lobby.is_dt = !lobby.is_dt;
-    const toggle_dt_stmt = databases.discord.prepare(`
-      UPDATE ranked_lobby
-      SET dt = ?
-      WHERE osu_lobby_id = ?`,
-    );
-    toggle_dt_stmt.run(lobby.is_dt ? 1 : 0, lobby.id);
-    if (lobby.is_dt) await lobby.send('!mp mods dt freemod');
-    else await lobby.send('!mp mods freemod');
-    await select_next_map(lobby);
-    return;
-  }
-
-  if (msg.message.indexOf('!scorev') == 0) {
-    if (lobby.creator_osu_id != await bancho.whois(msg.from)) {
-      await lobby.send(msg.from + ': You need to be the lobby creator to use this command.');
-      return;
-    }
-
-    lobby.is_scorev2 = !lobby.is_scorev2;
-    const toggle_scorev2_stmt = databases.discord.prepare(`
-      UPDATE ranked_lobby
-      SET scorev2 = ?
-      WHERE osu_lobby_id = ?`,
-    );
-    toggle_scorev2_stmt.run(lobby.is_scorev2 ? 1 : 0, lobby.id);
-    await lobby.send(`!mp set 0 ${lobby.is_scorev2 ? '3': '0'} 16`);
-    await select_next_map(lobby);
-    return;
-  }
-
-  if (msg.message.indexOf('!star') == 0 || msg.message.indexOf('!setstar') == 0) {
-    if (lobby.creator_osu_id != await bancho.whois(msg.from)) {
-      await lobby.send(msg.from + ': You need to be the lobby creator to use this command.');
-      return;
-    }
-
-    const args = msg.message.split(' ');
-
-    // No arguments: remove star rating restrictions
-    if (args.length == 1) {
-      lobby.min_stars = 0.0;
-      lobby.max_stars = 11.0;
-      lobby.fixed_star_range = false;
-      const remove_sr_restrictions_stmt = databases.discord.prepare(`
-        UPDATE ranked_lobby
-        SET min_stars = NULL, max_stars = NULL
-        WHERE osu_lobby_id = ?`,
-      );
-      remove_sr_restrictions_stmt.run(lobby.id);
-      await select_next_map(lobby);
-      return;
-    }
-
-    if (args.length < 3) {
-      await lobby.send(msg.from + ': You need to specify minimum and maximum star values.');
-      return;
-    }
-
-    const min_stars = parseFloat(args[1]);
-    const max_stars = parseFloat(args[2]);
-    if (isNaN(min_stars) || isNaN(max_stars) || min_stars >= max_stars || min_stars < 0 || max_stars > 99) {
-      await lobby.send(msg.from + ': Please use valid star values.');
-      return;
-    }
-
-    lobby.min_stars = min_stars;
-    lobby.max_stars = max_stars;
-    lobby.fixed_star_range = true;
-    const update_star_range_stmt = databases.discord.prepare(`
-      UPDATE ranked_lobby
-      SET min_stars = ?, max_stars = ?
-      WHERE osu_lobby_id = ?`,
-    );
-    update_star_range_stmt.run(min_stars, max_stars, lobby.id);
-    await select_next_map(lobby);
-    return;
-  }
-
-  if (msg.message.toLowerCase() == '!abort') {
-    if (!lobby.playing) {
-      await lobby.send('The match has not started, cannot abort.');
-    }
-
-    if (!lobby.voteaborts.includes(msg.from)) {
-      lobby.voteaborts.push(msg.from);
-      const nb_voted_to_abort = lobby.voteaborts.length;
-      const nb_required_to_abort = Math.ceil(lobby.nb_players / 2);
-      if (lobby.voteaborts.length >= nb_required_to_abort) {
-        await lobby.send(`!mp abort ${Math.random().toString(36).substring(2, 6)}`);
-        lobby.voteaborts = [];
-        await select_next_map(lobby);
-      } else {
-        await lobby.send(`${msg.from} voted to abort the match. ${nb_voted_to_abort}/${nb_required_to_abort} votes needed.`);
-      }
-    }
-
-    return;
-  }
-
-  if (msg.message.indexOf('!kick') == 0) {
-    const args = msg.message.split(' ');
-    if (args.length < 2) {
-      await lobby.send(msg.from + ': You need to specify which player to kick.');
-      return;
-    }
-    args.shift(); // remove '!kick'
-    const bad_player = args.join(' ');
-
-    // TODO: check if bad_player is in the room
-
-    if (!lobby.votekicks[bad_player]) {
-      lobby.votekicks[bad_player] = [];
-    }
-    if (!lobby.votekicks[bad_player].includes(msg.from)) {
-      lobby.votekicks[bad_player].push(msg.from);
-
-      const nb_voted_to_kick = lobby.votekicks[bad_player].length;
-      let nb_required_to_kick = Math.ceil(lobby.nb_players / 2);
-      if (nb_required_to_kick == 1) nb_required_to_kick = 2; // don't allow a player to hog the lobby
-
-      if (nb_voted_to_kick >= nb_required_to_kick) {
-        await lobby.send('!mp ban ' + bad_player);
-      } else {
-        await lobby.send(`${msg.from} voted to kick ${bad_player}. ${nb_voted_to_kick}/${nb_required_to_kick} votes needed.`);
-      }
-    }
-
-    return;
-  }
-
-  const rank_command_reg = /^!rank(.*)/g;
-  let rank_command_reg_result;
-  if (rank_command_reg_result = rank_command_reg.exec(msg.message)) {
-    let rank_info = {};
-    const requested_username = rank_command_reg_result[1].trim() || msg.from;
-
-    let user;
-    let user_id;
-    const user_from_id_stmt = databases.ranks.prepare(`
-      SELECT games_played, elo, user_id FROM user
-      WHERE user_id = ?
-    `);
-    if (requested_username === msg.from) {
-      user_id = await bancho.whois(requested_username);
-      user = user_from_id_stmt.get(user_id);
-    } else {
-      const user_from_username_stmt = databases.ranks.prepare(`
-        SELECT games_played, elo, user_id FROM user
-        WHERE username = ?`,
-      );
-      user = user_from_username_stmt.get(requested_username);
-      if (!user) {
-        try {
-          user_id = await bancho.whois(requested_username);
-          user = user_from_id_stmt.get(user_id);
-        } catch (err) {
-          await lobby.send(`${msg.from}: Player ${requested_username} not found. Are they online?`);
-          return;
-        }
-      }
-    }
-
-    if (!user || user.games_played < 5) {
-      rank_info.text = 'Unranked';
-    } else {
-      rank_info = get_rank(user.elo);
-    }
-
-    if (rank_info.text == 'Unranked') {
-      if (requested_username === msg.from) {
-        const games_played = user ? user.games_played : 0;
-        await lobby.send(`${msg.from}: You are unranked. Play ${5 - games_played} more games to get a rank!`);
-      } else {
-        await lobby.send(`${msg.from}: ${requested_username} is unranked.`);
-      }
-    } else {
-      await lobby.send(`[${Config.website_base_url}/u/${user.user_id}/ ${requested_username}] | Rank: ${rank_info.text} (#${rank_info.rank_nb}) | Elo: ${Math.round(rank_info.elo)} | Games played: ${user.games_played}`);
-    }
-
-    return;
-  }
-
-  if (msg.message == '!skip' && !lobby.voteskips.includes(msg.from)) {
-    // When bot just joined the lobby, beatmap_id is null.
-    if (lobby.beatmap_id && !lobby.map_data) {
-      try {
-        lobby.map_data = await get_map_data(lobby.beatmap_id);
-        if (lobby.map_data.beatmapset.availability.download_disabled) {
-          clearTimeout(lobby.countdown);
-          lobby.countdown = -1;
-
-          await lobby.send(`Skipped map because download is unavailable [${lobby.map_data.beatmapset.availability.more_information} (more info)].`);
-          stmts.dmca_map.run(lobby.beatmap_id);
-          await select_next_map(lobby);
-          return;
-        }
-      } catch (err) {
-        console.error(`Failed to fetch map data for beatmap #${lobby.beatmap_id}: ${err}`);
-      }
-    }
-
-    lobby.voteskips.push(msg.from);
-    if (lobby.voteskips.length >= lobby.nb_players / 2) {
-      clearTimeout(lobby.countdown);
-      lobby.countdown = -1;
-      await select_next_map(lobby);
-    } else {
-      await lobby.send(`${lobby.voteskips.length}/${Math.ceil(lobby.nb_players / 2)} players voted to switch to another map.`);
-    }
-
-    return;
   }
 }
 

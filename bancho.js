@@ -56,15 +56,6 @@ class BanchoClient extends EventEmitter {
   constructor() {
     super();
 
-    // According to https://osu.ppy.sh/wiki/en/Bot_account, normal user
-    // accounts can send a message every 500 milliseconds. We set a generous
-    // margin so the user can still type while the bot is running without
-    // risking their account getting silenced.
-    // Bot accounts can send messages every 200 milliseconds, but again if you
-    // modify this, it is recommended to leave a safety margin
-    // (300 milliseconds should good enough anyway).
-    this.MILLISECONDS_BETWEEN_SENDS = 1000;
-
     this._whois_requests = [];
     this._outgoing_messages = [];
     this._buffer = '';
@@ -125,7 +116,7 @@ class BanchoClient extends EventEmitter {
           this._send(obj.message);
           obj.callback();
         }
-      }, this.MILLISECONDS_BETWEEN_SENDS);
+      }, Config.MILLISECONDS_BETWEEN_SENDS);
     });
 
     return new Promise((resolve, reject) => {

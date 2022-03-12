@@ -1,6 +1,7 @@
 import Sentry from '@sentry/node';
 
 import bancho from './bancho.js';
+import commands from './commands.js';
 import {apply_rank_decay} from './elo_mmr.js';
 import {init as init_discord_interactions} from './discord_interactions.js';
 import {init as init_discord_updates} from './discord_updates.js';
@@ -28,8 +29,21 @@ async function main() {
   }
 
   bancho.on('pm', async (msg) => {
-    if (msg.message.indexOf('!') == 0) {
-      await bancho.privmsg(msg.from, `I'm a real person. If you want to send a command, you probably want to send it in #multiplayer or [${Config.discord_invite_link} in the Discord server].`);
+    for (const cmd of commands) {
+      const match = cmd.regex.exec(msg.message);
+      if (match) {
+        if (cmd.lobby_only) {
+          await bancho.privmsg(msg.from, 'You should send that command in #multiplayer.');
+          return;
+        }
+
+        try {
+          await cmd.handler(msg, match, null);
+        } catch (err) {
+          capture_sentry_exception(err);
+        }
+        return;
+      }
     }
   });
 
@@ -39,7 +53,7 @@ async function main() {
       discord_client = await init_discord_interactions();
     } catch (err) {
       console.error('Failed to login to Discord:', err.message);
-      return;
+      process.exit();
     }
   }
 
