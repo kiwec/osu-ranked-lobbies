@@ -54,7 +54,7 @@ async function on_interaction(interaction) {
       const target = get_user_stmt.get(interaction.targetId);
 
       if (target) {
-        await interaction.reply(`${Config.website_base_url}/u/${target.osu_id}?v=${crypto.randomBytes(5).toString('hex')}`);
+        await interaction.reply(`${Config.website_base_url}/u/${target.osu_id}`);
       } else {
         await interaction.reply({
           content: 'That user hasn\'t linked their osu! account yet.',
@@ -67,6 +67,25 @@ async function on_interaction(interaction) {
   }
 
   if (interaction.isCommand()) {
+    if (interaction.commandName == 'profile') {
+      let user = interaction.options.getUser('user');
+      if (!user) {
+        user = interaction.member;
+      }
+
+      const target = get_user_stmt.get(user.id);
+      if (target) {
+        await interaction.reply(`${Config.website_base_url}/u/${target.osu_id}`);
+      } else {
+        await interaction.reply({
+          content: 'That user hasn\'t linked their osu! account yet.',
+          ephemeral: true,
+        });
+      }
+
+      return;
+    }
+
     if (interaction.commandName == 'make-lobby') {
       await on_make_ranked_command(user, interaction);
       return;

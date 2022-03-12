@@ -11,8 +11,6 @@ import {
 import {capture_sentry_exception} from './util/helpers.js';
 import Config from './util/config.js';
 
-const DIFFICULTY_MODIFIER = 1.2;
-const DT_DIFFICULTY_MODIFIER = 0.7;
 
 const stmts = {
   star_range_from_pp: databases.ranks.prepare(`
@@ -179,8 +177,8 @@ async function select_next_map() {
 
     if (this.is_dt) {
       meta = stmts.dt_star_range_from_pp.get(
-          this.median_aim * DT_DIFFICULTY_MODIFIER,
-          this.median_speed * DT_DIFFICULTY_MODIFIER,
+          this.median_aim * Config.dt_difficulty,
+          this.median_speed * Config.dt_difficulty,
           this.median_ar,
       );
     } else {
@@ -198,8 +196,8 @@ async function select_next_map() {
   do {
     if (this.is_dt) {
       new_map = stmts.select_dt_map.get(
-          this.median_aim * DT_DIFFICULTY_MODIFIER,
-          this.median_speed * DT_DIFFICULTY_MODIFIER,
+          this.median_aim * Config.dt_difficulty,
+          this.median_speed * Config.dt_difficulty,
           this.median_ar,
           this.min_stars,
           this.max_stars,
@@ -279,9 +277,9 @@ function update_median_pp(lobby) {
   overalls.sort((a, b) => a - b);
   ars.sort((a, b) => a - b);
 
-  lobby.median_aim = median(aims) * DIFFICULTY_MODIFIER;
-  lobby.median_speed = median(speeds) * DIFFICULTY_MODIFIER;
-  lobby.median_overall = median(overalls) * DIFFICULTY_MODIFIER;
+  lobby.median_aim = median(aims) * Config.difficulty;
+  lobby.median_speed = median(speeds) * Config.difficulty;
+  lobby.median_overall = median(overalls) * Config.difficulty;
   lobby.median_ar = median(ars);
   lobby.median_elo = median(elos);
 

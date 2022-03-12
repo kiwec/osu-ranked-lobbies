@@ -17,6 +17,19 @@ async function deploy_commands() {
       default_permission: false,
     },
     {
+      name: 'profile',
+      description: 'Display your o!RL profile',
+      options: [
+        {
+          type: 6,
+          name: 'user',
+          description: 'The user whose profile you want to get',
+          required: false,
+        },
+      ],
+      default_permission: false,
+    },
+    {
       name: 'make-lobby',
       description: 'Create a new ranked lobby.',
       options: [
@@ -55,19 +68,12 @@ async function deploy_commands() {
     },
   ];
 
-  // Remove global commands
-  const res1 = await rest.get(Routes.applicationCommands(Config.discord_bot_id));
-  for (const cmd of res1) {
-    console.log('Deleting global command', cmd.id, cmd.name);
-    await rest.delete(Routes.applicationCommands(Config.discord_bot_id) + '/' + cmd.id);
-  }
-
   // Create/Update guild commands
-  const res2 = await rest.put(
+  const res = await rest.put(
       Routes.applicationGuildCommands(Config.discord_bot_id, Config.discord_guild_id),
       {body: commands},
   );
-  for (const command of res2) {
+  for (const command of res) {
     await rest.put(
         Routes.applicationGuildCommands(Config.discord_bot_id, Config.discord_guild_id) + `/${command.id}/permissions`,
         {body: {
