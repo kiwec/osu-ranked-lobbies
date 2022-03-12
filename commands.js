@@ -43,6 +43,7 @@ async function rank_command(msg, match, lobby) {
     }
   }
 
+  let rank_info = {};
   if (!user || user.games_played < 5) {
     rank_info.text = 'Unranked';
   } else {
