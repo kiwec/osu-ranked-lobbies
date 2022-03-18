@@ -10,6 +10,7 @@ const stmts = {
   lobby_from_id: databases.discord.prepare('SELECT * FROM ranked_lobby WHERE osu_lobby_id = ?'),
   delete_lobby: databases.discord.prepare('DELETE FROM ranked_lobby WHERE osu_lobby_id = ?'),
   user_from_osu_id: databases.discord.prepare('SELECT * FROM user WHERE osu_id = ?'),
+  delete_user: databases.discord.prepare('DELETE FROM user WHERE osu_id = ?'),
 };
 
 // Array of lobby info as displayed on discord
@@ -273,7 +274,11 @@ async function update_discord_role(osu_user_id, rank_text) {
       try {
         member = await guild.members.fetch(user.discord_id);
       } catch (err) {
-        console.error('[Discord] <@' + user.discord_id + '> left the discord server?');
+        if (err.message == 'Unknown Member') {
+          stmts.delete_user.run(osu_user_id);
+        } else {
+          console.error(err);
+        }
         return;
       }
 
