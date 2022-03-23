@@ -1,6 +1,5 @@
 import crypto from 'crypto';
 import fs from 'fs';
-import Sentry from '@sentry/node';
 import {Client, Intents, MessageActionRow, MessageButton} from 'discord.js';
 
 import bancho from './bancho.js';
@@ -32,22 +31,6 @@ function init() {
 async function on_interaction(interaction) {
   const get_user_stmt = databases.discord.prepare('SELECT * FROM user WHERE discord_id = ?');
   const user = get_user_stmt.get(interaction.user.id);
-
-  if (Config.ENABLE_SENTRY) {
-    if (user) {
-      Sentry.setUser({
-        osu_id: user.osu_id,
-        discord_id: user.discord_id,
-        discord_rank: user.discord_rank,
-        username: interaction.user.username,
-      });
-    } else {
-      Sentry.setUser({
-        discord_id: interaction.user.id,
-        username: interaction.user.username,
-      });
-    }
-  }
 
   if (interaction.isContextMenu()) {
     if (interaction.commandName == 'Display o!RL profile') {
@@ -85,11 +68,6 @@ async function on_interaction(interaction) {
 
       return;
     }
-
-    if (interaction.commandName == 'make-lobby') {
-      await on_make_ranked_command(user, interaction);
-      return;
-    }
   }
 
   try {
@@ -106,62 +84,6 @@ async function on_interaction(interaction) {
     // Discord API likes to fail.
     if (err.message != 'Unknown interaction') {
       capture_sentry_exception(err);
-    }
-  }
-}
-
-async function on_make_ranked_command(user, interaction) {
-  if (!user) {
-    const welcome = await client.channels.cache.get(Config.discord_welcome_channel_id);
-    await interaction.reply({
-      content: `To create a ranked lobby, you first need to click the button in ${welcome} to link your osu! account.`,
-      ephemeral: true,
-    });
-    return;
-  }
-
-  let min_stars = interaction.options.getNumber('min-stars');
-  let max_stars = interaction.options.getNumber('max-stars');
-  if (min_stars != null || max_stars != null) {
-    if (min_stars == null) {
-      min_stars = max_stars - 1.0;
-    }
-    if (max_stars == null) {
-      max_stars = min_stars + 1.0;
-    }
-  }
-
-  await interaction.deferReply({ephemeral: true});
-
-  try {
-    const stmt = databases.ranks.prepare('SELECT * FROM user WHERE user_id = ?');
-    const osu_user = stmt.get(user.osu_id);
-    if (!osu_user) {
-      await interaction.editReply({content: `Please at least join an o!RL lobby once before attempting to create one.`});
-      return;
-    }
-
-    const lobby = await bancho.join('#mp_' + interaction.options.getInteger('lobby-id'));
-    await lobby.send('!mp clearhost');
-    await init_lobby(lobby, {
-      creator: osu_user.username,
-      creator_osu_id: osu_user.user_id,
-      creator_discord_id: user.discord_id,
-      created_just_now: true,
-      min_stars: min_stars,
-      max_stars: max_stars,
-      dt: interaction.options.getBoolean('dt'),
-      scorev2: interaction.options.getBoolean('scorev2'),
-    });
-
-    console.log(`Lobby ${lobby.channel} created by ${osu_user.username}.`);
-    await interaction.editReply({content: 'Lobby initialized ✅ Enjoy!'});
-  } catch (err) {
-    if (err.message.indexOf('No such channel') == 0) {
-      await interaction.editReply({content: `Failed to join lobby. Are you sure you ran **!mp addref ${Config.osu_username}**, and that the lobby id is correct?`});
-    } else {
-      capture_sentry_exception(err);
-      await interaction.editReply({content: 'Failed to join lobby: ' + err});
     }
   }
 }

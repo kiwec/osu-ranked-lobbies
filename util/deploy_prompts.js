@@ -8,6 +8,18 @@ async function main() {
   client.once('ready', async () => {
     console.log('ready');
 
+    const lobby_creation_tutorial = {
+      embeds: [
+        new MessageEmbed({
+          title: 'Instructions for creating a new bot lobby',
+          description: `**1.** Create a new lobby.
+**2.** BanchoBot should have sent a match history link. Copy the numbers after \`https://osu.ppy.sh/mp/\`.
+**3.** In the lobby chat, send \`!mp addref ${Config.osu_username}\` to allow the bot to join the lobby.
+**4.** Send \`!join [the numbers you copied]\` to the bot and it will join your lobby.`,
+        }),
+      ],
+    };
+
     const welcome_channel = client.channels.cache.get(Config.discord_welcome_channel_id);
     await welcome_channel.send({
       content: `**__Rules__**
@@ -82,16 +94,9 @@ To access text channels, link your account with the button below.`,
       ],
     });
 
-    const lobbies_channel = client.channels.cache.get(Config.discord_lobbies_channel_id);
-    await lobbies_channel.send({
-      embeds: [
-        new MessageEmbed({
-          title: 'Instructions for creating a new ranked lobby',
-          description: '**1.** Create a new lobby.\n**2.** BanchoBot should have sent a match history link. Copy the numbers after https://osu.ppy.sh/mp/.\n**3.** In the lobby chat, send **!mp addref kiwec**.\n**4.** In Discord, send **/make-lobby [the numbers you copied]** and the bot should join your lobby.',
-        }),
-      ],
-    });
-    await lobbies_channel.send({
+    const ranked_lobbies_channel = client.channels.cache.get(Config.discord_ranked_lobbies_channel_id);
+    await ranked_lobbies_channel.send(lobby_creation_tutorial);
+    await ranked_lobbies_channel.send({
       embeds: [
         new MessageEmbed({
           title: 'Commands for ranked lobbies',
@@ -117,8 +122,8 @@ To access text channels, link your account with the button below.`,
               value: 'Vote to abort the match. At least half the players in the lobby must vote to abort for a match to get aborted.',
             },
             {
-              name: '!kick <player>',
-              value: `Vote to kick a player. This is used in rare cases where the lobby gets stuck because of a single player. Most of the time, you'll want to use the in-game ignoring and reporting features.`,
+              name: '!ban <player>',
+              value: `Vote to ban a player. You should probably use the in-game ignoring and reporting features instead.`,
             },
             {
               name: '!rank <player>',
@@ -128,13 +133,29 @@ To access text channels, link your account with the button below.`,
               name: '!stars <minimum> <maximum>',
               value: 'Set the minimum and maximum star values of the lobby. Only the lobby creator can use this command.',
             },
+          ],
+        }),
+      ],
+    });
+
+    const collection_lobbies_channel = client.channels.cache.get(Config.discord_collection_lobbies_channel_id);
+    await collection_lobbies_channel.send(lobby_creation_tutorial);
+    await collection_lobbies_channel.send({
+      embeds: [
+        new MessageEmbed({
+          title: 'Commands for collection lobbies',
+          fields: [
             {
-              name: '!dt',
-              value: 'Toggle the Double Time mod on/off. Only the lobby creator can use this command.',
+              name: '!collection <id>',
+              value: 'Switches to another collection. Only the lobby creator can use this command.',
             },
             {
-              name: '!scorev2',
-              value: 'Toggle ScoreV2 scoring on/off. Only the lobby creator can use this command.',
+              name: '!abort',
+              value: 'Vote to abort the match. At least half the players in the lobby must vote to abort for a match to get aborted.',
+            },
+            {
+              name: '!skip',
+              value: 'Vote to skip the current map. At least half the players in the lobby must vote to skip for a map to get skipped.',
             },
           ],
         }),

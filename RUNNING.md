@@ -37,7 +37,7 @@ Try running the bot with `yarn start` and see if it connects successfully. You s
 
 * [Create a new Discord application](https://discord.com/developers/applications) and add the bot id and token to `config.json`
 
-* Create a Discord server with three channels and 10 roles, and add all of the relevant IDs to `config.json` by using Right Click -> Copy ID on the server name, channels, and roles
+* Create a Discord server with 4 channels and 10 roles, and add all of the relevant IDs to `config.json` by using Right Click -> Copy ID on the server name, channels, and roles
 
 * Invite the bot to your Discord server ([invite generator](https://discordapi.com/permissions.html))
 

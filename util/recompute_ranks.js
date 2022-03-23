@@ -92,10 +92,6 @@ async function recompute_ranks() {
     contest.scores = score_stmt.all(contest.rowid);
     contest.pp = contest.mods & 64 ? contest.dt_overall_pp : contest.overall_pp;
 
-    // Let's make the database consistent
-    if (!contest.lobby_creator) contest.lobby_creator = 'kiwec';
-    if (contest.lobby_creator == '12398096') contest.lobby_creator = 'kiwec';
-
     const lobby = {
       id: contest.lobby_id,
       creator: contest.lobby_creator,
@@ -103,7 +99,6 @@ async function recompute_ranks() {
       current_map_pp: contest.pp,
       match_participants: [],
       scores: [],
-      is_dt: contest.mods & 64,
     };
 
     if (typeof lobby.current_map_pp === 'undefined') {
@@ -114,7 +109,7 @@ async function recompute_ranks() {
     for (const score of contest.scores) {
       const score_player = player_cache[score.user_id];
       score.username = score_player.username;
-      lobby.scores[score.username] = score.score;
+      lobby.scores.push(score);
       lobby.match_participants[score.username] = score_player;
     }
 

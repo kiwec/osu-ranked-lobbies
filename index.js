@@ -2,12 +2,42 @@ import Sentry from '@sentry/node';
 
 import bancho from './bancho.js';
 import commands from './commands.js';
+import databases from './database.js';
 import {apply_rank_decay} from './elo_mmr.js';
 import {init as init_discord_interactions} from './discord_interactions.js';
-import {init as init_discord_updates} from './discord_updates.js';
+import {remove_discord_lobby_listing, init as init_discord_updates} from './discord_updates.js';
 import {listen as website_listen} from './website.js';
-import {init_lobby, start_ranked} from './ranked.js';
+import {init_lobby as init_ranked_lobby} from './ranked.js';
+import {init_lobby as init_collection_lobby} from './collection.js';
 import Config from './util/config.js';
+
+
+async function rejoin_lobbies() {
+  const rejoin_lobby = async (lobby) => {
+    console.info(`Rejoining lobby #${lobby.id} (${lobby.data.mode})`);
+
+    try {
+      const bancho_lobby = await bancho.join('#mp_' + lobby.id);
+      if (bancho_lobby.data.mode == 'ranked') {
+        await init_ranked_lobby(bancho_lobby);
+      } else if (bancho_lobby.data.mode == 'collection') {
+        await init_collection_lobby(bancho_lobby);
+      }
+    } catch (err) {
+      console.error(`Failed to rejoin lobby #${lobby.id}: ${err}`);
+      await remove_discord_lobby_listing(lobby.id);
+      databases.ranks.prepare('DELETE FROM lobby WHERE id = ?').run(lobby.id);
+    }
+  };
+
+  const lobbies_stmt = databases.ranks.prepare('SELECT * FROM lobby');
+  const lobbies = lobbies_stmt.all();
+  const promises = [];
+  for (const lobby of lobbies) {
+    promises.push(rejoin_lobby(lobby));
+  }
+  await Promise.all(promises);
+}
 
 
 async function main() {
@@ -32,7 +62,7 @@ async function main() {
     for (const cmd of commands) {
       const match = cmd.regex.exec(msg.message);
       if (match) {
-        if (cmd.lobby_only) {
+        if (!cmd.modes.includes('pm')) {
           await bancho.privmsg(msg.from, 'You should send that command in #multiplayer.');
           return;
         }
@@ -66,14 +96,9 @@ async function main() {
   }
 
   if (Config.CONNECT_TO_BANCHO) {
+    bancho.on('disconnect', () => process.exit());
     await bancho.connect();
-    bancho.on('disconnect', () => {
-      // TODO: reconnect and rejoin lobbies
-      process.exit();
-    });
-    console.log('Connected to bancho.');
-
-    await start_ranked();
+    await rejoin_lobbies();
   }
 
   if (Config.APPLY_RANK_DECAY) {
@@ -93,13 +118,14 @@ async function create_lobby_if_needed() {
   const lobbies_to_create = [
     {min: 3, max: 4},
     {min: 4, max: 5},
-    {min: 5, max: 6},
-    {min: 6, max: 7},
+    {min: 5, max: 5.5},
+    {min: 5.5, max: 6},
+    {min: 6, max: 7.5},
   ];
   for (const to_create of lobbies_to_create) {
     let exists = false;
     for (const lobby of bancho.joined_lobbies) {
-      if (lobby.creator == Config.osu_username && lobby.min_stars == to_create.min && lobby.max_stars == to_create.max) {
+      if (lobby.data.creator == Config.osu_username && lobby.data.min_stars == to_create.min && lobby.data.max_stars == to_create.max) {
         exists = true;
         break;
       }
@@ -109,16 +135,12 @@ async function create_lobby_if_needed() {
       try {
         console.log('Creating new lobby...');
         const lobby = await bancho.make(`${to_create.min}-${to_create.max-0.01}* | o!RL | Auto map select (!about)`);
-        await init_lobby(lobby, {
-          creator: Config.osu_username,
-          creator_osu_id: Config.osu_id,
-          creator_discord_id: Config.discord_bot_id,
-          created_just_now: true,
-          min_stars: to_create.min,
-          max_stars: to_create.max,
-          dt: false,
-          scorev2: false,
-        });
+        lobby.data.creator = Config.osu_username;
+        lobby.data.creator_osu_id = Config.osu_id;
+        lobby.data.created_just_now = true;
+        lobby.data.min_stars = to_create.min;
+        lobby.data.max_stars = to_create.max;
+        await init_ranked_lobby(lobby);
       } catch (err) {
         // Don't care about errors here.
         console.error(err);

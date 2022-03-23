@@ -2,19 +2,7 @@ import Database from 'better-sqlite3';
 
 
 const discord = new Database('discord.db');
-discord.exec(`CREATE TABLE IF NOT EXISTS ranked_lobby (
-    osu_lobby_id INTEGER,
-    discord_channel_id TEXT,
-    discord_msg_id TEXT,
-    creator TEXT,
-    creator_osu_id INTEGER,
-    creator_discord_id TEXT,
-    min_stars REAL,
-    max_stars REAL,
-    dt BOOLEAN NOT NULL,
-    scorev2 BOOLEAN NOT NULL
-  );
-
+discord.exec(`
   CREATE TABLE IF NOT EXISTS auth_tokens (
     discord_user_id TEXT,
     ephemeral_token TEXT
@@ -26,7 +14,8 @@ discord.exec(`CREATE TABLE IF NOT EXISTS ranked_lobby (
     osu_access_token TEXT,
     osu_refresh_token TEXT,
     discord_rank TEXT
-  )`);
+  )`,
+);
 
 let ranks;
 if (process.argv[1].endsWith('recompute_ranks.js')) {
@@ -40,7 +29,19 @@ if (process.argv[1].endsWith('recompute_ranks.js')) {
   ranks = new Database('ranks.db');
 }
 
-ranks.exec(`CREATE TABLE IF NOT EXISTS user (
+ranks.exec(`
+  CREATE TABLE IF NOT EXISTS lobby (
+    id INTEGER PRIMARY KEY,
+    data TEXT
+  );
+
+  CREATE TABLE IF NOT EXISTS discord_lobby_listing (
+    osu_lobby_id INTEGER PRIMARY KEY,
+    discord_channel_id TEXT NOT NULL,
+    discord_message_id TEXT NOT NULL
+  );
+
+  CREATE TABLE IF NOT EXISTS user (
     user_id INTEGER PRIMARY KEY,
     username TEXT,
     elo REAL,

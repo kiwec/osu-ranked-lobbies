@@ -7,8 +7,12 @@ import Config from './util/config.js';
 
 let discord_client = null;
 const stmts = {
-  lobby_from_id: databases.discord.prepare('SELECT * FROM ranked_lobby WHERE osu_lobby_id = ?'),
-  delete_lobby: databases.discord.prepare('DELETE FROM ranked_lobby WHERE osu_lobby_id = ?'),
+  create_listing: databases.ranks.prepare(`
+    INSERT INTO discord_lobby_listing (osu_lobby_id, discord_channel_id, discord_message_id)
+    VALUES (?, ?, ?)`,
+  ),
+  listing_from_id: databases.ranks.prepare('SELECT * FROM discord_lobby_listing WHERE osu_lobby_id = ?'),
+  delete_listing: databases.ranks.prepare('DELETE FROM discord_lobby_listing WHERE osu_lobby_id = ?'),
   user_from_osu_id: databases.discord.prepare('SELECT * FROM user WHERE osu_id = ?'),
   delete_user: databases.discord.prepare('DELETE FROM user WHERE osu_id = ?'),
 };
@@ -22,109 +26,166 @@ async function init(discord_client_) {
 }
 
 
+// Returns the color of a given star rating, matching osu!web's color scheme.
+function stars_to_color(sr) {
+  if (sr <= 0.1) {
+    return '#4290FB';
+  } else if (sr >= 9) {
+    return '#000000';
+  }
+
+  const star_levels = [0.1, 1.25, 2, 2.5, 3.3, 4.2, 4.9, 5.8, 6.7, 7.7, 9];
+  const star_colors = ['#4290FB', '#4FC0FF', '#4FFFD5', '#7CFF4F', '#F6F05C', '#FF8068', '#FF4E6F', '#C645B8', '#6563DE', '#18158E', '#000000'];
+  for (const i in star_levels) {
+    if (!star_levels.hasOwnProperty(i)) continue;
+    if (star_levels[i] > sr && star_levels[i-1] < sr) {
+      const lower = star_levels[i - 1];
+      const upper = star_levels[i];
+      const ratio = (sr - lower) / (upper - lower);
+      const r = parseInt(star_colors[i-1].substr(1, 2), 16) * (1 - ratio) + parseInt(star_colors[i].substr(1, 2), 16) * ratio;
+      const g = parseInt(star_colors[i-1].substr(3, 2), 16) * (1 - ratio) + parseInt(star_colors[i].substr(3, 2), 16) * ratio;
+      const b = parseInt(star_colors[i-1].substr(5, 2), 16) * (1 - ratio) + parseInt(star_colors[i].substr(5, 2), 16) * ratio;
+      return '#' + Math.round(r).toString(16).padStart(2, '0') + Math.round(g).toString(16).padStart(2, '0') + Math.round(b).toString(16).padStart(2, '0');
+    }
+  }
+}
+
+
 function get_pp_color(lobby) {
   if (!lobby || lobby.nb_players == 0) {
     return null;
   }
 
-  const sr = (lobby.min_stars + lobby.max_stars) / 2.0;
-  if (sr <= 0.1) {
-    return '#4290FB';
-  } else if (sr >= 9) {
-    return '#000000';
-  } else {
-    const star_levels = [0.1, 1.25, 2, 2.5, 3.3, 4.2, 4.9, 5.8, 6.7, 7.7, 9];
-    const star_colors = ['#4290FB', '#4FC0FF', '#4FFFD5', '#7CFF4F', '#F6F05C', '#FF8068', '#FF4E6F', '#C645B8', '#6563DE', '#18158E', '#000000'];
-    for (const i in star_levels) {
-      if (!star_levels.hasOwnProperty(i)) continue;
-      if (star_levels[i] > sr && star_levels[i-1] < sr) {
-        const lower = star_levels[i - 1];
-        const upper = star_levels[i];
-        const ratio = (sr - lower) / (upper - lower);
-        const r = parseInt(star_colors[i-1].substr(1, 2), 16) * (1 - ratio) + parseInt(star_colors[i].substr(1, 2), 16) * ratio;
-        const g = parseInt(star_colors[i-1].substr(3, 2), 16) * (1 - ratio) + parseInt(star_colors[i].substr(3, 2), 16) * ratio;
-        const b = parseInt(star_colors[i-1].substr(5, 2), 16) * (1 - ratio) + parseInt(star_colors[i].substr(5, 2), 16) * ratio;
-        return '#' + Math.round(r).toString(16).padStart(2, '0') + Math.round(g).toString(16).padStart(2, '0') + Math.round(b).toString(16).padStart(2, '0');
-      }
-    }
-  }
+  const sr = (lobby.data.min_stars + lobby.data.max_stars) / 2.0;
+  return stars_to_color(sr);
 }
 
 // Dumb loop to update discord lobbies when their info changes.
 async function discord_update_loop() {
   for (const lobby of bancho.joined_lobbies) {
-    const new_val = lobby.name + lobby.nb_players + lobby.playing;
-    if (discord_lobbies[lobby.id] != new_val) {
-      await update_ranked_lobby_on_discord(lobby);
-      discord_lobbies[lobby.id] = new_val;
+    if (lobby.data.mode == 'ranked') {
+      const new_val = lobby.name + lobby.nb_players + lobby.playing;
+      if (discord_lobbies[lobby.id] != new_val) {
+        await update_ranked_lobby_on_discord(lobby);
+        discord_lobbies[lobby.id] = new_val;
+      }
+    } else if (lobby.data.mode == 'collection') {
+      const new_val = lobby.name + lobby.nb_players + lobby.playing + lobby.passworded + lobby.beatmap_id;
+      if (discord_lobbies[lobby.id] != new_val) {
+        await update_collection_lobby_on_discord(lobby);
+        discord_lobbies[lobby.id] = new_val;
+      }
     }
   }
 
   setTimeout(discord_update_loop, 1000);
 }
 
-// Updates the lobby information on Discord.
-// Creates the message in the o!rl #lobbies channel if it doesn't exist.
-async function update_ranked_lobby_on_discord(lobby) {
-  const ranked_lobby = stmts.lobby_from_id.get(lobby.id);
-  if (!ranked_lobby) {
-    // If the lobby isn't yet in the database, create it here and call this
-    // method again to create/update/delete the discord messages
-    // in #lobbies.
-    let min_stars = null;
-    let max_stars = null;
-    if (lobby.fixed_star_range) {
-      min_stars = lobby.min_stars;
-      max_stars = lobby.max_stars;
+async function update_collection_lobby_on_discord(lobby) {
+  if (!discord_client) return;
+  const discord_channel = discord_client.channels.cache.get(Config.discord_collection_lobbies_channel_id);
+
+  // Lobby not initialized yet
+  if (!lobby.map) return;
+
+  const listing = stmts.listing_from_id.get(lobby.id);
+  if (!listing) {
+    try {
+      const discord_msg = await discord_channel.send({
+        embeds: [
+          new MessageEmbed({
+            title: '*Creating new lobby...*',
+          }),
+        ],
+      });
+      stmts.create_listing.run(lobby.id, discord_channel.id, discord_msg.id);
+    } catch (err) {
+      console.error(`${lobby.channel} Failed to create Discord listing: ${err}`);
+      capture_sentry_exception(err);
+      return;
     }
 
-    const insert_lobby_stmt = databases.discord.prepare(`
-      INSERT INTO ranked_lobby (
-        osu_lobby_id, creator, creator_osu_id, creator_discord_id,
-        min_stars, max_stars, dt, scorev2
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-    );
-    insert_lobby_stmt.run(
-        lobby.id,
-        lobby.creator,
-        lobby.creator_osu_id,
-        lobby.creator_discord_id,
-        min_stars,
-        max_stars,
-        lobby.is_dt ? 1 : 0,
-        lobby.is_scorev2 ? 1 : 0,
-    );
+    return await update_collection_lobby_on_discord(lobby);
+  }
+
+  try {
+    const discord_msg = await discord_channel.messages.fetch(listing.discord_message_id + '');
+    await discord_msg.edit({
+      embeds: [
+        new MessageEmbed({
+          title: lobby.name,
+          description: `**▸ Collection:** https://osucollector.com/collections/${lobby.data.collection_id}
+**▸ Map:** [${lobby.map.title} (${lobby.map.stars}\*)](https://osu.ppy.sh/beatmaps/${lobby.map.id})
+**▸ Ruleset:** ${lobby.map.mode}`,
+          fields: [
+            {
+              name: 'Players',
+              value: `${lobby.nb_players}/16`,
+              inline: true,
+            },
+            {
+              name: 'Status',
+              value: lobby.playing ? 'Playing' : 'Waiting',
+              inline: true,
+            },
+            {
+              name: 'Creator',
+              value: lobby.data.creator,
+              inline: true,
+            },
+          ],
+          color: stars_to_color(lobby.map.stars),
+          thumbnail: {
+            url: `https://assets.ppy.sh/beatmaps/${lobby.map.set_id}/covers/list.jpg`,
+          },
+        }),
+      ],
+      components: [
+        new MessageActionRow().addComponents([
+          new MessageButton({
+            custom_id: 'orl_get_lobby_invite_' + lobby.id,
+            label: 'Get invite',
+            style: 'PRIMARY',
+            disabled: lobby.nb_players == 16 || lobby.passworded,
+          }),
+        ]),
+      ],
+    });
+  } catch (err) {
+    if (err.message == 'Unknown Message') {
+      // Message was deleted, try again
+      stmts.delete_listing.run(lobby.id);
+      delete discord_lobbies[lobby.id];
+      return await update_collection_lobby_on_discord(lobby);
+    }
+
+    console.error(`${lobby.channel} Failed to update Discord message: ${err}`);
+    capture_sentry_exception(err);
+  }
+}
+
+// Creates/Updates the lobby information on Discord.
+async function update_ranked_lobby_on_discord(lobby) {
+  if (!discord_client) return;
+  const discord_channel = discord_client.channels.cache.get(Config.discord_ranked_lobbies_channel_id);
+
+  const listing = stmts.listing_from_id.get(lobby.id);
+  if (!listing) {
+    try {
+      const discord_msg = await discord_channel.send('*Creating new lobby...*');
+      stmts.create_listing.run(lobby.id, discord_channel.id, discord_msg.id);
+    } catch (err) {
+      console.error(`${lobby.channel} Failed to create Discord listing: ${err}`);
+      capture_sentry_exception(err);
+      return;
+    }
 
     return await update_ranked_lobby_on_discord(lobby);
   }
 
-  if (!discord_client) {
-    // We're not connected to Discord; don't bother managing Discord messages.
-    return;
-  }
-
-  // Lobby is full: delete existing #lobbies message
-  if (lobby.nb_players == 16) {
-    try {
-      const discord_channel = discord_client.channels.cache.get(ranked_lobby.discord_channel_id);
-      await discord_channel.messages.delete(ranked_lobby.discord_msg_id);
-      const unlist_lobby_stmt = databases.discord.prepare(`
-        UPDATE ranked_lobby
-        SET discord_channel_id = NULL, discord_msg_id = NULL
-        WHERE osu_lobby_id = ?`,
-      );
-      unlist_lobby_stmt.run(lobby.id);
-    } catch (err) {
-      // If it's already deleted, ignore the error. We don't want to
-      // delete the actual lobby from the database.
-    }
-
-    return;
-  }
-
-  let msg = null;
   try {
-    msg = {
+    const discord_msg = await discord_channel.messages.fetch(listing.discord_message_id + '');
+    await discord_msg.edit({
       embeds: [
         new MessageEmbed({
           title: lobby.name,
@@ -141,7 +202,7 @@ async function update_ranked_lobby_on_discord(lobby) {
             },
             {
               name: 'Creator',
-              value: `[${lobby.creator}](${Config.website_base_url}/u/${lobby.creator_osu_id})`,
+              value: `[${lobby.data.creator}](${Config.website_base_url}/u/${lobby.data.creator_osu_id})`,
               inline: true,
             },
           ],
@@ -154,67 +215,37 @@ async function update_ranked_lobby_on_discord(lobby) {
             custom_id: 'orl_get_lobby_invite_' + lobby.id,
             label: 'Get invite',
             style: 'PRIMARY',
+            disabled: lobby.nb_players == 16,
           }),
         ]),
       ],
-    };
+    });
   } catch (err) {
-    console.error(`${lobby.channel} Failed to generate Discord message: ${err}`);
-    capture_sentry_exception(err);
-    return;
-  }
-
-  // Try to update existing message
-  if (ranked_lobby.discord_channel_id && ranked_lobby.discord_msg_id) {
-    try {
-      const discord_channel = discord_client.channels.cache.get(ranked_lobby.discord_channel_id);
-      const discord_msg = await discord_channel.messages.fetch(ranked_lobby.discord_msg_id + '');
-      await discord_msg.edit(msg);
-    } catch (err) {
-      if (err.message == 'Unknown Message') {
-        // Message was deleted, try again
-        stmts.delete_lobby.run(lobby.id);
-        return await update_ranked_lobby_on_discord(lobby);
-      }
-
-      console.error(`${lobby.channel} Failed to update Discord message: ${err}`);
-      capture_sentry_exception(err);
+    if (err.message == 'Unknown Message') {
+      // Message was deleted, try again
+      stmts.delete_listing.run(lobby.id);
+      delete discord_lobbies[lobby.id];
+      return await update_ranked_lobby_on_discord(lobby);
     }
 
-    return;
-  }
-
-  // Try to create new message
-  try {
-    const discord_channel = discord_client.channels.cache.get(Config.discord_lobbies_channel_id);
-    const discord_msg = await discord_channel.send(msg);
-
-    const create_listing_stmt = databases.discord.prepare(`
-      UPDATE ranked_lobby
-      SET discord_channel_id = ?, discord_msg_id = ?
-      WHERE osu_lobby_id = ?`,
-    );
-    create_listing_stmt.run(discord_channel.id, discord_msg.id, lobby.id);
-  } catch (err) {
-    console.error(`${lobby.channel} Failed to create Discord message: ${err}`);
+    console.error(`${lobby.channel} Failed to update Discord message: ${err}`);
     capture_sentry_exception(err);
   }
 }
 
-// Removes the lobby information from the o!rl #lobbies channel.
-async function close_ranked_lobby_on_discord(lobby) {
-  const ranked_lobby = stmts.lobby_from_id.get(lobby.id);
-  if (!ranked_lobby) return;
+async function remove_discord_lobby_listing(osu_lobby_id) {
+  if (!discord_client) return;
+
+  const listing = stmts.listing_from_id.get(osu_lobby_id);
+  if (!listing) return;
 
   try {
-    stmts.delete_lobby.run(lobby.id);
-
-    if (discord_client) {
-      const discord_channel = discord_client.channels.cache.get(ranked_lobby.discord_channel_id);
-      await discord_channel.messages.delete(ranked_lobby.discord_msg_id);
-    }
+    const discord_channel = discord_client.channels.cache.get(listing.discord_channel_id);
+    await discord_channel.messages.delete(listing.discord_message_id);
+    stmts.delete_listing.run(osu_lobby_id);
+    console.info(`Removed Discord listing for lobby #mp_${osu_lobby_id}`);
   } catch (err) {
-    console.error(`${lobby.channel} Failed to remove Discord message: ${err}`);
+    console.error(`#mp_${osu_lobby_id}: Failed to remove Discord listing: ${err}`);
   }
 }
 
@@ -328,7 +359,7 @@ async function update_discord_role(osu_user_id, rank_text) {
 
 export {
   init,
-  close_ranked_lobby_on_discord,
+  remove_discord_lobby_listing,
   update_discord_role,
   update_discord_username,
 };

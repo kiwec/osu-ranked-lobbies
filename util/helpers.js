@@ -11,6 +11,7 @@ const base = fs.readFileSync('public/index.html', 'utf-8');
 export function capture_sentry_exception(err) {
   if (Config.ENABLE_SENTRY) {
     Sentry.captureException(err);
+    Sentry.configureScope((scope) => scope.clear());
   } else {
     console.error(err);
   }

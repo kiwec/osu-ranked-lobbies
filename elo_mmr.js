@@ -161,18 +161,18 @@ async function update_mmr(lobby, contest_tms) {
   }
 
   const players = [];
-  for (const username in lobby.scores) {
-    if (lobby.scores.hasOwnProperty(username)) {
-      const player = lobby.match_participants[username];
-      player.old_approx_mu = player.approx_mu;
-      player.score = lobby.scores[username];
+  for (const score of lobby.scores) {
+    const player = lobby.match_participants[score.username];
+    if (!player) continue;
 
-      if (is_live_lobby) {
-        player.rank_float = get_rank(player.elo).ratio;
-      }
+    player.old_approx_mu = player.approx_mu;
+    player.score = score.score;
 
-      players.push(player);
+    if (is_live_lobby) {
+      player.rank_float = get_rank(player.elo).ratio;
     }
+
+    players.push(player);
   }
 
   if (players.length < 2) {
@@ -183,7 +183,7 @@ async function update_mmr(lobby, contest_tms) {
   }
 
   const res = stmts.create_contest.run(
-      lobby.id, lobby.beatmap_id, lobby.is_dt ? 64 : 0, contest_tms, lobby.creator,
+      lobby.id, lobby.beatmap_id, 0, contest_tms, lobby.data.creator,
   );
   const contest_id = res.lastInsertRowid;
 

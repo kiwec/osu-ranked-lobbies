@@ -29,43 +29,6 @@ async function deploy_commands() {
       ],
       default_permission: false,
     },
-    {
-      name: 'make-lobby',
-      description: 'Create a new ranked lobby.',
-      options: [
-        {
-          type: 4,
-          name: 'lobby-id',
-          description: 'The lobby ID given by BanchoBot',
-          required: true,
-        },
-        {
-          type: 10,
-          name: 'min-stars',
-          description: 'Minimum star level',
-          required: false,
-        },
-        {
-          type: 10,
-          name: 'max-stars',
-          description: 'Maximum star level',
-          required: false,
-        },
-        {
-          type: 5,
-          name: 'dt',
-          description: 'Use double time',
-          required: false,
-        },
-        {
-          type: 5,
-          name: 'scorev2',
-          description: 'Use ScoreV2',
-          required: false,
-        },
-      ],
-      default_permission: false,
-    },
   ];
 
   // Create/Update guild commands
