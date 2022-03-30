@@ -140,6 +140,7 @@ async function create_lobby_if_needed() {
         lobby.data.creator_osu_id = Config.osu_id;
         lobby.data.min_stars = to_create.min;
         lobby.data.max_stars = to_create.max;
+        lobby.data.fixed_star_range = true;
         await init_ranked_lobby(lobby);
       } catch (err) {
         // Don't care about errors here.
