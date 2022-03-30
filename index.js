@@ -135,9 +135,9 @@ async function create_lobby_if_needed() {
       try {
         console.log('Creating new lobby...');
         const lobby = await bancho.make(`${to_create.min}-${to_create.max-0.01}* | o!RL | Auto map select (!about)`);
+        lobby.created_just_now = true;
         lobby.data.creator = Config.osu_username;
         lobby.data.creator_osu_id = Config.osu_id;
-        lobby.data.created_just_now = true;
         lobby.data.min_stars = to_create.min;
         lobby.data.max_stars = to_create.max;
         await init_ranked_lobby(lobby);
