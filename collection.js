@@ -7,6 +7,8 @@ import {remove_discord_lobby_listing} from './discord_updates.js';
 async function select_next_map() {
   if (!this.data.playlist) return;
 
+  clearTimeout(this.countdown);
+  this.countdown = -1;
   this.voteskips = [];
 
   if (this.recently_played.length >= Math.min(25, this.data.playlist.length - 1)) {
@@ -80,6 +82,7 @@ async function load_collection(lobby, collection_id) {
 
 async function init_lobby(lobby) {
   lobby.recently_played = [];
+  lobby.countdown = -1;
   lobby.data.mode = 'collection';
   lobby.select_next_map = select_next_map;
 
@@ -89,6 +92,20 @@ async function init_lobby(lobby) {
     if (lobby.recently_played.includes(lobby.beatmap_id)) {
       await lobby.send(`!mp map ${lobby.recently_played[lobby.recently_played.length - 1]} *`);
     }
+  });
+
+  lobby.on('allPlayersReady', async () => {
+    if (!lobby.playing) {
+      // We set lobby.playing = true here to stop people from being able to
+      // spam the Ready button, which would result in !mp start spam.
+      lobby.playing = true;
+      await lobby.send(`!mp start .${Math.random().toString(36).substring(2, 6)}`);
+    }
+  });
+
+  lobby.on('matchStarted', () => {
+    clearTimeout(lobby.countdown);
+    lobby.countdown = -1;
   });
 
   lobby.on('matchFinished', async () => {

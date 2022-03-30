@@ -228,13 +228,6 @@ async function init_lobby(lobby) {
   lobby.select_next_map = select_next_map;
   lobby.data.mode = 'ranked';
 
-  lobby.on('refereeRemoved', async (username) => {
-    if (username != Config.osu_username) return;
-
-    await lobby.send('Looks like we\'re done here.');
-    await lobby.leave();
-  });
-
   lobby.on('password', async () => {
     // Ranked lobbies never should have a password
     if (lobby.passworded) {

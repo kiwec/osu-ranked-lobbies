@@ -172,6 +172,10 @@ class BanchoLobby extends EventEmitter {
         } else if (m = ref_add_regex.exec(message)) {
           this.emit('refereeAdded', m[1]);
         } else if (m = ref_del_regex.exec(message)) {
+          if (m[1] == Config.osu_username) {
+            await this.send('Looks like we\'re done here.');
+            await this.leave();
+          }
           this.emit('refereeRemoved', m[1]);
         } else if (m = slot_regex.exec(message)) {
           const display_username = m[4].substring(0, 15).trimEnd();

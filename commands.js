@@ -311,19 +311,19 @@ const commands = [
     regex: /^!start$/gi,
     handler: start_command,
     creator_only: false,
-    modes: ['ranked'],
+    modes: ['collection', 'ranked'],
   },
   {
     regex: /^!wait$/gi,
     handler: wait_command,
     creator_only: false,
-    modes: ['ranked'],
+    modes: ['collection', 'ranked'],
   },
   {
     regex: /^!stop$/gi,
     handler: wait_command,
     creator_only: false,
-    modes: ['ranked'],
+    modes: ['collection', 'ranked'],
   },
   {
     regex: /^!ban(.*)/gi,

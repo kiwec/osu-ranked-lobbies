@@ -150,6 +150,14 @@ To access text channels, link your account with the button below.`,
               value: 'Switches to another collection. Only the lobby creator can use this command.',
             },
             {
+              name: '!start',
+              value: `Count down 30 seconds then start the map. Useful when some players are AFK or forget to ready up. Anybody can use this command.`,
+            },
+            {
+              name: '!wait',
+              value: `Cancel !start. Use it when you're not done downloading.`,
+            },
+            {
               name: '!abort',
               value: 'Vote to abort the match. At least half the players in the lobby must vote to abort for a match to get aborted.',
             },
