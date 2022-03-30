@@ -133,8 +133,8 @@ async function select_next_map() {
         this.median_ar,
     );
 
-    this.min_stars = meta.min_stars;
-    this.max_stars = meta.max_stars;
+    this.data.min_stars = meta.min_stars;
+    this.data.max_stars = meta.max_stars;
   }
 
   do {
@@ -142,8 +142,8 @@ async function select_next_map() {
         this.median_aim,
         this.median_speed,
         this.median_ar,
-        this.min_stars,
-        this.max_stars,
+        this.data.min_stars,
+        this.data.max_stars,
     );
     tries++;
 
