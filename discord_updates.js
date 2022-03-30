@@ -172,7 +172,13 @@ async function update_ranked_lobby_on_discord(lobby) {
   const listing = stmts.listing_from_id.get(lobby.id);
   if (!listing) {
     try {
-      const discord_msg = await discord_channel.send('*Creating new lobby...*');
+      const discord_msg = await discord_channel.send({
+        embeds: [
+          new MessageEmbed({
+            title: '*Creating new lobby...*',
+          }),
+        ],
+      });
       stmts.create_listing.run(lobby.id, discord_channel.id, discord_msg.id);
     } catch (err) {
       console.error(`${lobby.channel} Failed to create Discord listing: ${err}`);

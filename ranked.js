@@ -237,7 +237,9 @@ async function init_lobby(lobby) {
 
   lobby.on('password', async () => {
     // Ranked lobbies never should have a password
-    await lobby.send('!mp password');
+    if (lobby.passworded) {
+      await lobby.send('!mp password');
+    }
   });
 
   lobby.on('settings', async () => {
