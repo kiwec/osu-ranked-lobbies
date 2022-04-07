@@ -248,7 +248,7 @@ async function _scan_user_profile(user) {
       if (score.mods.includes('AP')) mods |= (1<<13);
       if (score.mods.includes('PF')) mods |= (1<<14);
 
-      const file = 'maps/' + parseInt(map_id, 10) + '.osu';
+      const file = 'maps/' + parseInt(score.beatmap.id, 10) + '.osu';
       const pp_res = rosu.calculate({
         path: file,
         mods: mods,
