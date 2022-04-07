@@ -165,7 +165,7 @@ async function select_next_map() {
     const map_name = `[https://osu.ppy.sh/beatmaps/${new_map.id} ${new_map.name}]`;
     const beatconnect_link = `[https://beatconnect.io/b/${new_map.set_id} [1]]`;
     const chimu_link = `[https://chimu.moe/d/${new_map.set_id} [2]]`;
-    const nerina_link = `[https://nerina.pw/d/${new_map.set_id} [3]]`;
+    const nerina_link = `[https://api.nerinyan.moe/d/${new_map.set_id} [3]]`;
     const sayobot_link = `[https://osu.sayobot.cn/osu.php?s=${new_map.set_id} [4]]`;
     await this.send(`!mp map ${new_map.id} * | ${map_name} (${flavor}) Alternate downloads: ${beatconnect_link} ${chimu_link} ${nerina_link} ${sayobot_link}`);
     await set_new_title(this);
