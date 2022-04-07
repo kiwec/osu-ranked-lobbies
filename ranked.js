@@ -162,12 +162,12 @@ async function select_next_map() {
     this.map_data = null;
     const sr = new_map.stars;
     const flavor = `${MAP_TYPES[new_map.ranked]} ${sr.toFixed(2)}*, ${Math.round(pp)}pp`;
-    const map_name = `[https://osu.ppy.sh/beatmapsets/${new_map.set_id}#osu/${new_map.id} ${new_map.name}]`;
+    const map_name = `[https://osu.ppy.sh/beatmaps/${new_map.id} ${new_map.name}]`;
     const beatconnect_link = `[https://beatconnect.io/b/${new_map.set_id} [1]]`;
     const chimu_link = `[https://chimu.moe/d/${new_map.set_id} [2]]`;
     const nerina_link = `[https://nerina.pw/d/${new_map.set_id} [3]]`;
     const sayobot_link = `[https://osu.sayobot.cn/osu.php?s=${new_map.set_id} [4]]`;
-    await this.send(`!mp map ${new_map.id} 0 | ${map_name} (${flavor}) Alternate downloads: ${beatconnect_link} ${chimu_link} ${nerina_link} ${sayobot_link}`);
+    await this.send(`!mp map ${new_map.id} * | ${map_name} (${flavor}) Alternate downloads: ${beatconnect_link} ${chimu_link} ${nerina_link} ${sayobot_link}`);
     await set_new_title(this);
   } catch (e) {
     console.error(`${this.channel} Failed to switch to map ${new_map.id} ${new_map.name}:`, e);

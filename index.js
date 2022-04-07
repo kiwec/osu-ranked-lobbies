@@ -116,11 +116,11 @@ async function main() {
 // searching.
 async function create_lobby_if_needed() {
   const lobbies_to_create = [
+    {min: 0, max: 3},
     {min: 3, max: 4},
     {min: 4, max: 5},
     {min: 5, max: 5.5},
     {min: 5.5, max: 6},
-    {min: 6, max: 7.5},
   ];
   for (const to_create of lobbies_to_create) {
     let exists = false;

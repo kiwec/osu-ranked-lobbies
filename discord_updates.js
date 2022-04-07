@@ -114,9 +114,8 @@ async function update_collection_lobby_on_discord(lobby) {
       embeds: [
         new MessageEmbed({
           title: lobby.name,
-          description: `**▸ Collection:** https://osucollector.com/collections/${lobby.data.collection_id}
-**▸ Map:** [${lobby.map.title} (${lobby.map.stars}\*)](https://osu.ppy.sh/beatmaps/${lobby.map.id})
-**▸ Ruleset:** ${lobby.map.mode}`,
+          description: `**▸ Collection:** [${lobby.data.collection.name}](https://osucollector.com/collections/${lobby.data.collection_id})
+**▸ Map:** [${lobby.map.name} (${lobby.map.stars.toFixed(2)}\*, ${Math.round(lobby.map.overall_pp)}pp)](https://osu.ppy.sh/beatmaps/${lobby.map.id})`,
           fields: [
             {
               name: 'Players',

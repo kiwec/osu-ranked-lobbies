@@ -60,6 +60,24 @@ ranks.exec(`
     rank_text TEXT
   );
 
+  CREATE TABLE IF NOT EXISTS map (
+    id INTEGER PRIMARY KEY,
+    set_id INTEGER NOT NULL,
+    mode INTEGER DEFAULT 0,
+    name TEXT NOT NULL,
+
+    length REAL NOT NULL,
+    ranked INT NOT NULL,
+    dmca INTEGER NOT NULL,
+
+    stars REAL NOT NULL,
+    aim_pp REAL NOT NULL,
+    speed_pp REAL NOT NULL,
+    acc_pp REAL NOT NULL,
+    overall_pp REAL NOT NULL,
+    ar REAL NOT NULL
+  );
+
   CREATE TABLE IF NOT EXISTS contest (
     lobby_id INTEGER NOT NULL,
     map_id INTEGER NOT NULL,

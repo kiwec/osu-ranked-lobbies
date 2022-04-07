@@ -99,6 +99,47 @@ function scan_user_profile(user) {
   });
 }
 
+// Get metadata and pp from map ID (downloads it if not already downloaded)
+async function get_map_info(map_id) {
+  // Looking for .osu files? peppy provides monthly dumps here: https://data.ppy.sh/
+  const file = 'maps/' + parseInt(map_id, 10) + '.osu';
+  try {
+    await fs.access(file, constants.F_OK);
+  } catch (err) {
+    console.log(`Beatmap id ${map_id} not found, downloading it.`);
+    const new_file = await fetch(`https://osu.ppy.sh/osu/${map_id}`);
+    await fs.writeFile(file, await new_file.text());
+  }
+
+  const stmt = databases.ranks.prepare('SELECT * FROM map WHERE id = ?');
+  const map = stmt.get(map_id);
+  if (!map) {
+    // We don't have the map in the database, get info from the API
+    // (info we can't easily get from map data: set_id, length, ranked, dmca)
+    const new_map_stmt = databases.ranks.prepare(`
+      INSERT INTO map (id, set_id, mode, name,
+                       length, ranked,
+                       dmca,
+                       stars,
+                       aim_pp, speed_pp, acc_pp, overall_pp, ar)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    );
+    const max_pp = rosu.calculate({path: file});
+    const api_res = await get_map_data(map_id);
+    new_map_stmt.run(
+        map_id, api_res.beatmapset.id, api_res.mode_int, api_res.beatmapset.title,
+        api_res.total_length, api_res.beatmapset.ranked,
+        api_res.beatmapset.availability.download_disabled,
+        api_res.difficulty_rating,
+        max_pp[0].ppAim, max_pp[0].ppSpeed, max_pp[0].ppAcc, max_pp[0].pp, max_pp[0].ar,
+    );
+
+    return await get_map_info(map_id);
+  }
+
+  return map;
+}
+
 // We assume user.user_id is already set.
 async function _scan_user_profile(user) {
   // Check if the user exists in the database
@@ -187,17 +228,8 @@ async function _scan_user_profile(user) {
     }
 
     try {
-      // Looking for .osu files? peppy provides monthly dumps here: https://data.ppy.sh/
-      const file = 'maps/' + parseInt(score.beatmap.id, 10) + '.osu';
-
-      try {
-        await fs.access(file, constants.F_OK);
-      } catch (err) {
-        // TODO: add to map/pp database?
-        console.log(`Beatmap id ${score.beatmap.id} not found, downloading it.`);
-        const new_file = await fetch(`https://osu.ppy.sh/osu/${score.beatmap.id}`);
-        await fs.writeFile(file, await new_file.text());
-      }
+      // Ensure we have the map downloaded before calculating pp
+      await get_map_info(score.beatmap.id);
 
       let mods = 0;
       if (score.mods.includes('NF')) mods |= (1<<0);
@@ -286,4 +318,4 @@ async function _scan_user_profile(user) {
   console.log('[API] Finished recalculating pp for ' + user.username);
 }
 
-export {scan_user_profile, get_map_data};
+export {scan_user_profile, get_map_data, get_map_info};
