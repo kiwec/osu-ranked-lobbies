@@ -121,7 +121,7 @@ async function get_map_info(map_id) {
                        length, ranked,
                        dmca,
                        stars,
-                       aim_pp, speed_pp, acc_pp, overall_pp, ar)
+                       aim_pp, speed_pp, acc_pp, overall_pp, ar) 
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     );
     const max_pp = rosu.calculate({path: file});
@@ -248,6 +248,7 @@ async function _scan_user_profile(user) {
       if (score.mods.includes('AP')) mods |= (1<<13);
       if (score.mods.includes('PF')) mods |= (1<<14);
 
+      const file = 'maps/' + parseInt(map_id, 10) + '.osu';
       const pp_res = rosu.calculate({
         path: file,
         mods: mods,
