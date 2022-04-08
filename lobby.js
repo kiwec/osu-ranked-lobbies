@@ -150,13 +150,16 @@ class BanchoLobby extends EventEmitter {
           this.name = m[1];
           this.id = parseInt(m[2], 10);
         } else if (m = beatmap_regex.exec(message)) {
+          this.map_data = null;
           this.beatmap_id = parseInt(m[1], 10);
           this.beatmap_name = m[2];
         } else if (m = beatmap_change_regex.exec(message)) {
+          this.map_data = null;
           this.beatmap_id = parseInt(m[1], 10);
           this.beatmap_name = m[2];
           this.emit('refereeChangedBeatmap');
         } else if (m = player_changed_beatmap_regex.exec(message)) {
+          this.map_data = null;
           this.beatmap_id = parseInt(m[2], 10);
           this.beatmap_name = m[1];
           this.emit('playerChangedBeatmap');

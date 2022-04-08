@@ -129,7 +129,7 @@ async function get_map_info(map_id) {
     new_map_stmt.run(
         map_id, api_res.beatmapset.id, api_res.mode_int, api_res.beatmapset.title,
         api_res.total_length, api_res.beatmapset.ranked,
-        api_res.beatmapset.availability.download_disabled,
+        api_res.beatmapset.availability.download_disabled ? 1 : 0,
         api_res.difficulty_rating,
         max_pp[0].ppAim, max_pp[0].ppSpeed, max_pp[0].ppAcc, max_pp[0].pp, max_pp[0].ar,
     );

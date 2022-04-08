@@ -159,7 +159,6 @@ async function select_next_map() {
   this.current_map_pp = pp;
 
   try {
-    this.map_data = null;
     const sr = new_map.stars;
     const flavor = `${MAP_TYPES[new_map.ranked]} ${sr.toFixed(2)}*, ${Math.round(pp)}pp`;
     const map_name = `[https://osu.ppy.sh/beatmaps/${new_map.id} ${new_map.name}]`;
