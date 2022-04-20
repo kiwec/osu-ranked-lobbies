@@ -238,7 +238,10 @@ async function update_ranked_lobby_on_discord(lobby) {
   }
 }
 
-async function remove_discord_lobby_listing(osu_lobby_id) {
+async function remove_lobby_listing(osu_lobby_id) {
+  databases.ranks.prepare('DELETE FROM lobby WHERE id = ?').run(osu_lobby_id);
+
+  // Discord lobby listing below
   if (!discord_client) return;
 
   const listing = stmts.listing_from_id.get(osu_lobby_id);
@@ -364,7 +367,7 @@ async function update_discord_role(osu_user_id, rank_text) {
 
 export {
   init,
-  remove_discord_lobby_listing,
+  remove_lobby_listing,
   update_discord_role,
   update_discord_username,
 };

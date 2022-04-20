@@ -5,7 +5,7 @@ import commands from './commands.js';
 import databases from './database.js';
 import {apply_rank_decay} from './elo_mmr.js';
 import {init as init_discord_interactions} from './discord_interactions.js';
-import {remove_discord_lobby_listing, init as init_discord_updates} from './discord_updates.js';
+import {remove_lobby_listing, init as init_discord_updates} from './discord_updates.js';
 import {listen as website_listen} from './website.js';
 import {init_lobby as init_ranked_lobby} from './ranked.js';
 import {init_lobby as init_collection_lobby} from './collection.js';
@@ -25,8 +25,7 @@ async function rejoin_lobbies() {
       }
     } catch (err) {
       console.error(`Failed to rejoin lobby #${lobby.id}: ${err}`);
-      await remove_discord_lobby_listing(lobby.id);
-      databases.ranks.prepare('DELETE FROM lobby WHERE id = ?').run(lobby.id);
+      await remove_lobby_listing(lobby.id);
     }
   };
 

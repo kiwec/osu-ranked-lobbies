@@ -1,7 +1,7 @@
 import bancho from './bancho.js';
 import databases from './database.js';
 import {update_mmr, get_rank} from './elo_mmr.js';
-import {remove_discord_lobby_listing} from './discord_updates.js';
+import {remove_lobby_listing} from './discord_updates.js';
 
 import {scan_user_profile} from './profile_scanner.js';
 import Config from './util/config.js';
@@ -311,7 +311,7 @@ async function init_lobby(lobby) {
   lobby.on('close', async () => {
     // Lobby closed (intentionally or not), clean up
     bancho.joined_lobbies.splice(bancho.joined_lobbies.indexOf(lobby), 1);
-    await remove_discord_lobby_listing(lobby.id);
+    await remove_lobby_listing(lobby.id);
   });
 
   lobby.on('allPlayersReady', async () => {

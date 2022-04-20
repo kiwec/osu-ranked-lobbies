@@ -1,7 +1,7 @@
 import fetch from 'node-fetch';
 
 import bancho from './bancho.js';
-import {remove_discord_lobby_listing} from './discord_updates.js';
+import {remove_lobby_listing} from './discord_updates.js';
 import {get_map_info} from './profile_scanner.js';
 
 
@@ -102,7 +102,7 @@ async function init_lobby(lobby) {
   lobby.on('close', async () => {
     // Lobby closed (intentionally or not), clean up
     bancho.joined_lobbies.splice(bancho.joined_lobbies.indexOf(lobby), 1);
-    await remove_discord_lobby_listing(lobby.id);
+    await remove_lobby_listing(lobby.id);
   });
 
   if (!lobby.data.collection) {
