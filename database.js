@@ -70,10 +70,10 @@ ranks.exec(`
     dmca INTEGER NOT NULL,
 
     stars REAL NOT NULL,
-    aim_pp REAL NOT NULL,
-    speed_pp REAL NOT NULL,
-    acc_pp REAL NOT NULL,
-    overall_pp REAL NOT NULL,
+    aim_pp REAL,
+    speed_pp REAL,
+    acc_pp REAL,
+    overall_pp REAL,
     ar REAL NOT NULL
   );
 

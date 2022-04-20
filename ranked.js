@@ -15,7 +15,7 @@ const stmts = {
         + ABS(? - speed_pp)
         + 10*ABS(? - ar)
       ) AS match_accuracy FROM map
-      WHERE length > 60 AND ranked IN (4, 5, 7) AND match_accuracy IS NOT NULL AND dmca = 0
+      WHERE length > 60 AND ranked IN (4, 5, 7) AND match_accuracy IS NOT NULL AND dmca = 0 AND mode = 0
       ORDER BY match_accuracy LIMIT 1000
     )`,
   ),
@@ -33,6 +33,7 @@ const stmts = {
         AND ranked IN (4, 5, 7)
         AND match_accuracy IS NOT NULL
         AND dmca = 0
+        AND mode = 0
       ORDER BY match_accuracy LIMIT 1000
     ) ORDER BY RANDOM() LIMIT 1`,
   ),
