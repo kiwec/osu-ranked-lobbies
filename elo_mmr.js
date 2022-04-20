@@ -80,9 +80,13 @@ function get_new_deviation(player, contest_tms) {
   const C = Math.sqrt((350 * 350 - 50 * 50) / SECONDS_PER_MONTH);
 
   const time_since_last_play = (contest_tms - player.last_contest_tms) / 1000;
+
+  // Modifier to make rank decay weaker initially
+  const modifier = Math.pow(Math.min(time_since_last_play / SECONDS_PER_MONTH, 1.0), 4.0);
+
   return Math.min(
       350.0,
-      Math.sqrt((player.approx_sig * player.approx_sig) + ((C * C) * time_since_last_play)),
+      Math.sqrt((player.approx_sig * player.approx_sig) + ((C * C) * time_since_last_play * modifier)),
   );
 }
 
