@@ -154,7 +154,7 @@ async function apply_rank_decay() {
   }
 }
 
-async function update_mmr(lobby, contest_tms) {
+function update_mmr(lobby, contest_tms) {
   // Usually, we're in a live lobby, but sometimes we want to recompute all
   // scores (like after updating the ranking algorithm), so this boolean is
   // used to avoid extra database calls.
@@ -165,9 +165,14 @@ async function update_mmr(lobby, contest_tms) {
   }
 
   const players = [];
+  const usernames = [];
   for (const score of lobby.scores) {
     const player = lobby.match_participants[score.username];
     if (!player) continue;
+
+    // Ignore duplicate scores (only 1 allowed per username)
+    if (usernames.includes(score.username)) continue;
+    usernames.push(score.username);
 
     player.old_approx_mu = player.approx_mu;
     player.score = score.score;
@@ -271,11 +276,10 @@ async function update_mmr(lobby, contest_tms) {
         rank_changes.push(`${player.username} [${Config.website_base_url}/u/${player.user_id}/ ▼ ${new_rank.text} ]`);
       }
 
-      await update_discord_role(player.user_id, new_rank.text);
-
       player.rank_float = new_rank.ratio;
       player.rank_text = new_rank.text;
       update_rank_text_stmt.run(new_rank.text, player.user_id);
+      update_discord_role(player.user_id, new_rank.text); // async but don't care about result
     }
   }
 

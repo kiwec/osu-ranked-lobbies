@@ -17,17 +17,15 @@ discord.exec(`
   )`,
 );
 
-let ranks;
+const ranks = new Database('ranks.db');
+ranks.pragma('JOURNAL_MODE = WAL');
+
 if (process.argv[1].endsWith('recompute_ranks.js')) {
-  ranks = new Database('new_ranks.db');
   ranks.pragma('count_changes = OFF');
   ranks.pragma('TEMP_STORE = MEMORY');
   ranks.pragma('JOURNAL_MODE = OFF');
   ranks.pragma('SYNCHRONOUS = OFF');
   ranks.pragma('LOCKING_MODE = EXCLUSIVE');
-} else {
-  ranks = new Database('ranks.db');
-  ranks.pragma('JOURNAL_MODE = WAL');
 }
 
 ranks.exec(`
@@ -82,7 +80,6 @@ ranks.exec(`
   CREATE TABLE IF NOT EXISTS contest (
     lobby_id INTEGER NOT NULL,
     map_id INTEGER NOT NULL,
-    mods INTEGER,
     tms INTEGER NOT NULL,
     lobby_creator TEXT NOT NULL
   );
@@ -101,6 +98,8 @@ ranks.exec(`
     new_elo REAL,
     new_deviation REAL
   );
+  CREATE INDEX IF NOT EXISTS contest_id_idx ON score (contest_id);
+  CREATE INDEX IF NOT EXISTS score_user_idx ON score (user_id);
 
   CREATE TABLE IF NOT EXISTS website_tokens (
     user_id INTEGER,

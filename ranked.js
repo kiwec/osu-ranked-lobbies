@@ -156,7 +156,6 @@ async function select_next_map() {
 
   this.recent_maps.push(new_map.id);
   const pp = new_map.overall_pp;
-  this.current_map_pp = pp;
 
   try {
     const sr = new_map.stars;
@@ -290,7 +289,7 @@ async function init_lobby(lobby) {
   });
 
   lobby.on('matchFinished', async (scores) => {
-    const rank_updates = await update_mmr(lobby);
+    const rank_updates = update_mmr(lobby);
     await lobby.select_next_map();
 
     if (rank_updates.length > 0) {
