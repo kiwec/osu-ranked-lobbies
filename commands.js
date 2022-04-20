@@ -35,7 +35,12 @@ async function collection_command(msg, match, lobby) {
   if (lobby.data.mode == 'new') {
     await init_collection_lobby(lobby);
   } else {
-    await load_collection(lobby, match[1]);
+    try {
+      await load_collection(lobby, match[1]);
+    } catch (err) {
+      await lobby.send(`Failed to load collection: ${err.message}`);
+      throw err;
+    }
   }
 }
 

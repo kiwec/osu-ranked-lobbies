@@ -6,7 +6,6 @@
 // - Run `node util/recompute_ranks.js`
 // - Start the bot. Done!
 
-import Database from 'better-sqlite3';
 import ProgressBar from 'progress';
 
 import databases from '../database.js';
