@@ -92,7 +92,7 @@ function get_new_deviation(player, contest_tms) {
 // for not replying to pings.
 function event_loop_hack() {
   return new Promise((resolve, reject) => {
-    setTimeout(resolve, 100);
+    setImmediate(resolve);
   });
 }
 
@@ -117,12 +117,12 @@ async function apply_rank_decay() {
     for (const player of players) {
       if (i == 1 || i % 1000 == 0) {
         console.info(`[Decay] Updating player elos (${i}/${players.length})`);
-        await event_loop_hack();
       }
 
       player.elo = player.approx_mu - (3 * get_new_deviation(player, now));
       update_elo_stmt.run(player.elo, player.user_id);
       i++;
+      await event_loop_hack();
     }
 
     i = 1;

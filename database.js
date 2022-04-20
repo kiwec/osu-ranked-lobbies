@@ -27,6 +27,7 @@ if (process.argv[1].endsWith('recompute_ranks.js')) {
   ranks.pragma('LOCKING_MODE = EXCLUSIVE');
 } else {
   ranks = new Database('ranks.db');
+  ranks.pragma('JOURNAL_MODE = WAL');
 }
 
 ranks.exec(`
