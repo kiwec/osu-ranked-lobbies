@@ -144,17 +144,20 @@ async function get_map_info(map_id) {
 async function _scan_user_profile(user) {
   // Check if the user exists in the database
   let stmt = databases.ranks.prepare('SELECT * FROM user WHERE user_id = ?');
-  const exists = stmt.get(user.user_id);
+  let exists = stmt.get(user.user_id);
   if (!exists) {
-    stmt = databases.ranks.prepare(`
+    databases.ranks.prepare(`
       INSERT INTO user (
         user_id, username, approx_mu, approx_sig, games_played,
         aim_pp, acc_pp, speed_pp, overall_pp, avg_ar, avg_sr
       ) VALUES (?, ?, 1500, 350, 0, 10.0, 1.0, 1.0, 1.0, 8.0, 2.0)`,
-    );
-    stmt.run(user.user_id, user.username);
+    ).run(user.user_id, user.username);
 
-    return await _scan_user_profile(user);
+    exists = stmt.get(user.user_id);
+    if (!exists) {
+      capture_sentry_exception(new Error('unreachable'));
+      return;
+    }
   }
 
   if (user.username != exists.username) {

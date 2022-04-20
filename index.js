@@ -10,6 +10,7 @@ import {listen as website_listen} from './website.js';
 import {init_lobby as init_ranked_lobby} from './ranked.js';
 import {init_lobby as init_collection_lobby} from './collection.js';
 import Config from './util/config.js';
+import {capture_sentry_exception} from './util/helpers.js';
 
 
 async function rejoin_lobbies() {
