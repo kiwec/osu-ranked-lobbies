@@ -356,6 +356,7 @@ async function update_discord_role(osu_user_id, rank_text) {
     } catch (err) {
       // User left the server
       if (err.message == 'Unknown Member') {
+        databases.discord.prepare(`DELETE FROM user WHERE osu_id = ?`).run(osu_user_id);
         return;
       }
 

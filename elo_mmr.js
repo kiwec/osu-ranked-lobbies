@@ -144,6 +144,7 @@ async function apply_rank_decay() {
 
       const new_rank_text = get_rank_text(i / players.length);
       await update_discord_role(player.user_id, new_rank_text);
+      await event_loop_hack();
       i++;
     }
 
