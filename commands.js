@@ -149,7 +149,7 @@ async function about_command(msg, match, lobby) {
 }
 
 async function discord_command(msg, match, lobby) {
-  await reply(msg, lobby, `[${Config.discord_invite_link} Come hang out in voice chat!] (or just text, no pressure)`);
+  await reply(msg.from, lobby, `[${Config.discord_invite_link} Come hang out in voice chat!] (or just text, no pressure)`);
 }
 
 async function stars_command(msg, match, lobby) {
