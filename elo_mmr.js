@@ -109,11 +109,12 @@ function event_loop_hack() {
 async function apply_rank_decay() {
   try {
     console.info('[Decay] Applying rank decay');
+    const month_ago_tms = Date.now() - (30 * 24 * 3600 * 1000);
     const players_stmt = databases.ranks.prepare(`
       SELECT user_id, approx_mu, approx_sig, last_contest_tms FROM user
-      WHERE games_played > 4`,
+      WHERE games_played > 4 AND last_contest_tms > ?`,
     );
-    let players = players_stmt.all();
+    let players = players_stmt.all(month_ago_tms);
 
     const update_elo_stmt = databases.ranks.prepare('UPDATE user SET elo = ? WHERE user_id = ?');
     let i = 1;
@@ -132,10 +133,10 @@ async function apply_rank_decay() {
     i = 1;
     const players_by_elo_stmt = databases.ranks.prepare(`
       SELECT user_id FROM user
-      WHERE games_played > 4
+      WHERE games_played > 4 AND last_contest_tms > ?
       ORDER BY elo ASC`,
     );
-    players = players_by_elo_stmt.all();
+    players = players_by_elo_stmt.all(month_ago_tms);
 
     for (const player of players) {
       if (i == 1 || i % 1000 == 0) {
