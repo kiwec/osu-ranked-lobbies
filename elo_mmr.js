@@ -149,6 +149,20 @@ async function apply_rank_decay() {
       i++;
     }
 
+    i = 1;
+    const inactive_players = databases.ranks.prepare(
+        `SELECT user_id FROM user WHERE last_contest_tms < ?`,
+    ).all(month_ago_tms);
+    for (const player of inactive_players) {
+      if (i == 1 || i % 1000 == 0) {
+        console.info(`[Decay] Updating inactive player discord roles (${i}/${inactive_players.length})`);
+      }
+
+      await update_discord_role(player.user_id, 'Unranked');
+      await event_loop_hack();
+      i++;
+    }
+
     console.info('[Decay] Done applying rank decay');
   } catch (err) {
     console.error('Failed to apply rank decay:', err);
