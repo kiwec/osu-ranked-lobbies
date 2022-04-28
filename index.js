@@ -116,36 +116,29 @@ async function main() {
 // searching.
 async function create_lobby_if_needed() {
   const lobbies_to_create = [
-    {min: 0, max: 3},
     {min: 3, max: 4},
     {min: 4, max: 5},
     {min: 5, max: 5.5},
     {min: 5.5, max: 6},
+    {min: 6, max: 7},
   ];
   for (const to_create of lobbies_to_create) {
-    let exists = false;
-    for (const lobby of bancho.joined_lobbies) {
-      if (lobby.data.creator == Config.osu_username && lobby.data.min_stars == to_create.min && lobby.data.max_stars == to_create.max) {
-        exists = true;
-        break;
-      }
-    }
+    const already_created = bancho.joined_lobbies.some((lobby) => lobby.data.min_stars == to_create.min && lobby.data.max_stars == to_create.max);
+    if (already_created) continue;
 
-    if (!exists) {
-      try {
-        console.log('Creating new lobby...');
-        const lobby = await bancho.make(`${to_create.min}-${to_create.max-0.01}* | o!RL | Auto map select (!about)`);
-        lobby.created_just_now = true;
-        lobby.data.creator = Config.osu_username;
-        lobby.data.creator_osu_id = Config.osu_id;
-        lobby.data.min_stars = to_create.min;
-        lobby.data.max_stars = to_create.max;
-        lobby.data.fixed_star_range = true;
-        await init_ranked_lobby(lobby);
-      } catch (err) {
-        // Don't care about errors here.
-        console.error(err);
-      }
+    try {
+      console.log('Creating new lobby...');
+      const lobby = await bancho.make(`${to_create.min}-${to_create.max-0.01}* | o!RL | Auto map select (!about)`);
+      lobby.created_just_now = true;
+      lobby.data.creator = Config.osu_username;
+      lobby.data.creator_osu_id = Config.osu_id;
+      lobby.data.min_stars = to_create.min;
+      lobby.data.max_stars = to_create.max;
+      lobby.data.fixed_star_range = true;
+      await init_ranked_lobby(lobby);
+    } catch (err) {
+      // Don't care about errors here.
+      console.error(err);
     }
   }
 }
