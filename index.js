@@ -116,14 +116,14 @@ async function main() {
 // searching.
 async function create_lobby_if_needed() {
   const lobbies_to_create = [
-    {min: 3, max: 4},
-    {min: 4, max: 5},
-    {min: 5, max: 5.5},
-    {min: 5.5, max: 6},
-    {min: 6, max: 7},
+    {min: 3, max: 4, slug: '3*'},
+    {min: 4, max: 5, slug: '4*'},
+    {min: 5, max: 5.5, slug: '5a*'},
+    {min: 5.5, max: 6, slug: '5b*'},
+    {min: 6, max: 7, slug: '6*'},
   ];
   for (const to_create of lobbies_to_create) {
-    const already_created = bancho.joined_lobbies.some((lobby) => lobby.data.min_stars == to_create.min && lobby.data.max_stars == to_create.max);
+    const already_created = bancho.joined_lobbies.some((lobby) => lobby.data.slug == to_create.slug);
     if (already_created) continue;
 
     try {
@@ -134,6 +134,7 @@ async function create_lobby_if_needed() {
       lobby.data.creator_osu_id = Config.osu_id;
       lobby.data.min_stars = to_create.min;
       lobby.data.max_stars = to_create.max;
+      lobby.data.slug = to_create.slug;
       lobby.data.fixed_star_range = true;
       await init_ranked_lobby(lobby);
     } catch (err) {
