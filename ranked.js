@@ -289,22 +289,34 @@ async function init_lobby(lobby) {
     }
   });
 
-  lobby.on('score', () => {
+  const kick_afk_players = async () => {
+    const players_to_kick = [];
+    for (const username in lobby.match_participants) {
+      // If the player hasn't scored after 20 seconds, they should get kicked
+      if (!lobby.scores.some((s) => s.username == username)) {
+        players_to_kick.push(username);
+      }
+    }
+
+    // It never is more than 1 player who is causing issues. To make sure we
+    // don't kick the whole lobby, let's wait a bit more.
+    if (players_to_kick.length > 1) {
+      lobby.match_end_timeout = setTimeout(kick_afk_players, 1000);
+      return;
+    }
+
+    for (const username of players_to_kick) {
+      await lobby.send(`!mp kick ${username}`);
+    }
+  };
+
+  lobby.on('score', (score) => {
     // Sometimes players prevent the match from ending. Bancho will only end
     // the match after ~2 minutes of players waiting, which is very
     // frustrating. To avoid having to close the game or wait an eternity, we
     // kick the offending player.
-    if (lobby.match_end_timeout == -1) {
-      lobby.match_end_timeout = setTimeout(async () => {
-        for (const player of lobby.match_participants) {
-          if (typeof player === 'undefined') continue;
-
-          // If the player hasn't scored after 10 seconds, they should get kicked
-          if (!lobby.scores.some((score) => score && score.username == player.username)) {
-            await lobby.send(`!mp kick ${player.username}`);
-          }
-        }
-      }, 10000);
+    if (score.score > 0 && lobby.match_end_timeout == -1) {
+      lobby.match_end_timeout = setTimeout(kick_afk_players, 10000);
     }
   });
 
