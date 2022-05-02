@@ -223,7 +223,6 @@ async function init_lobby(lobby) {
   lobby.votekicks = [];
   lobby.countdown = -1;
   lobby.median_overall = 0;
-  lobby.last_ready_msg = 0;
   lobby.select_next_map = select_next_map;
   lobby.data.mode = 'ranked';
   lobby.match_end_timeout = -1;
@@ -336,19 +335,6 @@ async function init_lobby(lobby) {
   });
 
   lobby.on('allPlayersReady', async () => {
-    if (lobby.nb_players < 2) {
-      if (lobby.last_ready_msg && lobby.last_ready_msg + 10 > Date.now()) {
-        // We already sent that message recently. Don't send it again, since
-        // people can spam the Ready button and we don't want to spam that
-        // error message ourselves.
-        return;
-      }
-
-      await lobby.send('With less than 2 players in the lobby, your rank will not change. Type !start to start anyway.');
-      lobby.last_ready_msg = Date.now();
-      return;
-    }
-
     // Players can spam the Ready button and due to lag, this command could
     // be spammed before the match actually got started.
     if (!lobby.playing) {
