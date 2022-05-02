@@ -144,27 +144,22 @@ async function get_map_info(map_id) {
 async function _scan_user_profile(user) {
   // Check if the user exists in the database
   let stmt = databases.ranks.prepare('SELECT * FROM user WHERE user_id = ?');
-  let exists = stmt.get(user.user_id);
-  if (!exists) {
-    databases.ranks.prepare(`
+  let db_user = stmt.get(user.user_id);
+  if (!db_user) {
+    db_user = databases.ranks.prepare(`
       INSERT INTO user (
         user_id, username, approx_mu, approx_sig, games_played,
         aim_pp, acc_pp, speed_pp, overall_pp, avg_ar, avg_sr
-      ) VALUES (?, ?, 1500, 350, 0, 10.0, 1.0, 1.0, 1.0, 8.0, 2.0)`,
-    ).run(user.user_id, user.username);
-
-    exists = stmt.get(user.user_id);
-    if (!exists) {
-      capture_sentry_exception(new Error('unreachable'));
-      return;
-    }
+      ) VALUES (?, ?, 1500, 350, 0, 10.0, 1.0, 1.0, 1.0, 8.0, 2.0)
+      RETURNING *`,
+    ).get(user.user_id, user.username);
   }
 
-  if (user.username != exists.username) {
+  if (user.username != db_user.username) {
     stmt = databases.ranks.prepare('UPDATE user SET username = ? WHERE user_id = ?');
     stmt.run(user.username, user.user_id);
 
-    console.info(`[API] ${exists.username} is now known as ${user.username}`);
+    console.info(`[API] ${db_user.username} is now known as ${user.username}`);
     await update_discord_username(
         user.user_id, user.username, 'osu! username change',
     );
