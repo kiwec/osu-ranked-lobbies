@@ -108,7 +108,14 @@ async function get_map_info(map_id) {
   } catch (err) {
     console.log(`Beatmap id ${map_id} not found, downloading it.`);
     const new_file = await fetch(`https://osu.ppy.sh/osu/${map_id}`);
-    await fs.writeFile(file, await new_file.text());
+    const text = await new_file.text();
+    if (text == '') {
+      // While in most cases an empty page means the map ID doesn't exist, in
+      // some rare cases osu! servers actually don't have the .osu file for a
+      // valid map ID. But we can't do much about it.
+      throw new Error('Invalid map ID');
+    }
+    await fs.writeFile(file, text);
   }
 
   const stmt = databases.ranks.prepare('SELECT * FROM map WHERE id = ?');
