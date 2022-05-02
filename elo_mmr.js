@@ -244,6 +244,12 @@ function update_mmr(lobby, contest_tms) {
 
   // Step 8.
   for (const player of players) {
+    if (!player.user_id) {
+      // If the bot restarted at the wrong timing, it can miss some user IDs.
+      // Ignore the scores for these players.
+      continue;
+    }
+
     player.approx_mu = player.new_approx_mu * 173.7178 + 1500.0;
     player.approx_sig = Math.min(350.0, player.new_approx_sig * 173.7178);
     player.last_contest_tms = contest_tms;
