@@ -297,8 +297,10 @@ async function init_lobby(lobby) {
     if (lobby.match_end_timeout == -1) {
       lobby.match_end_timeout = setTimeout(async () => {
         for (const player of lobby.match_participants) {
+          if (typeof player === 'undefined') continue;
+
           // If the player hasn't scored after 10 seconds, they should get kicked
-          if (!lobby.scores.some((score) => score.username == player.username)) {
+          if (!lobby.scores.some((score) => score && score.username == player.username)) {
             await lobby.send(`!mp kick ${player.username}`);
           }
         }
