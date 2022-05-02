@@ -226,6 +226,7 @@ async function init_lobby(lobby) {
   lobby.last_ready_msg = 0;
   lobby.select_next_map = select_next_map;
   lobby.data.mode = 'ranked';
+  lobby.match_end_timeout = -1;
 
   lobby.on('password', async () => {
     // Ranked lobbies never should have a password
@@ -289,7 +290,27 @@ async function init_lobby(lobby) {
     }
   });
 
+  lobby.on('score', () => {
+    // Sometimes players prevent the match from ending. Bancho will only end
+    // the match after ~2 minutes of players waiting, which is very
+    // frustrating. To avoid having to close the game or wait an eternity, we
+    // kick the offending player.
+    if (lobby.match_end_timeout == -1) {
+      lobby.match_end_timeout = setTimeout(async () => {
+        for (const player of lobby.match_participants) {
+          // If the player hasn't scored after 10 seconds, they should get kicked
+          if (!lobby.scores.some((score) => score.username == player.username)) {
+            await lobby.send(`!mp kick ${player.username}`);
+          }
+        }
+      }, 10000);
+    }
+  });
+
   lobby.on('matchFinished', async (scores) => {
+    clearTimeout(lobby.match_end_timeout);
+    lobby.match_end_timeout = -1;
+
     const rank_updates = update_mmr(lobby);
     await lobby.select_next_map();
 
