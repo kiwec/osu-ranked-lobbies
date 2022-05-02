@@ -92,7 +92,7 @@ async function rank_command(msg, match, lobby) {
   if (rank_info.text == 'Unranked') {
     if (requested_username === msg.from) {
       const games_played = user ? user.games_played : 0;
-      await reply(msg.from, lobby, `You are unranked. Play ${5 - games_played} more game${games_played === 1 ? "" : "s"} to get a rank!`);
+      await reply(msg.from, lobby, `You are unranked. Play ${5 - games_played} more game${games_played === 1 ? '' : 's'} to get a rank!`);
     } else {
       await reply(msg.from, lobby, `${requested_username} is unranked.`);
     }
@@ -254,7 +254,7 @@ async function skip_command(msg, match, lobby) {
   }
 
   lobby.voteskips.push(msg.from);
-  if (lobby.voteskips.length >= lobby.nb_players / 2) {
+  if (lobby.voteskips.length > lobby.nb_players / 2) {
     clearTimeout(lobby.countdown);
     lobby.countdown = -1;
     await lobby.select_next_map();
