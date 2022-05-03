@@ -151,7 +151,7 @@ async function apply_rank_decay() {
 
     i = 1;
     const inactive_players = databases.ranks.prepare(
-        `SELECT user_id FROM user WHERE last_contest_tms < ?`,
+        `SELECT user_id FROM user WHERE rank_text != "Unranked" AND last_contest_tms < ?`,
     ).all(month_ago_tms);
     for (const player of inactive_players) {
       if (i == 1 || i % 1000 == 0) {
