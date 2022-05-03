@@ -259,7 +259,7 @@ async function skip_command(msg, match, lobby) {
     lobby.countdown = -1;
     await lobby.select_next_map();
   } else {
-    await lobby.send(`${lobby.voteskips.length}/${Math.ceil(lobby.nb_players / 2)} players voted to switch to another map.`);
+    await lobby.send(`${lobby.voteskips.length}/${Math.floor(lobby.nb_players / 2 + 1)} players voted to switch to another map.`);
   }
 }
 
