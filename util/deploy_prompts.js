@@ -14,8 +14,8 @@ async function main() {
           title: 'Instructions for creating a new bot lobby',
           description: `**1.** Create a new lobby.
 **2.** BanchoBot should have sent a match history link. Copy the numbers after \`https://osu.ppy.sh/mp/\`.
-**3.** In the lobby chat, send \`!mp addref ${Config.osu_username}\` to allow the bot to join the lobby.
-**4.** Send \`!join [the numbers you copied]\` to the bot and it will join your lobby.`,
+**3.** In #multiplayer, send \`!mp addref ${Config.osu_username}\` to allow the bot to join the lobby.
+**4.** Send \`!join [the numbers you copied]\` to the bot (in-game or via the osu! website) and it will join your lobby.`,
         }),
       ],
     };
@@ -74,7 +74,7 @@ To access text channels, link your account with the button below.`,
 - Gold: Top 38.42%
 - Platinum: Top 19.54%
 - Diamond: Top 6.45%
-- Legendary: Top 0.04%
+- Legendary: Top 0.4%
 - The One: #1`,
             },
             {
@@ -132,6 +132,10 @@ To access text channels, link your account with the button below.`,
             {
               name: '!stars <minimum> <maximum>',
               value: 'Set the minimum and maximum star values of the lobby. Only the lobby creator can use this command.',
+            },
+            {
+              name: '!sv2',
+              value: 'Toggle ScoreV2. Only the lobby creator can use this command.',
             },
           ],
         }),

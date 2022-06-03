@@ -369,7 +369,16 @@ async function init_lobby(lobby) {
     await lobby.send(`!mp settings ${Math.random().toString(36).substring(2, 6)}`);
     await lobby.send('!mp clearhost');
     await lobby.send('!mp password');
-    await lobby.send(`!mp set 0 0 16`);
+
+    // 6+* lobbies get ScoreV1, others get ScoreV1
+    if (lobby.data.min_stars >= 6) {
+      await lobby.send(`!mp set 0 3 16`);
+      lobby.data.is_scorev2 = true;
+    } else {
+      await lobby.send(`!mp set 0 0 16`);
+      lobby.data.is_scorev2 = false;
+    }
+
     await lobby.send('!mp mods freemod');
   } else {
     await lobby.send(`!mp settings (restarted) ${Math.random().toString(36).substring(2, 6)}`);

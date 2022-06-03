@@ -263,6 +263,16 @@ async function skip_command(msg, match, lobby) {
   }
 }
 
+async function toggle_scorev2_command(msg, match, lobby) {
+  if (lobby.data.is_scorev2) {
+    await lobby.send(`!mp set 0 0 16`);
+    lobby.data.is_scorev2 = false;
+  } else {
+    await lobby.send(`!mp set 0 3 16`);
+    lobby.data.is_scorev2 = true;
+  }
+}
+
 const commands = [
   {
     regex: /!join (\d+)/gi,
@@ -351,6 +361,18 @@ const commands = [
   {
     regex: /^!setstar/gi,
     handler: stars_command,
+    creator_only: true,
+    modes: ['ranked'],
+  },
+  {
+    regex: /^!sv\d/gi,
+    handler: toggle_scorev2_command,
+    creator_only: true,
+    modes: ['ranked'],
+  },
+  {
+    regex: /^!scorev\d/gi,
+    handler: toggle_scorev2_command,
     creator_only: true,
     modes: ['ranked'],
   },
