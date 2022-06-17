@@ -292,7 +292,7 @@ async function init_lobby(lobby) {
   const kick_afk_players = async () => {
     const players_to_kick = [];
     for (const username in lobby.match_participants) {
-      // If the player hasn't scored after 20 seconds, they should get kicked
+      // If the player hasn't scored after 10 seconds, they should get kicked
       if (!lobby.scores.some((s) => s.username == username)) {
         players_to_kick.push(username);
       }
@@ -301,7 +301,7 @@ async function init_lobby(lobby) {
     // It never is more than 1 player who is causing issues. To make sure we
     // don't kick the whole lobby, let's wait a bit more.
     if (players_to_kick.length > 1) {
-      lobby.match_end_timeout = setTimeout(kick_afk_players, 1000);
+      lobby.match_end_timeout = setTimeout(kick_afk_players, 10000);
       return;
     }
 

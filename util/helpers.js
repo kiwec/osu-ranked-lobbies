@@ -17,6 +17,10 @@ export function capture_sentry_exception(err) {
   }
 }
 
+export function random_from(arr) {
+  return arr[Math.floor((Math.random() * arr.length))];
+}
+
 export const render_error = async (req, error, code, data = {}) => {
   data.error = error;
   data.title = data.title || `Error ${code} - o!RL`;

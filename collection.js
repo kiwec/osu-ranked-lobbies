@@ -3,12 +3,7 @@ import fetch from 'node-fetch';
 import bancho from './bancho.js';
 import {remove_lobby_listing} from './discord_updates.js';
 import {get_map_info} from './profile_scanner.js';
-
-
-// Yeah prototype pollution bad who cares
-Array.prototype.random = function() {
-  return this[Math.floor((Math.random() * this.length))];
-};
+import {random_from} from './util/helpers.js';
 
 
 async function select_next_map() {
@@ -34,8 +29,8 @@ async function select_next_map() {
 
   let new_map = null;
   do {
-    const mapset = this.data.collection.beatmapsets.random();
-    const map_id = mapset.beatmaps.random().id;
+    const mapset = random_from(this.data.collection.beatmapsets);
+    const map_id = random_from(mapset.beatmaps).id;
     new_map = await get_map_info(map_id);
   } while (this.recently_played.includes(new_map.id));
 
