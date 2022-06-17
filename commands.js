@@ -179,6 +179,16 @@ async function stars_command(msg, match, lobby) {
   lobby.data.min_stars = min_stars;
   lobby.data.max_stars = max_stars;
   lobby.data.fixed_star_range = true;
+
+  // Auto-select ScoreV2 when necessary
+  if (typeof lobby.data.is_scorev2 === 'undefined') {
+    if (min_stars >= 6) {
+      await lobby.send(`!mp set 0 3 16`);
+    } else {
+      await lobby.send(`!mp set 0 0 16`);
+    }
+  }
+
   await lobby.select_next_map();
 }
 
