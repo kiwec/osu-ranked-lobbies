@@ -84,7 +84,7 @@ async function on_interaction(interaction) {
         });
       } catch (err) {
         await interaction.reply({
-          content: `\`ERROR\` \`\`\`xl\n${eval_res}\n\`\`\``,
+          content: `\`ERROR\` \`\`\`xl\n${err}\n\`\`\``,
         });
       }
 

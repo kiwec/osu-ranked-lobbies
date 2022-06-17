@@ -49,20 +49,6 @@ async function deploy_commands() {
       Routes.applicationGuildCommands(Config.discord_bot_id, Config.discord_guild_id),
       {body: commands},
   );
-  for (const command of res) {
-    await rest.put(
-        Routes.applicationGuildCommands(Config.discord_bot_id, Config.discord_guild_id) + `/${command.id}/permissions`,
-        {body: {
-          permissions: [
-            {
-              id: Config.discord_linked_account_role_id,
-              type: 1,
-              permission: true,
-            },
-          ],
-        }},
-    );
-  }
 
   console.log('Successfully registered application commands.');
 }
