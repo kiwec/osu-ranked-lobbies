@@ -29,6 +29,19 @@ async function deploy_commands() {
       ],
       default_permission: false,
     },
+    {
+      name: 'eval',
+      description: 'Run code on the bot',
+      options: [
+        {
+          type: 3,
+          name: 'code',
+          description: 'The code to run',
+          required: true,
+        },
+      ],
+      default_permission: false,
+    },
   ];
 
   // Create/Update guild commands

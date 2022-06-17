@@ -67,6 +67,29 @@ async function on_interaction(interaction) {
 
       return;
     }
+
+    if (interaction.commandName == 'eval') {
+      if (interaction.member.id != Config.discord_admin) {
+        await interaction.reply({
+          content: 'Only the bot owner can use this command.',
+          ephemeral: true,
+        });
+        return;
+      }
+
+      try {
+        const eval_res = eval(interaction.options.getString('code'));
+        await interaction.reply({
+          content: `\`\`\`js\n${eval_res}\n\`\`\``,
+        });
+      } catch (err) {
+        await interaction.reply({
+          content: `\`ERROR\` \`\`\`xl\n${eval_res}\n\`\`\``,
+        });
+      }
+
+      return;
+    }
   }
 
   try {

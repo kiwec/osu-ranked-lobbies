@@ -12,6 +12,7 @@
     "max_lobbies": 1,
 
     "CONNECT_TO_DISCORD": false,
+    "discord_admin": "889603773574578198",
     "discord_bot_id": "892791929455128596",
     "discord_token": "get it here: https://discord.com/developers/applications",
     "discord_invite_link": "don't use a discord.gg link directly, bancho wordswaps those to google.com",
