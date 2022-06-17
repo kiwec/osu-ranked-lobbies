@@ -13,7 +13,6 @@ const stmts = {
       SELECT stars, (
         ABS(? - aim_pp)
         + ABS(? - speed_pp)
-        + 10*ABS(? - ar)
       ) AS match_accuracy FROM map
       WHERE length > 60 AND ranked IN (4, 5, 7) AND match_accuracy IS NOT NULL AND dmca = 0 AND mode = 0
       ORDER BY match_accuracy LIMIT 1000
@@ -25,7 +24,6 @@ const stmts = {
       SELECT *, (
         ABS(? - aim_pp)
         + ABS(? - speed_pp)
-        + 10*ABS(? - ar)
       ) AS match_accuracy FROM map
       WHERE
         stars >= ? AND stars <= ?
@@ -131,7 +129,6 @@ async function select_next_map() {
     const meta = stmts.star_range_from_pp.get(
         this.median_aim,
         this.median_speed,
-        this.median_ar,
     );
 
     this.data.min_stars = meta.min_stars;
@@ -142,7 +139,6 @@ async function select_next_map() {
     new_map = stmts.select_map.get(
         this.median_aim,
         this.median_speed,
-        this.median_ar,
         this.data.min_stars,
         this.data.max_stars,
     );
