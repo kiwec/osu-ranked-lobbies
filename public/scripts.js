@@ -42,6 +42,8 @@ async function get(url) {
     document.querySelector('main').innerHTML = json.error;
     throw json.error;
   }
+
+  return json;
 }
 
 
