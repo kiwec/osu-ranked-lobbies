@@ -6,6 +6,7 @@ import Sentry from '@sentry/node';
 import cookieParser from 'cookie-parser';
 import crypto from 'crypto';
 
+import bancho from './bancho.js';
 import databases from './database.js';
 import {get_rank, get_rank_text_from_id} from './elo_mmr.js';
 import {update_discord_role, update_discord_username} from './discord_updates.js';
@@ -30,8 +31,7 @@ async function listen() {
     ),
     user_from_id: databases.ranks.prepare(`
       SELECT * FROM user
-      WHERE user_id = ?
-      AND games_played > 0`,
+      WHERE user_id = ?`,
     ),
     search_player: databases.ranks.prepare(`
       SELECT * FROM user
@@ -88,7 +88,7 @@ async function listen() {
   await register_api_routes(app);
 
   app.get('/', async (req, http_res) => {
-    http_res.redirect('/leaderboard/');
+    http_res.redirect('/lobbies/');
   });
 
   app.get('/auth', async (req, http_res) => {
@@ -234,6 +234,29 @@ async function listen() {
     const players = stmts.search_player.all(`%${req.query.query}%`);
     http_res.set('Cache-control', 'public, max-age=60');
     http_res.json(players);
+  });
+
+  app.get('/get-invite/:banchoId', async (req, http_res) => {
+    if (!req.user_id) {
+      http_res.send(await render_error(req, 'You need to log in to get an invite!', 403));
+      return;
+    }
+
+    let inviting_lobby = null;
+    for (const lobby of bancho.joined_lobbies) {
+      if (lobby.invite_id == req.params.banchoId) {
+        inviting_lobby = lobby;
+        break;
+      }
+    }
+    if (!inviting_lobby) {
+      http_res.send(await render_error(req, 'Could not find the lobby. Maybe it has been closed?', 404));
+      return;
+    }
+
+    const user = stmts.user_from_id.get(req.user_id);
+    await bancho.privmsg(user.username, `${user.username}, here's your invite: [http://osump://${inviting_lobby.invite_id}/ ${inviting_lobby.name}]`);
+    http_res.send(await render_error(req, 'An invite to the lobby has been sent. Check your in-game messages.', 200));
   });
 
   // In production, we let expressjs return a blank page of status 404, so

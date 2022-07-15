@@ -5,7 +5,7 @@ let user_id = null;
 function click_listener(evt) {
   // Intercept clicks that don't lead to an external domain
   if (this.tagName == 'A') {
-    if (this.host == location.host) {
+    if (this.host == location.host && this.target != '_blank') {
       evt.preventDefault();
 
       console.log('Loading ' + this.href);
@@ -37,7 +37,11 @@ async function get(url) {
       <span>Profile</span>`;
   }
 
-  return await res.json();
+  const json = await res.json();
+  if (json.error) {
+    document.querySelector('main').innerHTML = json.error;
+    throw json.error;
+  }
 }
 
 
@@ -77,6 +81,44 @@ function render_pagination(node, page_num, max_pages, url_formatter) {
       <a ${page.is_current ? 'class="current-page"' : ''}
       href="${url_formatter(page.number)}">${page.number}</a>`;
   }
+}
+
+
+async function render_lobbies() {
+  document.title = 'Lobbies - o!RL';
+  const json = await get('/api/lobbies/');
+  const template = document.querySelector('#lobbies-template').content.cloneNode(true);
+  const list = template.querySelector('.lobby-list');
+
+  for (const lobby of json) {
+    const lobby_div = document.createElement('div');
+    lobby_div.classList.add('lobby');
+
+    let type = 'Custom';
+    if (lobby.mode == 'ranked') {
+      if (lobby.is_scorev2) {
+        type = 'Ranked (ScoreV2)';
+      } else {
+        type = 'Ranked (ScoreV1)';
+      }
+    }
+
+    lobby_div.innerHTML += `
+      <div class="lobby-info">
+        <div class="lobby-title"></div>
+        <div class="lobby-type">${type}</div>
+        <div class="lobby-creator">Created by <a href="/u/${lobby.creator_id}"><img src="https://s.ppy.sh/a/${lobby.creator_id}" alt="Lobby creator"> ${lobby.creator_name}</a></div>
+      </div>
+      <div class="lobby-links">
+        <div><a href="osu://mp/${lobby.bancho_id}"><i class="fa-solid fa-xs fa-arrow-up-right-from-square"></i></a><span>Join</span></div>
+        <div><a href="/get-invite/${lobby.bancho_id}" target="_blank"><i class="fa-solid fa-xs fa-envelope"></i></a><span>Get invite</span></div>
+      </div>`;
+    lobby_div.querySelector('.lobby-title').innerText = lobby.name;
+
+    list.appendChild(lobby_div);
+  }
+
+  document.querySelector('main').appendChild(template);
 }
 
 
@@ -152,7 +194,10 @@ async function render_user(user_id, page_num) {
 
 
 async function route(new_url) {
-  if (m = new_url.match(/\/leaderboard\/(page-(\d+)\/)?/)) {
+  if (m = new_url.match(/\/lobbies\//)) {
+    document.querySelector('main').innerHTML = '';
+    await render_lobbies();
+  } else if (m = new_url.match(/\/leaderboard\/(page-(\d+)\/)?/)) {
     const page_num = m[2] || 1;
     document.querySelector('main').innerHTML = '';
     await render_leaderboard(page_num);
@@ -165,6 +210,11 @@ async function route(new_url) {
     const user_id = m[1];
     document.querySelector('main').innerHTML = '';
     await render_user(user_id, 1);
+  } else {
+    const main = document.querySelector('main');
+    if (main.innerHTML.indexOf('{{ error }}') != -1) {
+      main.innerHTML = 'Page not found.';
+    }
   }
 
   const links = document.querySelectorAll('a');

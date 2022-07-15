@@ -5,7 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>osu! ranked lobbies</title>
     <link rel="stylesheet" href="/reset.css?v=1.0">
-    <link rel="stylesheet" href="/stylesheet.css?v=1.1">
+    <link rel="stylesheet" href="/stylesheet.css?v=1.2">
+    <link rel="stylesheet" href="/fa-main.min.css">
+    <link rel="stylesheet" href="/fa-solid.min.css">
     <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
     <link rel="icon" type="image/png" sizes="96x96" href="/favicon-96x96.png">
     <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
@@ -38,7 +40,7 @@
       </svg>
     </div>
     <div class="sidebar">
-      <a class="logo" href="/leaderboard/">
+      <a class="logo" href="/lobbies/">
         <img src="/images/o!RL-logo.png" />
       </a>
       <nav>
@@ -70,21 +72,26 @@
       <noscript>Sorry, but to reduce server load, pages are rendered client-side, with JavaScript :(</noscript>
     </main>
 
+    <template id="lobbies-template">
+      <h1>Lobbies</h1>
+      <div class="lobby-list"></div>
+    </template>
+
     <template id="leaderboard-template">
       <h1>Leaderboard</h1>
-        <div class="subheading">
-          <span class="nb-ranked"></span>
+      <div class="subheading">
+        <span class="nb-ranked"></span>
+      </div>
+      <div class="leaderboard-section">
+        <div class="leaderboard-focus">
+          <p class="ranking">The One</p>
         </div>
-        <div class="leaderboard-section">
-          <div class="leaderboard-focus">
-            <p class="ranking">The One</p>
-          </div>
-          <table class="leaderboard">
-            <tbody>
-            </tbody>
-          </table>
-          <div class="pagination"></div>
-        </div>
+        <table class="leaderboard">
+          <tbody>
+          </tbody>
+        </table>
+        <div class="pagination"></div>
+      </div>
     </template>
 
     <template id="user-template">
@@ -119,6 +126,6 @@
       </div>
     </template>
 
-    <script src="/scripts.js?v=1.1" type="module"></script>
+    <script src="/scripts.js?v=1.2" type="module"></script>
   </body>
 </html>

@@ -137,10 +137,6 @@ nav a span::before {
     border: 7px solid transparent;
     border-left: none;
     border-right-color: #e3609a;
-    transition: border .3s ease-in-out;
-}
-body.dark-mode nav a span::before {
-  border-right-color: #c94580;
 }
 nav a:hover span {
     margin-left: 0;
@@ -233,6 +229,96 @@ tbody tr td a {
 body.dark-mode tbody tr td a {
   color: rgb(211, 211, 211);
 }
+
+.lobby-list {
+    margin-top: 40px;
+    width: 100%;
+    display: flex;
+    flex-wrap: wrap;
+}
+.lobby-list .lobby {
+    display: flex;
+    border: solid #e3609a 2px;
+    border-radius: 10px;
+    margin: 10px;
+    min-width: 500px;
+}
+.lobby-list .lobby-title {
+    font-weight: bold;
+    margin-bottom: 5px;
+}
+.lobby-list .lobby-type {
+    font-size: 0.8em;
+}
+.lobby-list .lobby-creator {
+    font-size: 0.8em;
+}
+.lobby-list .lobby-creator a {
+    color: #c94580;
+    text-decoration: none;
+}
+.lobby-list .lobby-creator a img {
+    height: 20px;
+    width: 20px;
+}
+.lobby-info {
+    flex: 1;
+    padding: 10px;
+}
+.lobby-creator img {
+    margin-top: 5px;
+    vertical-align: text-bottom;
+}
+.lobby-links {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-evenly;
+    flex: 0 0 30px;
+    background-color: #e3609a;
+    border-radius: 0 5px 5px 0;
+}
+.lobby-links div {
+    position: relative;
+    text-align: center;
+}
+.lobby-links a {
+    color: white;
+}
+.lobby-links div span {
+    position: absolute;
+    top: -4px;
+    left: 40px;
+    z-index: 999;
+    display: none;
+    padding: 10px 15px;
+    margin-left: -10px;
+    border: solid 0 transparent;
+    border-radius: 10px;
+    background-color: #e3609a;
+    font-size: .5em;
+    font-weight: 700;
+    color: white;
+    pointer-events: none;
+}
+.lobby-links div:last-child span {
+    top: -10px;
+}
+.lobby-links div span::before {
+    content: "";
+    position: absolute;
+    width: 0;
+    height: 0;
+    bottom: calc(50% - 7.5px);
+    left: -7px;
+    border: 7px solid transparent;
+    border-left: none;
+    border-right-color: #e3609a;
+}
+.lobby-links div:hover span {
+    margin-left: 0;
+    display: inline-block;
+}
+
 .leaderboard tbody tr td {
     margin-left: 30px;
 }

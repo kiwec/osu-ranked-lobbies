@@ -8,6 +8,7 @@ import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime.js';
 dayjs.extend(relativeTime);
 
+import bancho from './bancho.js';
 import databases from './database.js';
 import {get_rank} from './elo_mmr.js';
 
@@ -155,8 +156,7 @@ async function register_routes(app) {
   );
   stmts.user_by_id = databases.ranks.prepare(`
     SELECT * FROM user
-    WHERE user_id = ?
-    AND games_played > 0`,
+    WHERE user_id = ?`,
   );
   stmts.user_scores_page = databases.ranks.prepare(`
     SELECT * FROM score
@@ -200,6 +200,26 @@ async function register_routes(app) {
     } catch (err) {
       http_res.status(err.code).json({error: err.message});
     }
+  });
+
+  app.get('/api/lobbies/', async (req, http_res) => {
+    // We could just fetch the database instead of getting the info from the
+    // process (except for invite_id and title) but since we're still doing
+    // everything in one process, it's faster this way.
+    const lobbies = [];
+
+    for (const lobby of bancho.joined_lobbies) {
+      lobbies.push({
+        bancho_id: lobby.invite_id,
+        name: lobby.name,
+        mode: lobby.data.mode,
+        scorev2: lobby.data.is_scorev2,
+        creator_name: lobby.data.creator,
+        creator_id: lobby.data.creator_osu_id,
+      });
+    }
+
+    http_res.json(lobbies);
   });
 }
 

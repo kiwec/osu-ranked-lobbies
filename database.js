@@ -81,7 +81,8 @@ ranks.exec(`
     lobby_id INTEGER NOT NULL,
     map_id INTEGER NOT NULL,
     tms INTEGER NOT NULL,
-    lobby_creator TEXT NOT NULL
+    lobby_creator TEXT NOT NULL,
+    mods INTEGER DEFAULT 0
   );
 
   CREATE TABLE IF NOT EXISTS score (
