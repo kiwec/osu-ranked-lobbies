@@ -73,9 +73,7 @@ async function listen() {
     if (cookies && cookies.token) {
       const user_token = stmts.user_login.get(cookies.token);
       const current_tms = Date.now();
-      if (user_token && current_tms > user_token.expires_tms) {
-        stmts.delete_token.run(user_token.user_id);
-      } else if (user_token) {
+      if (user_token) {
         req.user_id = user_token.user_id;
         res.set('X-Osu-ID', user_token.user_id);
         next();
@@ -229,7 +227,7 @@ async function listen() {
 
   app.get('/success', async (req, http_res) => {
     const data = {title: 'Account Linked - o!RL'};
-    http_res.send(await render_error(req, data, 200));
+    http_res.send(await render_error(req, 'Account linked!', 200, data));
   });
 
   app.get('/search', async (req, http_res) => {
