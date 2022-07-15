@@ -98,7 +98,7 @@ async function render_lobbies() {
 
     let type = 'Custom';
     if (lobby.mode == 'ranked') {
-      if (lobby.is_scorev2) {
+      if (lobby.scorev2) {
         type = 'Ranked (ScoreV2)';
       } else {
         type = 'Ranked (ScoreV1)';
