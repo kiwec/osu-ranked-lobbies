@@ -72,7 +72,6 @@ async function listen() {
 
     if (cookies && cookies.token) {
       const user_token = stmts.user_login.get(cookies.token);
-      const current_tms = Date.now();
       if (user_token) {
         req.user_id = user_token.user_id;
         res.set('X-Osu-ID', user_token.user_id);
@@ -91,8 +90,41 @@ async function listen() {
     http_res.redirect('/lobbies/');
   });
 
+  // Convenience redirect so we only have to generate the oauth URL here.
+  app.get('/osu_login', (req, http_res) => {
+    http_res.redirect(`https://osu.ppy.sh/oauth/authorize?client_id=${Config.osu_v2api_client_id}&response_type=code&state=login&scope=identify&redirect_uri=${Config.website_base_url}/auth`);
+  });
+
   app.get('/auth', async (req, http_res) => {
     let res;
+
+    // Since OAuth is a pain in localhost, always authenticate outside of production.
+    if (!Config.IS_PRODUCTION) {
+      const new_expires_tms = Date.now() + 99999999999;
+      const new_auth_token = crypto.randomBytes(20).toString('hex');
+      stmts.insert_token.run(
+          Config.osu_id,
+          new_auth_token,
+          new_expires_tms,
+          '1234',
+          '5678',
+      );
+
+      const db_user = stmts.user_from_id.get(Config.osu_id);
+      if (!db_user) {
+        databases.ranks.prepare(`
+          INSERT INTO user (
+            user_id, username, approx_mu, approx_sig, games_played,
+            aim_pp, acc_pp, speed_pp, overall_pp, avg_ar, avg_sr
+          ) VALUES (?, ?, 1500, 350, 0, 10.0, 1.0, 1.0, 1.0, 8.0, 2.0)
+          RETURNING *`,
+        ).get(Config.osu_id, Config.osu_username);
+      }
+
+      http_res.cookie('token', new_auth_token, {sameSite: true});
+      http_res.redirect(`/u/${Config.osu_id}`);
+      return;
+    }
 
     if (!req.query.code) {
       http_res.status(403).send(await render_error(req, 'No auth code provided.', 403));
@@ -180,6 +212,20 @@ async function listen() {
           tokens.access_token,
           tokens.refresh_token,
       );
+
+      // If the user has never played in a ranked lobby, we still need to set
+      // their username to be able to DM them in-game (and avoid glitches in
+      // many places).
+      const db_user = stmts.user_from_id.get(user_profile.id);
+      if (!db_user) {
+        databases.ranks.prepare(`
+          INSERT INTO user (
+            user_id, username, approx_mu, approx_sig, games_played,
+            aim_pp, acc_pp, speed_pp, overall_pp, avg_ar, avg_sr
+          ) VALUES (?, ?, 1500, 350, 0, 10.0, 1.0, 1.0, 1.0, 8.0, 2.0)
+          RETURNING *`,
+        ).get(user_profile.id, user_profile.username);
+      }
 
       http_res.cookie('token', new_auth_token, {sameSite: true});
       http_res.redirect(`/u/${user_profile.id}`);

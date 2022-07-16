@@ -1,6 +1,6 @@
 import bancho from './bancho.js';
 import databases from './database.js';
-import {update_mmr, get_rank} from './elo_mmr.js';
+import {update_mmr} from './elo_mmr.js';
 import {remove_lobby_listing} from './discord_updates.js';
 
 import {scan_user_profile} from './profile_scanner.js';
@@ -69,11 +69,6 @@ async function set_new_title(lobby) {
     new_title = `${lobby.data.min_stars}*`;
   } else {
     new_title += `${fancy_min_stars}-${fancy_max_stars}*`;
-  }
-
-  if (lobby.median_elo > 0) {
-    const median_rank = get_rank(lobby.median_elo);
-    new_title += ' ' + median_rank.text;
   }
 
   // Title is limited to 50 characters, so only add extra stuff when able to
@@ -365,14 +360,10 @@ async function init_lobby(lobby) {
     await lobby.send(`!mp settings ${Math.random().toString(36).substring(2, 6)}`);
     await lobby.send('!mp clearhost');
     await lobby.send('!mp password');
-
-    // 6+* lobbies get ScoreV1, others get ScoreV1
-    if (lobby.data.min_stars >= 6) {
+    if (lobby.data.is_scorev2) {
       await lobby.send(`!mp set 0 3 16`);
-      lobby.data.is_scorev2 = true;
     } else {
       await lobby.send(`!mp set 0 0 16`);
-      lobby.data.is_scorev2 = false;
     }
 
     await lobby.send('!mp mods freemod');

@@ -45,7 +45,7 @@ async function deploy_commands() {
   ];
 
   // Create/Update guild commands
-  const res = await rest.put(
+  await rest.put(
       Routes.applicationGuildCommands(Config.discord_bot_id, Config.discord_guild_id),
       {body: commands},
   );

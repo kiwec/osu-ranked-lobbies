@@ -85,6 +85,32 @@ function render_pagination(node, page_num, max_pages, url_formatter) {
   }
 }
 
+function render_lobby(lobby) {
+  const lobby_div = document.createElement('div');
+  lobby_div.classList.add('lobby');
+
+  let type = 'Custom';
+  if (lobby.mode == 'ranked') {
+    if (lobby.scorev2) {
+      type = 'Ranked (ScoreV2)';
+    } else {
+      type = 'Ranked (ScoreV1)';
+    }
+  }
+
+  lobby_div.innerHTML += `
+    <div class="lobby-info">
+      <div class="lobby-title"></div>
+      <div class="lobby-type">${type}</div>
+      <div class="lobby-creator">Created by <a href="/u/${lobby.creator_id}"><img src="https://s.ppy.sh/a/${lobby.creator_id}" alt="Lobby creator"> ${lobby.creator_name}</a></div>
+    </div>
+    <div class="lobby-links">
+      <div><a href="osu://mp/${lobby.bancho_id}"><i class="fa-solid fa-xs fa-arrow-up-right-from-square"></i></a><span>Join</span></div>
+      <div><a href="/get-invite/${lobby.bancho_id}" target="_blank"><i class="fa-solid fa-xs fa-envelope"></i></a><span>Get invite</span></div>
+    </div>`;
+  lobby_div.querySelector('.lobby-title').innerText = lobby.name;
+  return lobby_div;
+}
 
 async function render_lobbies() {
   document.title = 'Lobbies - o!RL';
@@ -93,34 +119,22 @@ async function render_lobbies() {
   const list = template.querySelector('.lobby-list');
 
   for (const lobby of json) {
-    const lobby_div = document.createElement('div');
-    lobby_div.classList.add('lobby');
-
-    let type = 'Custom';
-    if (lobby.mode == 'ranked') {
-      if (lobby.scorev2) {
-        type = 'Ranked (ScoreV2)';
-      } else {
-        type = 'Ranked (ScoreV1)';
-      }
+    if (lobby.creator_id == user_id) {
+      // User already created a lobby: hide the "Create lobby" button
+      template.querySelector('.lobby-creation-banner').hidden = true;
     }
-
-    lobby_div.innerHTML += `
-      <div class="lobby-info">
-        <div class="lobby-title"></div>
-        <div class="lobby-type">${type}</div>
-        <div class="lobby-creator">Created by <a href="/u/${lobby.creator_id}"><img src="https://s.ppy.sh/a/${lobby.creator_id}" alt="Lobby creator"> ${lobby.creator_name}</a></div>
-      </div>
-      <div class="lobby-links">
-        <div><a href="osu://mp/${lobby.bancho_id}"><i class="fa-solid fa-xs fa-arrow-up-right-from-square"></i></a><span>Join</span></div>
-        <div><a href="/get-invite/${lobby.bancho_id}" target="_blank"><i class="fa-solid fa-xs fa-envelope"></i></a><span>Get invite</span></div>
-      </div>`;
-    lobby_div.querySelector('.lobby-title').innerText = lobby.name;
-
-    list.appendChild(lobby_div);
+    list.appendChild(render_lobby(lobby));
   }
 
   document.querySelector('main').appendChild(template);
+  document.querySelector('main .go-to-create-lobby').addEventListener('click', (evt) => {
+    evt.preventDefault();
+    if (user_id == null) {
+      document.location = '/osu_login';
+    } else {
+      document.location = '/create-lobby/';
+    }
+  });
 }
 
 
@@ -196,7 +210,85 @@ async function render_user(user_id, page_num) {
 
 
 async function route(new_url) {
-  if (m = new_url.match(/\/lobbies\//)) {
+  if (m = new_url.match(/\/create-lobby\//)) {
+    document.title = 'New lobby - o!RL';
+    document.querySelector('main').innerHTML = '';
+    const template = document.querySelector('#lobby-creation-template').content.cloneNode(true);
+    document.querySelector('main').appendChild(template);
+
+    document.querySelector('.lobby-settings').addEventListener('change', (evt) => {
+      if (evt.target.name == 'lobby-type') {
+        const ranked_settings = document.querySelector('main .ranked-settings');
+        const custom_settings = document.querySelector('main .custom-settings');
+        ranked_settings.hidden = !ranked_settings.hidden;
+        custom_settings.hidden = !custom_settings.hidden;
+      }
+    });
+
+    document.querySelector('main input[name="auto-star-rating"]').addEventListener('click', () => {
+      const range = document.querySelector('main .star-rating-range');
+      range.hidden = !range.hidden;
+    });
+
+    document.querySelector('main .go-back-btn').addEventListener('click', (evt) => {
+      evt.preventDefault();
+      document.querySelector('.lobby-creation-error').hidden = true;
+      document.querySelector('.lobby-settings').hidden = false;
+    });
+
+    document.querySelectorAll('main .create-lobby-btn').forEach((btn) => btn.addEventListener('click', async (evt) => {
+      evt.preventDefault();
+      document.querySelector('main .lobby-settings').hidden = true;
+      document.querySelector('main .lobby-creation-need-ref').hidden = true;
+      document.querySelector('main .lobby-creation-spinner').hidden = false;
+
+      try {
+        const lobby_settings = {
+          type: document.querySelector('input[name="lobby-type"]:checked').value,
+          star_rating: document.querySelector('main input[name="auto-star-rating"]').checked ? 'auto' : 'fixed',
+          min_stars: parseFloat(document.querySelector('main input[name="min-stars"]').value),
+          max_stars: parseFloat(document.querySelector('main input[name="max-stars"]').value),
+          scoring_system: document.querySelector('input[name="scoring-system"]:checked').value,
+        };
+        const collection_input = document.querySelector('main input[name="collection-url"]');
+        if (collection_input.value) {
+          lobby_settings.collection_id = parseInt(collection_input.value.split('/').reverse()[0], 10);
+        }
+        const match_input = document.querySelector('main input[name="tournament-url"]');
+        if (match_input.value) {
+          lobby_settings.match_id = parseInt(match_input.value.split('/').reverse()[0], 10);
+        }
+
+        const res = await fetch('/api/create-lobby/', {
+          body: JSON.stringify(lobby_settings),
+          credentials: 'same-origin',
+          headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json',
+          },
+          method: 'POST',
+        });
+        const json_res = await res.json();
+        if (json_res.error) {
+          if (json_res.details == 'Cannot create any more matches.') {
+            document.querySelector('.lobby-creation-spinner').hidden = true;
+            document.querySelector('.lobby-creation-need-ref').hidden = false;
+            return;
+          }
+
+          throw new Error(json_res.details || json_res.error);
+        }
+
+        document.querySelector('.lobby-creation-spinner').hidden = true;
+        document.querySelector('.lobby-creation-success .lobby').innerHTML = render_lobby(json_res.lobby).innerHTML;
+        document.querySelector('.lobby-creation-success').hidden = false;
+      } catch (err) {
+        document.querySelector('.lobby-creation-error .error-msg').innerText = err.message;
+        document.querySelector('.lobby-creation-spinner').hidden = true;
+        document.querySelector('.lobby-creation-error').hidden = false;
+      }
+    }));
+  } else if (m = new_url.match(/\/lobbies\//)) {
     document.querySelector('main').innerHTML = '';
     await render_lobbies();
   } else if (m = new_url.match(/\/leaderboard\/(page-(\d+)\/)?/)) {
@@ -225,6 +317,13 @@ async function route(new_url) {
   }
   for (const link of links) {
     link.addEventListener('click', click_listener);
+  }
+
+  const radios = document.querySelectorAll('.radio-area');
+  for (const area of radios) {
+    area.addEventListener('click', function() {
+      this.querySelector('input[type="radio"]').click();
+    });
   }
 }
 

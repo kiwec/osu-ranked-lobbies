@@ -91,6 +91,39 @@ body.dark-mode .sidebar {
 .green {
     color: green;
 }
+button {
+    margin: 20px;
+
+    border: none;
+    border-radius: 5px;
+    background-color: #e3609a;
+    color: #fff;
+    padding: 10px 15px;
+    cursor: pointer;
+}
+button:hover {
+    background-color: #e176a5;
+}
+input[type="checkbox"] {
+    width: 15px;
+    height: 15px;
+    cursor: pointer;
+}
+input[type="number"] {
+    margin: 5px 0 0 0;
+    padding: 5px;
+    width: 40px;
+}
+.lobby-settings input[type="text"], .lobby-creation-need-ref input[type="text"] {
+    padding: 5px;
+    margin: 10px;
+    width: 300px;
+}
+label {
+    font-size: 0.8em;
+    user-select: none;
+    cursor: pointer;
+}
 main {
 	position: relative;
 	left: 180px;
@@ -99,6 +132,11 @@ main {
 h1 {
 	font-size: 2em;
 	font-weight: 700;
+}
+h3 {
+    margin: 25px 0 20px 0;
+    font-size: 1.2em;
+    text-decoration: underline;
 }
 .subheading {
 	margin-top: 30px;
@@ -238,6 +276,7 @@ body.dark-mode tbody tr td a {
 }
 .lobby-list .lobby {
     display: flex;
+    flex: 1;
     border: solid #e3609a 2px;
     border-radius: 10px;
     margin: 10px;
@@ -317,6 +356,40 @@ body.dark-mode tbody tr td a {
 .lobby-links div:hover span {
     margin-left: 0;
     display: inline-block;
+}
+
+.radio-area {
+    display: flex;
+    border: solid #e3609a 2px;
+    border-radius: 10px;
+    margin: 10px;
+    max-width: 600px;
+
+    cursor: pointer;
+    user-select: none;
+}
+.radio-area:hover {
+    background-color: #fbfbfb;
+}
+body.dark-mode .radio-area:hover {
+    background-color: rgb(70, 70, 70);
+}
+.radio-area .radio {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 5px;
+
+    background-color: #e3609a;
+    border-radius: 5px 0 0 5px;
+}
+.radio-area .info {
+    padding: 10px;
+    font-size: 0.8em;
+}
+.radio-area .info h2 {
+    font-size: 1em;
+    font-weight: bold;
 }
 
 .leaderboard tbody tr td {
@@ -959,4 +1032,46 @@ body.dark-mode .search-button + .search-background {
     .match-history td {
         width: 120px;
     }
+}
+
+.lobby-creation-spinner {
+    text-align: center;
+}
+.lobby-creation-spinner p {
+    margin: 50px 0 30px 0;
+}
+.spinner {
+  display: inline-block;
+  width: 50px;
+  height: 50px;
+  border: 10px solid #e176a5;
+  border-radius: 50%;
+  border-top-color: #e58eb3;
+  animation: spin 1s ease-in-out infinite;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Got lazy */
+.lobby-creation-need-ref p {
+    margin: 5px 0;
+}
+ul {
+    list-style: square;
+    margin: 10px 0;
+}
+li {
+    margin: 5px 0;
+}
+.lobby-creation-banner {
+    margin: 30px 0;
+    padding: 0 20px;
+    border: solid #e3609a 3px;
+    border-radius: 10px;
+}
+.go-to-create-lobby {
+    margin: 15px 5px;
 }

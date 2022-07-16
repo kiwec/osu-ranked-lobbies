@@ -45,7 +45,7 @@
       </a>
       <nav>
         <div class="other-links">
-          <a class="login_link" href="https://osu.ppy.sh/oauth/authorize?client_id=10069&response_type=code&state=login&scope=identify&redirect_uri=https://osu.kiwec.net/auth">
+          <a class="login_link" href="/osu_login">
             <img src="/images/login.png" />
             <span>Login</span>
           </a>
@@ -74,6 +74,9 @@
 
     <template id="lobbies-template">
       <h1>Lobbies</h1>
+      <div class="lobby-creation-banner">
+        Not satisfied? <button class="go-to-create-lobby">Create your own!</button>
+      </div>
       <div class="lobby-list"></div>
     </template>
 
@@ -123,6 +126,107 @@
           <tbody></tbody>
         </table>
         <div class="pagination"></div>
+      </div>
+    </template>
+
+    <template id="lobby-creation-template">
+      <h1 style="margin-bottom:30px">New lobby</h1>
+
+      <div class="lobby-settings">
+        <h3>Lobby type</h3>
+        <div class="radio-area">
+          <div class="radio"><input type="radio" name="lobby-type" value="ranked" checked></div>
+          <div class="info">
+            <h2>Ranked</h2>
+            <p>Map is selected automatically. Scores set in this lobby will appear on the o!RL leaderboard.</p>
+          </div>
+        </div>
+        <div class="radio-area">
+          <div class="radio"><input type="radio" name="lobby-type" value="custom"></div>
+          <div class="info">
+            <h2>Custom</h2>
+            <p>Personalized map selection, but scores set in this lobby will not change your o!RL rank.</p>
+          </div>
+        </div>
+
+        <h3>Star rating</h3>
+        <div>
+          <label>
+            <input type="checkbox" name="auto-star-rating" checked>
+            Automatically choose star rating based on lobby players
+          </label>
+        </div>
+        <div class="star-rating-range" style="margin:10px" hidden>
+          <label>
+            <input type="number" min="0" max="11" value="4.0" step="0.1" name="min-stars">
+            Minimum star level
+          </label>
+          <br>
+          <label>
+            <input type="number" min="0" max="11" value="5.0" step="0.1" name="max-stars">
+            Maximum star level
+          </label>
+        </div>
+
+        <div class="ranked-settings">
+          <h3>Scoring system</h3>
+          <div class="radio-area">
+            <div class="radio"><input type="radio" name="scoring-system" value="scorev1" checked></div>
+            <div class="info">
+              <h2>ScoreV1</h2>
+              <p>The main osu! scoring system. Preferred by most players, since it gives you pp.</p>
+            </div>
+          </div>
+          <div class="radio-area">
+            <div class="radio"><input type="radio" name="scoring-system" value="scorev2"></div>
+            <div class="info">
+              <h2>ScoreV2</h2>
+              <p>Tournament scoring system. 70% of the score is max combo, and 30% is accuracy. Accuracy also matters on slider heads.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="custom-settings" hidden>
+          <h3>Collection</h3>
+          <p>You can find or create a collection on <a href="https://osucollector.com/">osu!collector</a>.</p>
+          <input type="text" name="collection-url" placeholder="https://osucollector.com/collections/44">
+          <!-- TODO: More custom settings. Title, filters, tags, etc. -->
+        </div>
+
+        <button class="create-lobby-btn">Create lobby</button>
+      </div>
+
+      <div class="lobby-creation-spinner" hidden>
+        <p>Creating lobby...</p>
+        <div class="spinner"></div>
+      </div>
+
+      <div class="lobby-creation-error" hidden>
+        An error occurred while creating the lobby:
+        <div class="error-msg" style="margin-top:10px"></div>
+
+        <button class="go-back-btn">Back</button>
+      </div>
+
+      <div class="lobby-creation-need-ref" hidden>
+        <p>Unfortunately, the bot couldn't create the lobby automatically. This happens when there are already 10 bot-created lobbies.</p>
+        <p>But don't worry, you can still create it yourself! Just follow these steps:</p>
+
+        <ul>
+          <li>Create a lobby in osu!</li>
+          <li>In the #multiplayer chat, send <strong>!mp addref botkiwec</strong></li>
+          <li>BanchoBot should have sent a match history link. Copy the URL and paste it here.</li>
+        </ul>
+
+        <input type="text" name="tournament-url" placeholder="https://osu.ppy.sh/community/matches/123456789">
+        <button class="create-lobby-btn">Create lobby</button>
+      </div>
+
+      <div class="lobby-creation-success" hidden>
+        <h3>Lobby created successfully!</h3>
+        <div class="lobby-list">
+          <div class="lobby"></div>
+        </div>
       </div>
     </template>
 

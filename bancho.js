@@ -197,6 +197,10 @@ class BanchoClient extends EventEmitter {
   }
 
   _send(raw_message) {
+    // Make sure users can't send commands by injecting '\r\n'
+    raw_message = raw_message.split('\r')[0];
+    raw_message = raw_message.split('\n')[0];
+
     if (this._socket && this._socket.readyState == 'open') {
       if (raw_message.indexOf('PASS ') == 0) {
         console.debug('[IRC] > PASS *********');

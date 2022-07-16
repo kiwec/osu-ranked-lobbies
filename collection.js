@@ -111,6 +111,10 @@ async function init_lobby(lobby) {
 
   // Fetch lobby name
   await lobby.send(`!mp settings ${Math.random().toString(36).substring(2, 6)}`);
+  if (lobby.created_just_now) {
+    await lobby.send('!mp password');
+  }
+
   bancho.joined_lobbies.push(lobby);
 }
 

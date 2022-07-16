@@ -5,12 +5,16 @@
 //   breaking it in the future.
 
 import dayjs from 'dayjs';
+import express from 'express';
 import relativeTime from 'dayjs/plugin/relativeTime.js';
 dayjs.extend(relativeTime);
 
+import Config from './util/config.js';
 import bancho from './bancho.js';
 import databases from './database.js';
 import {get_rank} from './elo_mmr.js';
+import {init_lobby as init_ranked_lobby} from './ranked.js';
+import {init_lobby as init_collection_lobby} from './collection.js';
 
 
 const stmts = {};
@@ -203,9 +207,6 @@ async function register_routes(app) {
   });
 
   app.get('/api/lobbies/', async (req, http_res) => {
-    // We could just fetch the database instead of getting the info from the
-    // process (except for invite_id and title) but since we're still doing
-    // everything in one process, it's faster this way.
     const lobbies = [];
 
     for (const lobby of bancho.joined_lobbies) {
@@ -220,6 +221,89 @@ async function register_routes(app) {
     }
 
     http_res.json(lobbies);
+  });
+
+  app.post('/api/create-lobby/', express.json(), async (req, http_res) => {
+    if (!req.user_id) {
+      http_res.status(403).json({error: 'You need to be authenticated to create a lobby.'});
+      return;
+    }
+
+    for (const lobby of bancho.joined_lobbies) {
+      if (lobby.data.creator_osu_id == req.user_id) {
+        http_res.status(401).json({error: 'You have already created a lobby.'});
+        return;
+      }
+    }
+
+    let user = stmts.user_by_id.get(req.user_id);
+    if (!user) {
+      // User has never played in a ranked lobby.
+      // But we still can create a lobby for them :)
+      user = {
+        id: req.user_id,
+        username: 'New user',
+      };
+    }
+    let lobby = null;
+    if (req.body.match_id) {
+      try {
+        console.info(`Joining lobby of ${user.username}...`);
+        lobby = await bancho.join(`#mp_${req.body.match_id}`);
+      } catch (err) {
+        http_res.status(400).json({error: `Failed to join the lobby`, details: err.message});
+        return;
+      }
+    } else {
+      try {
+        console.info(`Creating lobby for ${user.username}...`);
+        lobby = await bancho.make(Config.IS_PRODUCTION ? `New o!RL lobby` : `test lobby`);
+      } catch (err) {
+        http_res.status(400).json({error: 'Could not create the lobby', details: err.message});
+        return;
+      }
+    }
+
+    try {
+      lobby.created_just_now = true;
+      lobby.data.creator = user.username;
+      lobby.data.creator_osu_id = req.user_id;
+
+      if (req.body.title && req.body.type != 'ranked') {
+        await lobby.send(`!mp name ${req.body.title}`);
+      }
+
+      if (req.body.star_rating == 'fixed') {
+        lobby.data.min_stars = req.body.min_stars;
+        lobby.data.max_stars = req.body.max_stars;
+        lobby.data.fixed_star_range = true;
+      } else {
+        lobby.data.fixed_star_range = false;
+      }
+
+      if (req.body.type == 'ranked') {
+        lobby.data.is_scorev2 = req.body.scoring_system == 'scorev2';
+        await init_ranked_lobby(lobby);
+      } else {
+        lobby.data.collection_id = req.body.collection_id;
+        await init_collection_lobby(lobby);
+      }
+    } catch (err) {
+      http_res.status(503).json({error: 'An error occurred while creating the lobby', details: err.message});
+      return;
+    }
+
+    http_res.status(200).json({
+      success: true,
+      lobby: {
+        bancho_id: lobby.invite_id,
+        name: lobby.name,
+        mode: lobby.data.mode,
+        scorev2: lobby.data.is_scorev2,
+        creator_name: lobby.data.creator,
+        creator_id: lobby.data.creator_osu_id,
+      },
+    });
   });
 }
 
