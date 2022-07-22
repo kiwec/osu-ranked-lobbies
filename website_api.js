@@ -258,6 +258,7 @@ async function register_routes(app) {
       try {
         console.info(`Creating lobby for ${user.username}...`);
         lobby = await bancho.make(Config.IS_PRODUCTION ? `New o!RL lobby` : `test lobby`);
+        await lobby.send(`!mp addref #${req.user_id}`);
       } catch (err) {
         http_res.status(400).json({error: 'Could not create the lobby', details: err.message});
         return;
