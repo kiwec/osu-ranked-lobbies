@@ -2,6 +2,31 @@ let m;
 let user_id = null;
 
 
+// Returns the color of a given star rating, matching osu!web's color scheme.
+function stars_to_color(sr) {
+  if (sr <= 0.1) {
+    return '#4290FB';
+  } else if (sr >= 9) {
+    return '#000000';
+  }
+
+  const star_levels = [0.1, 1.25, 2, 2.5, 3.3, 4.2, 4.9, 5.8, 6.7, 7.7, 9];
+  const star_colors = ['#4290FB', '#4FC0FF', '#4FFFD5', '#7CFF4F', '#F6F05C', '#FF8068', '#FF4E6F', '#C645B8', '#6563DE', '#18158E', '#000000'];
+  for (const i in star_levels) {
+    if (!star_levels.hasOwnProperty(i)) continue;
+    if (star_levels[i] > sr && star_levels[i-1] < sr) {
+      const lower = star_levels[i - 1];
+      const upper = star_levels[i];
+      const ratio = (sr - lower) / (upper - lower);
+      const r = parseInt(star_colors[i-1].substr(1, 2), 16) * (1 - ratio) + parseInt(star_colors[i].substr(1, 2), 16) * ratio;
+      const g = parseInt(star_colors[i-1].substr(3, 2), 16) * (1 - ratio) + parseInt(star_colors[i].substr(3, 2), 16) * ratio;
+      const b = parseInt(star_colors[i-1].substr(5, 2), 16) * (1 - ratio) + parseInt(star_colors[i].substr(5, 2), 16) * ratio;
+      return '#' + Math.round(r).toString(16).padStart(2, '0') + Math.round(g).toString(16).padStart(2, '0') + Math.round(b).toString(16).padStart(2, '0');
+    }
+  }
+}
+
+
 function click_listener(evt) {
   // Intercept clicks that don't lead to an external domain
   if (this.tagName == 'A') {
@@ -27,7 +52,7 @@ async function get(url) {
   });
 
   if (!user_id && res.headers.has('X-Osu-ID')) {
-    user_id = res.headers.get('X-Osu-ID');
+    user_id = parseInt(res.headers.get('X-Osu-ID'), 10);
 
     const a = document.querySelector('.login_link');
     a.setAttribute('class', 'profile_link');
@@ -98,13 +123,15 @@ function render_lobby(lobby) {
     }
   }
 
+  const color = stars_to_color(lobby.map ? lobby.map.stars : 0);
+  lobby_div.style = `border: solid ${color} 2px`;
   lobby_div.innerHTML += `
     <div class="lobby-info">
       <div class="lobby-title"></div>
-      <div class="lobby-type">${type}</div>
+      <div>${type} · ${lobby.nb_players}/16 players</div>
       <div class="lobby-creator">Created by <a href="/u/${lobby.creator_id}"><img src="https://s.ppy.sh/a/${lobby.creator_id}" alt="Lobby creator"> ${lobby.creator_name}</a></div>
     </div>
-    <div class="lobby-links">
+    <div class="lobby-links" style="background-color:${color}">
       <div><a href="osu://mp/${lobby.bancho_id}"><i class="fa-solid fa-xs fa-arrow-up-right-from-square"></i></a><span>Join</span></div>
       <div><a href="/get-invite/${lobby.bancho_id}" target="_blank"><i class="fa-solid fa-xs fa-envelope"></i></a><span>Get invite</span></div>
     </div>`;
@@ -119,6 +146,7 @@ async function render_lobbies() {
   const list = template.querySelector('.lobby-list');
 
   for (const lobby of json) {
+    console.log(lobby.creator_id, user_id);
     if (lobby.creator_id == user_id) {
       // User already created a lobby: hide the "Create lobby" button
       template.querySelector('.lobby-creation-banner').hidden = true;
@@ -132,7 +160,10 @@ async function render_lobbies() {
     if (user_id == null) {
       document.location = '/osu_login';
     } else {
-      document.location = '/create-lobby/';
+      console.log('Loading ' + '/create-lobby/');
+      window.history.pushState({}, 'osu! ranked lobbies', '/create-lobby/');
+      document.querySelector('main').innerHTML = '';
+      route('/create-lobby/');
     }
   });
 }

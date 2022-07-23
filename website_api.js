@@ -212,11 +212,13 @@ async function register_routes(app) {
     for (const lobby of bancho.joined_lobbies) {
       lobbies.push({
         bancho_id: lobby.invite_id,
+        nb_players: lobby.nb_players,
         name: lobby.name,
         mode: lobby.data.mode,
         scorev2: lobby.data.is_scorev2,
         creator_name: lobby.data.creator,
         creator_id: lobby.data.creator_osu_id,
+        map: lobby.map,
       });
     }
 
@@ -298,11 +300,13 @@ async function register_routes(app) {
       success: true,
       lobby: {
         bancho_id: lobby.invite_id,
+        nb_players: lobby.nb_players,
         name: lobby.name,
         mode: lobby.data.mode,
         scorev2: lobby.data.is_scorev2,
         creator_name: lobby.data.creator,
         creator_id: lobby.data.creator_osu_id,
+        map: lobby.map,
       },
     });
   });
