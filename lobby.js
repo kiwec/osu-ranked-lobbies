@@ -111,6 +111,7 @@ class BanchoLobby extends EventEmitter {
         const joined_regex = /(.+) joined in slot \d+\./;
         const left_regex = /(.+) left the game\./;
         const room_name_regex = /Room name: (.+), History: https:\/\/osu\.ppy\.sh\/mp\/(\d+)/;
+        const room_name_updated_regex = /Room name updated to "(.+)"/;
         const beatmap_regex = /Beatmap: https:\/\/osu\.ppy\.sh\/b\/(\d+) (.+)/;
         const mode_regex = /Team mode: (.+), Win condition: (.+)/;
         const mods_regex = /Active mods: (.+)/;
@@ -149,6 +150,8 @@ class BanchoLobby extends EventEmitter {
         } else if (m = room_name_regex.exec(message)) {
           this.name = m[1];
           this.id = parseInt(m[2], 10);
+        } else if (m = room_name_updated_regex.exec(message)) {
+          this.name = m[1];
         } else if (m = beatmap_regex.exec(message)) {
           this.map_data = null;
           this.beatmap_id = parseInt(m[1], 10);

@@ -119,7 +119,7 @@ input[type="number"] {
 }
 .lobby-settings input[type="text"], .lobby-creation-need-ref input[type="text"] {
     padding: 5px;
-    margin: 10px;
+    margin: 10px 0;
     width: 300px;
 }
 label {
@@ -138,7 +138,7 @@ h1 {
     margin-bottom: 30px;
 }
 h3 {
-    margin: 25px 0 20px 0;
+    margin: 20px 0;
     font-size: 1.2em;
     text-decoration: underline;
 }

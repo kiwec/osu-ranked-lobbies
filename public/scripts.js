@@ -280,6 +280,7 @@ async function route(new_url) {
           min_stars: parseFloat(document.querySelector('main input[name="min-stars"]').value),
           max_stars: parseFloat(document.querySelector('main input[name="max-stars"]').value),
           scoring_system: document.querySelector('input[name="scoring-system"]:checked').value,
+          title: document.querySelector('input[name="title"]').value,
         };
         const collection_input = document.querySelector('main input[name="collection-url"]');
         if (collection_input.value) {
@@ -311,7 +312,7 @@ async function route(new_url) {
         }
 
         document.querySelector('.lobby-creation-spinner').hidden = true;
-        document.querySelector('.lobby-creation-success .lobby').innerHTML = render_lobby(json_res.lobby).innerHTML;
+        document.querySelector('.lobby-creation-success .lobby').outerHTML = render_lobby(json_res.lobby).outerHTML;
         document.querySelector('.lobby-creation-success').hidden = false;
       } catch (err) {
         document.querySelector('.lobby-creation-error .error-msg').innerText = err.message;

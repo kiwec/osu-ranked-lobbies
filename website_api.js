@@ -274,6 +274,7 @@ async function register_routes(app) {
 
       if (req.body.title && req.body.type != 'ranked') {
         await lobby.send(`!mp name ${req.body.title}`);
+        lobby.name = req.body.title;
       }
 
       if (req.body.star_rating == 'fixed') {
