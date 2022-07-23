@@ -146,7 +146,6 @@ async function render_lobbies() {
   const list = template.querySelector('.lobby-list');
 
   for (const lobby of json) {
-    console.log(lobby.creator_id, user_id);
     if (lobby.creator_id == user_id) {
       // User already created a lobby: hide the "Create lobby" button
       template.querySelector('.lobby-creation-banner').hidden = true;

@@ -158,6 +158,7 @@ async function select_next_map() {
     const nerina_link = `[https://api.nerinyan.moe/d/${new_map.set_id} [3]]`;
     const sayobot_link = `[https://osu.sayobot.cn/osu.php?s=${new_map.set_id} [4]]`;
     await this.send(`!mp map ${new_map.id} * | ${map_name} (${flavor}) Alternate downloads: ${beatconnect_link} ${chimu_link} ${nerina_link} ${sayobot_link}`);
+    this.map = new_map;
     await set_new_title(this);
   } catch (e) {
     console.error(`${this.channel} Failed to switch to map ${new_map.id} ${new_map.name}:`, e);

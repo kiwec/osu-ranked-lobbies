@@ -1065,7 +1065,6 @@ li {
 .lobby-creation-banner {
     display: flex;
     margin: 10px;
-    margin-bottom: 0px;
     border: solid #e3609a 2px;
     border-radius: 10px;
 }
